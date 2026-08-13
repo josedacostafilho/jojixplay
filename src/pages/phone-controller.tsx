@@ -3,6 +3,7 @@ import { SkeletonCanvas } from "../components/skeleton-canvas";
 import { StatusPill } from "../components/status-pill";
 import { roleUrl } from "../components/unsupported-panel";
 import type { PosePacket } from "../domain/pose";
+import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { CameraPoseController } from "../pose/camera-pose-controller";
 import type { SessionCredentials } from "../session/credentials";
 import { LatestOnlySender } from "../transport/latest-sender";
@@ -40,9 +41,11 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
   const peerRoom = useRef<PosePeerRoom | null>(null);
   const sender = useRef<LatestOnlySender<PosePacket> | null>(null);
   const peerStateRef = useRef<PeerConnectionState>("connecting");
+  const poseLimitRef = useRef<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [connection, setConnection] = useState<PeerConnectionState>("connecting");
   const [camera, setCamera] = useState<CameraState>("idle");
   const [packet, setPacket] = useState<PosePacket | null>(null);
+  const [poseLimit, setPoseLimit] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,11 +56,13 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
         pairingTimeoutId = null;
       }
     };
-    const stopCameraAfterPeerFailure = () => {
+    const stopCameraAfterSessionEnd = () => {
       cameraController.current?.stop();
       cameraController.current = null;
       setPacket(null);
       setCamera("idle");
+      poseLimitRef.current = DEFAULT_POSE_LIMIT;
+      setPoseLimit(DEFAULT_POSE_LIMIT);
     };
     let room: PosePeerRoom;
     try {
@@ -70,9 +75,19 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
           if (state === "connected" || state === "error") {
             clearPairingTimeout();
           }
-          if (state === "error") {
-            stopCameraAfterPeerFailure();
+          if (state === "error" || state === "disconnected") {
+            stopCameraAfterSessionEnd();
           }
+        },
+        onPoseLimitRequest: async (requestedPoseLimit) => {
+          const controller = cameraController.current;
+          if (controller === null) {
+            throw new Error("Body tracking is not active.");
+          }
+          await controller.setPoseLimit(requestedPoseLimit);
+          poseLimitRef.current = requestedPoseLimit;
+          setPoseLimit(requestedPoseLimit);
+          return requestedPoseLimit;
         },
       });
     } catch {
@@ -95,7 +110,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
       }
       peerStateRef.current = "error";
       setConnection("error");
-      stopCameraAfterPeerFailure();
+      stopCameraAfterSessionEnd();
       sender.current?.dispose();
       void room.close();
     }, PAIRING_TIMEOUT_MS);
@@ -120,6 +135,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
     setErrorMessage(null);
     const controller = new CameraPoseController({
       video,
+      initialPoseLimit: poseLimitRef.current,
       onPacket: (nextPacket) => {
         setPacket(nextPacket);
         if (peerStateRef.current === "connected") {
@@ -204,7 +220,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
             {camera === "tracking"
               ? packet === null
                 ? "Scanning…"
-                : `${packet.poses.length} visible`
+                : `${packet.poses.length} of ${poseLimit} ${poseLimit === 1 ? "player" : "players"} visible`
               : "Camera off"}
           </div>
         </div>

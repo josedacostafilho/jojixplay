@@ -26,7 +26,7 @@ export const POSE_CONTROL_TIMING = {
 
 export const POSE_CONTROL_ACTIONS = [
   { action: "background", label: "Background" },
-  { action: "skeleton", label: "Skeleton" },
+  { action: "players", label: "Players" },
   { action: "circles", label: "Circles" },
 ] as const;
 

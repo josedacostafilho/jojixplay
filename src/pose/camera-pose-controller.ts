@@ -1,8 +1,10 @@
 import type { PosePacket } from "../domain/pose";
+import type { PoseLimit } from "../domain/pose-limit";
 import { PoseEstimator } from "./pose-estimator";
 
 interface CameraPoseControllerOptions {
   video: HTMLVideoElement;
+  initialPoseLimit: PoseLimit;
   onPacket: (packet: PosePacket) => void;
   onError: (message: string) => void;
 }
@@ -37,10 +39,14 @@ export class CameraPoseController {
   private frameCallbackId: number | null = null;
   private sequence = 0;
   private lastSampleAt = Number.NEGATIVE_INFINITY;
-  private processing = false;
+  private processingPromise: Promise<void> | null = null;
+  private changingPoseLimit = false;
+  private poseLimit: PoseLimit;
   private active = false;
 
-  public constructor(private readonly options: CameraPoseControllerOptions) {}
+  public constructor(private readonly options: CameraPoseControllerOptions) {
+    this.poseLimit = options.initialPoseLimit;
+  }
 
   public async start(): Promise<void> {
     if (this.active) {
@@ -72,6 +78,7 @@ export class CameraPoseController {
         this.estimator.initialize(
           assetUrl("mediapipe/tasks-vision-1.0.1/wasm"),
           assetUrl("mediapipe/pose-landmarker-lite-float16-1/pose_landmarker_lite.task"),
+          this.poseLimit,
         ),
       ]);
 
@@ -89,6 +96,36 @@ export class CameraPoseController {
     } catch (error) {
       this.stop();
       throw new Error(cameraErrorMessage(error));
+    }
+  }
+
+  public async setPoseLimit(poseLimit: PoseLimit): Promise<void> {
+    if (!this.active) {
+      throw new Error("Body tracking is not active.");
+    }
+    if (this.changingPoseLimit) {
+      throw new Error("Player mode is already changing.");
+    }
+    if (poseLimit === this.poseLimit) {
+      return;
+    }
+
+    this.changingPoseLimit = true;
+    try {
+      await this.processingPromise;
+      if (!this.active) {
+        throw new Error("Body tracking stopped before player mode changed.");
+      }
+      await this.estimator.setPoseLimit(poseLimit);
+      this.poseLimit = poseLimit;
+    } catch {
+      if (this.active) {
+        this.options.onError("Player mode could not be changed. Restart body tracking to retry.");
+        this.stop();
+      }
+      throw new Error("Player mode could not be changed.");
+    } finally {
+      this.changingPoseLimit = false;
     }
   }
 
@@ -116,16 +153,20 @@ export class CameraPoseController {
       this.scheduleFrame();
       if (
         !this.active ||
-        this.processing ||
+        this.processingPromise !== null ||
+        this.changingPoseLimit ||
         now - this.lastSampleAt < MIN_FRAME_INTERVAL_MS ||
         this.options.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
         return;
       }
       this.lastSampleAt = now;
-      this.processing = true;
-      void this.processFrame(now).finally(() => {
-        this.processing = false;
+      const processingPromise = this.processFrame(now);
+      this.processingPromise = processingPromise;
+      void processingPromise.finally(() => {
+        if (this.processingPromise === processingPromise) {
+          this.processingPromise = null;
+        }
       });
     });
   }

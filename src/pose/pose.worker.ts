@@ -1,5 +1,6 @@
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import type { PosePacket } from "../domain/pose";
+import type { PoseLimit } from "../domain/pose-limit";
 import type { PoseWorkerRequest, PoseWorkerResponse } from "./worker-protocol";
 
 interface WorkerScope {
@@ -10,29 +11,61 @@ interface WorkerScope {
 const workerScope = self as unknown as WorkerScope;
 
 let landmarker: PoseLandmarker | null = null;
+let poseLimit: PoseLimit = 1;
+let changingPoseLimit = false;
 
 function respond(message: PoseWorkerResponse): void {
   workerScope.postMessage(message);
 }
 
-async function initialize(wasmBaseUrl: string, modelUrl: string): Promise<void> {
+async function initialize(
+  wasmBaseUrl: string,
+  modelUrl: string,
+  initialPoseLimit: PoseLimit,
+): Promise<void> {
   const fileset = await FilesetResolver.forVisionTasks(wasmBaseUrl, true);
   landmarker = await PoseLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: modelUrl },
     runningMode: "VIDEO",
-    numPoses: 2,
+    numPoses: initialPoseLimit,
     minPoseDetectionConfidence: 0.5,
     minPosePresenceConfidence: 0.5,
     minTrackingConfidence: 0.5,
     outputSegmentationMasks: false,
   });
+  poseLimit = initialPoseLimit;
   respond({ type: "ready" });
+}
+
+async function setPoseLimit(nextPoseLimit: PoseLimit): Promise<void> {
+  if (landmarker === null) {
+    throw new Error("Pose engine is not initialized.");
+  }
+  if (changingPoseLimit) {
+    throw new Error("Pose engine is already changing player mode.");
+  }
+  if (nextPoseLimit === poseLimit) {
+    respond({ type: "pose-limit-set", poseLimit });
+    return;
+  }
+
+  changingPoseLimit = true;
+  try {
+    await landmarker.setOptions({ numPoses: nextPoseLimit });
+    poseLimit = nextPoseLimit;
+    respond({ type: "pose-limit-set", poseLimit });
+  } finally {
+    changingPoseLimit = false;
+  }
 }
 
 function estimate(frame: ImageBitmap, capturedAtMs: number, sequence: number): void {
   try {
     if (landmarker === null) {
       throw new Error("Pose engine is not initialized.");
+    }
+    if (changingPoseLimit) {
+      throw new Error("Pose engine is changing player mode.");
     }
     const width = frame.width;
     const height = frame.height;
@@ -41,7 +74,7 @@ function estimate(frame: ImageBitmap, capturedAtMs: number, sequence: number): v
         sequence,
         capturedAtMs,
         frame: { width, height },
-        poses: result.landmarks.slice(0, 2).map((landmarks) => ({
+        poses: result.landmarks.slice(0, poseLimit).map((landmarks) => ({
           landmarks: landmarks.map((landmark) => ({
             x: landmark.x,
             y: landmark.y,
@@ -60,8 +93,14 @@ function estimate(frame: ImageBitmap, capturedAtMs: number, sequence: number): v
 workerScope.onmessage = (event: MessageEvent<PoseWorkerRequest>) => {
   const message = event.data;
   if (message.type === "initialize") {
-    void initialize(message.wasmBaseUrl, message.modelUrl).catch(() => {
+    void initialize(message.wasmBaseUrl, message.modelUrl, message.poseLimit).catch(() => {
       respond({ type: "error", message: "The pose engine could not start." });
+    });
+    return;
+  }
+  if (message.type === "set-pose-limit") {
+    void setPoseLimit(message.poseLimit).catch(() => {
+      respond({ type: "error", message: "Player mode could not be changed." });
     });
     return;
   }

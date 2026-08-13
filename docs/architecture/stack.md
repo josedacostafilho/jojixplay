@@ -13,10 +13,10 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | Layer or concern | Canonical choice | Supported version | Evidence / command |
 | --- | --- | --- | --- |
 | Runtime language | TypeScript | 7.0.2 | `npm run typecheck` |
-| Runtime baseline | Node.js for tooling only | 22.22.0 or compatible Node 22 | `node --version` |
+| Runtime baseline | Node.js for tooling only | 24.19.0 or compatible Node 24 | `npm run verify:toolchain` |
 | Application framework | Browser SPA | Native ES modules | `npm run build` |
 | UI framework | Preact | 10.29.8 | `npm ls preact` |
-| Package manager | npm | 11.16.0 lockfile format | `npm --version` |
+| Package manager | npm | 11.17.0 lockfile format | `npm run verify:toolchain` |
 | Build tool | Vite with Preact preset | 8.2.1 / 2.10.6 | `npm run build` |
 | Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Lite model and generated runtime assets |
 | Peer rendezvous/transport | Trystero default Nostr strategy / WebRTC | 0.25.3 | `npm ls trystero` |
@@ -48,6 +48,7 @@ These commands are executable and are the only canonical paths for their concern
 | Run end-to-end tests | `npm run test:e2e` |
 | Run the full validation suite | `npm run validate` |
 | Build a production artifact | `npm run build` |
+| Verify the Node/npm baseline | `npm run verify:toolchain` |
 | Verify vendored model integrity | `npm run verify:assets` |
 | Audit dependencies | `npm run audit` |
 | Apply database migrations | Not applicable yet |
@@ -58,7 +59,7 @@ These commands are executable and are the only canonical paths for their concern
 
 - `npm run build` writes the root-hosted artifact to `dist/`.
 - `BASE_PATH=/jojixplay/ npm run build` writes an artifact whose asset URLs target a GitHub Pages project path. Replace `jojixplay` only if the repository name changes.
-- `.github/workflows/pages.yml` validates on every push to `main`, rebuilds with `/${repository-name}/` as the base, and deploys through GitHub Pages.
+- `.github/workflows/pages.yml` validates every pull request and push to `main`. A validated `main` commit is rebuilt with `/${repository-name}/` as the base and deployed through GitHub Pages; pull requests never publish.
 - The production artifact is published at `https://josedacostafilho.github.io/jojixplay/`; GitHub Actions is the configured Pages source.
 - Rollback is a new deployment of the chosen earlier Git commit. Do not keep an alternate runtime or compatibility path in the application.
 

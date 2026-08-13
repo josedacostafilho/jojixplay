@@ -1,12 +1,9 @@
 import { type PosePacket, USABLE_LANDMARK_VISIBILITY } from "../domain/pose";
 import { createPoseProjection, projectNormalizedPoint, type Size } from "./geometry";
 
-export const SKELETON_PALETTES = [
-  ["#5eead4", "#fb7185"],
-  ["#fbbf24", "#a78bfa"],
-] as const;
+export const SKELETON_PALETTE = ["#5eead4", "#fb7185"] as const;
 
-export type SkeletonPalette = (typeof SKELETON_PALETTES)[number];
+export type SkeletonPalette = typeof SKELETON_PALETTE;
 
 export interface CircleBurst {
   createdAtMs: number;

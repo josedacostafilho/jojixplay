@@ -584,7 +584,7 @@ button {
   pointer-events: auto;
 }
 
-.pose-control-button:hover,
+.pose-control-button:hover:not(:disabled),
 .pose-control-button:focus-visible,
 .pose-control-button--hovered {
   border-color: var(--teal);
@@ -594,12 +594,40 @@ button {
     0 0 0 5px rgb(94 234 212 / 13%);
 }
 
+.pose-control-button:disabled {
+  border-color: rgb(248 250 252 / 18%);
+  color: rgb(248 250 252 / 55%);
+  background: rgb(10 15 25 / 68%);
+  cursor: wait;
+}
+
 .pose-control-button__progress {
   position: absolute;
   bottom: 0;
   left: 0;
   height: clamp(0.28rem, 0.7vh, 0.5rem);
   background: var(--teal);
+}
+
+.pose-action-status {
+  position: absolute;
+  z-index: 5;
+  bottom: clamp(1rem, 3vh, 2.25rem);
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  margin: 0;
+  transform: translateX(-50%);
+  border: 1px solid rgb(94 234 212 / 30%);
+  border-radius: 999px;
+  padding: 0.7rem 1.2rem;
+  color: #f8fafc;
+  background: rgb(7 10 18 / 88%);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 28%);
+  font-size: clamp(0.75rem, 1.2vw, 1rem);
+  font-weight: 740;
+  text-align: center;
+  pointer-events: none;
 }
 
 .pose-cursor {

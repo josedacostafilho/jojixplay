@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "packageManager": "npm@11.16.0",
+  "packageManager": "npm@11.17.0",
   "engines": {
-    "node": ">=22.22.0 <23"
+    "node": ">=24.19.0 <25"
   },
   "scripts": {
     "dev": "vite",
@@ -20,8 +20,9 @@
     "pretest:e2e": "npm run build",
     "test:e2e": "playwright test",
     "audit": "npm audit --audit-level=high",
+    "verify:toolchain": "node scripts/verify-toolchain.mjs",
     "verify:assets": "node scripts/verify-model.mjs",
-    "check": "npm run format:check && npm run lint && npm run test && npm run verify:assets && npm run build",
+    "check": "npm run verify:toolchain && npm run format:check && npm run lint && npm run test && npm run verify:assets && npm run build",
     "validate": "npm run check && npm run test:e2e && npm run audit"
   },
   "dependencies": {
@@ -37,9 +38,9 @@
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/preact": "3.2.4",
     "@types/babel__core": "7.20.5",
-    "@types/node": "26.2.0",
+    "@types/node": "24.13.3",
     "@types/qrcode": "1.5.6",
-    "jsdom": "29.1.1",
+    "jsdom": "30.0.1",
     "typescript": "7.0.2",
     "vite": "8.2.1",
     "vite-plugin-static-copy": "4.1.1",

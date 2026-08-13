@@ -10,7 +10,7 @@ scope: Current system shape, boundaries, and architectural constraints
 
 The first runtime architecture is deployed as a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, and television-local Canvas rendering. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
 
-See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), and the [prototype contract](../product/skeleton-viewer.md).
+See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), [ADR-0006](../decisions/0006-session-player-limit-control.md), and the [prototype contract](../product/skeleton-viewer.md).
 
 ## System flow
 
@@ -18,10 +18,11 @@ See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../
 GitHub Pages static assets
         │
         ├── TV shell ───── encrypted SDP ──── public Nostr relays
-        │      ▲                                  ▲
-        │      │ validated PosePacket             │ discovery only
+        │      ▲  │                               ▲
+        │      │  │ pose-limit request            │ discovery only
+        │      │  ▼ and acknowledgement           │
         │      │ direct WebRTC DataChannel        │
-        │      │                                  │
+        │      │ validated PosePacket             │
         └── Phone shell + camera + MediaPipe worker
 ```
 
@@ -49,8 +50,8 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Concern | Current state | Canonical detail |
 | --- | --- | --- |
 | System context | Implemented | One phone controller, one television display, public rendezvous relays, static host |
-| Runtime components | Implemented | Preact shell, phone camera controller, MediaPipe worker, peer room, packet validator, Canvas renderer |
-| Data flow | Implemented | Camera → worker → strict PosePacket → WebRTC → validator → Canvas |
+| Runtime components | Implemented | Preact shell, phone camera controller, MediaPipe worker, player-limit contract, peer room, packet validator, Canvas renderer |
+| Data flow | Implemented | Camera → worker → strict PosePacket → WebRTC → validator → Canvas; TV → strict player-limit request → phone reconfiguration → matching acknowledgement |
 | Persistence | None | Sessions and pose data are memory-only and ephemeral |
 | External integrations | Active | GitHub Pages workflow, Nostr relays through Trystero, browser WebRTC, MediaPipe runtime |
 | Authentication/authorization | Possession-based session | One 100-bit key delivered by QR or manual entry derives domain-separated room credentials; exactly opposite phone/TV roles handshake |
@@ -62,14 +63,15 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Component | Responsibility | Boundary |
 | --- | --- | --- |
 | Application shell | Select role and own page lifecycle | Browser location and capability checks |
-| Phone controller | Acquire camera after consent and schedule bounded inference | Browser media APIs |
-| Pose worker | Load vendored MediaPipe assets and produce landmark detections | Worker message protocol |
+| Phone controller | Acquire camera after consent, schedule bounded inference, and own the current pairing-session pose limit | Browser media APIs |
+| Pose worker | Load vendored MediaPipe assets, produce landmark detections, and reconfigure the one-/two-pose graph in place | Worker message protocol |
 | Pose contract | Validate the only network-domain representation | Reject malformed or obsolete-shaped packets |
-| Peer room | Authenticate opposite roles, discover peers, and coalesce pose sends | Trystero/Nostr and WebRTC |
+| Player-limit contract | Define and strictly parse the only reverse session command | Reject values other than exact one- or two-pose objects |
+| Peer room | Authenticate opposite roles, discover peers, coalesce pose sends, and coordinate acknowledged player-limit requests | Trystero/Nostr and WebRTC |
 | Skeleton renderer | Draw validated current detections without identity assumptions | Canvas 2D only |
 | Pose controls | Claim a temporary controller, project one mirrored wrist, freeze adaptive targets, and emit dwell actions | Validated television-local pose input only |
 | TV playfield | Align stage effects, mirrored skeleton, semantic controls, and cursor in one projection | Canvas/DOM presentation boundary |
-| TV display | Enter TV mode, create QR/manual-key session, receive packets, and present connection freshness | User-visible session lifecycle |
+| TV display | Enter TV mode, create QR/manual-key session, receive packets, own acknowledged TV mode, and present connection freshness | User-visible session lifecycle |
 
 ## Required component documentation
 

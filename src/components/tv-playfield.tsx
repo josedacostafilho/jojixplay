@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { PosePacket } from "../domain/pose";
+import { type PoseLimit, MAX_POSE_LIMIT } from "../domain/pose-limit";
 import {
   type PoseControlAction,
   PoseControlSession,
@@ -7,11 +8,14 @@ import {
   type PoseControlUpdate,
 } from "../interaction/pose-controls";
 import type { Size } from "../render/geometry";
-import { type CircleBurst, type SkeletonPalette, SKELETON_PALETTES } from "../render/skeleton";
+import { type CircleBurst, SKELETON_PALETTE } from "../render/skeleton";
 import { SkeletonCanvas } from "./skeleton-canvas";
 
 interface TvPlayfieldProps {
   packet: PosePacket | null;
+  poseLimit: PoseLimit;
+  poseLimitPending: boolean;
+  onPoseLimitRequest: (poseLimit: PoseLimit) => Promise<void>;
 }
 
 type BackgroundTheme = "navy" | "plum";
@@ -77,10 +81,16 @@ function createCircleBurst(nowMs: number, frame: Size): CircleBurst {
   };
 }
 
-export function TvPlayfield({ packet }: TvPlayfieldProps) {
+export function TvPlayfield({
+  packet,
+  poseLimit,
+  poseLimitPending,
+  onPoseLimitRequest,
+}: TvPlayfieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlSessionRef = useRef<PoseControlSession | null>(null);
   const latestFrameRef = useRef<Size | null>(null);
+  const playerModeRequestActiveRef = useRef(false);
   controlSessionRef.current ??= new PoseControlSession();
   if (packet !== null) {
     latestFrameRef.current = packet.frame;
@@ -88,40 +98,57 @@ export function TvPlayfield({ packet }: TvPlayfieldProps) {
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [snapshot, setSnapshot] = useState<PoseControlSnapshot>(EMPTY_SNAPSHOT);
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>("navy");
-  const [paletteIndex, setPaletteIndex] = useState<0 | 1>(0);
   const [circleBurst, setCircleBurst] = useState<CircleBurst | null>(null);
   const [announcement, setAnnouncement] = useState("");
-  const palette: SkeletonPalette = SKELETON_PALETTES[paletteIndex];
+  const palette = SKELETON_PALETTE;
 
-  const activateAction = useCallback((action: PoseControlAction) => {
-    switch (action) {
-      case "background":
-        setBackgroundTheme((current) => (current === "navy" ? "plum" : "navy"));
-        setAnnouncement("Background theme changed.");
-        break;
-      case "skeleton":
-        setPaletteIndex((current) => (current === 0 ? 1 : 0));
-        setAnnouncement("Skeleton colors changed.");
-        break;
-      case "circles":
-        if (latestFrameRef.current !== null) {
-          setCircleBurst(createCircleBurst(performance.now(), latestFrameRef.current));
-          setAnnouncement("Circle burst created.");
+  const activateAction = useCallback(
+    (action: PoseControlAction) => {
+      if (poseLimitPending || playerModeRequestActiveRef.current) {
+        return;
+      }
+      switch (action) {
+        case "background":
+          setBackgroundTheme((current) => (current === "navy" ? "plum" : "navy"));
+          setAnnouncement("Background theme changed.");
+          break;
+        case "players": {
+          const nextPoseLimit: PoseLimit = poseLimit === 1 ? MAX_POSE_LIMIT : 1;
+          playerModeRequestActiveRef.current = true;
+          setAnnouncement(`Switching to ${nextPoseLimit}-player mode.`);
+          void onPoseLimitRequest(nextPoseLimit)
+            .then(() => setAnnouncement(`${nextPoseLimit}-player mode is active.`))
+            .catch(() => {
+              setAnnouncement(
+                `Player mode could not be changed. ${poseLimit}-player mode remains active. Check the phone and restart body tracking if needed.`,
+              );
+            })
+            .finally(() => {
+              playerModeRequestActiveRef.current = false;
+            });
+          break;
         }
-        break;
-    }
-  }, []);
+        case "circles":
+          if (latestFrameRef.current !== null) {
+            setCircleBurst(createCircleBurst(performance.now(), latestFrameRef.current));
+            setAnnouncement("Circle burst created.");
+          }
+          break;
+      }
+    },
+    [onPoseLimitRequest, poseLimit, poseLimitPending],
+  );
 
   const applyUpdate = useCallback(
     (update: PoseControlUpdate) => {
       setSnapshot((current) =>
         sameSnapshot(current, update.snapshot) ? current : update.snapshot,
       );
-      if (update.activated !== null) {
+      if (update.activated !== null && !poseLimitPending) {
         activateAction(update.activated);
       }
     },
-    [activateAction],
+    [activateAction, poseLimitPending],
   );
 
   useEffect(() => {
@@ -162,6 +189,14 @@ export function TvPlayfield({ packet }: TvPlayfieldProps) {
     return () => window.clearInterval(intervalId);
   }, [applyUpdate]);
 
+  useEffect(() => {
+    if (announcement === "" || announcement.startsWith("Switching")) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setAnnouncement(""), 4_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [announcement]);
+
   const pointerColor = palette[snapshot.controllerPoseIndex ?? 0] ?? palette[0];
   const instruction = controlInstruction(snapshot);
 
@@ -197,15 +232,22 @@ export function TvPlayfield({ packet }: TvPlayfieldProps) {
           {snapshot.targets.map((target) => {
             const hovered = snapshot.hoveredAction === target.action;
             const dwellProgress = hovered ? snapshot.dwellProgress : 0;
+            const label = target.action === "players" ? `Players: ${poseLimit}` : target.label;
+            const accessibleLabel =
+              target.action === "players"
+                ? `Switch to ${poseLimit === 1 ? 2 : 1}-player mode`
+                : target.label;
             return (
               <button
                 key={target.action}
                 class={`pose-control-button${hovered ? " pose-control-button--hovered" : ""}`}
                 type="button"
+                aria-label={accessibleLabel}
                 onClick={() => activateAction(target.action)}
+                disabled={poseLimitPending}
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
-                <span>{target.label}</span>
+                <span>{label}</span>
                 <span
                   class="pose-control-button__progress"
                   aria-hidden="true"
@@ -225,9 +267,11 @@ export function TvPlayfield({ packet }: TvPlayfieldProps) {
         />
       ) : null}
 
-      <span class="visually-hidden" aria-live="polite">
-        {announcement}
-      </span>
+      {announcement === "" ? null : (
+        <p class="pose-action-status" role="status">
+          {announcement}
+        </p>
+      )}
     </div>
   );
 }

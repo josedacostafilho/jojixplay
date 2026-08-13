@@ -1,6 +1,16 @@
-import type { JoinRoomCallbacks, JoinRoomConfig, MessageAction, Room } from "trystero";
+import type {
+  JoinRoomCallbacks,
+  JoinRoomConfig,
+  MessageAction,
+  RequestAction,
+  Room,
+} from "trystero";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { connectPeerRoom, type PeerConnectionState } from "../../src/transport/peer-room";
+import {
+  connectPeerRoom,
+  PEER_PROTOCOL,
+  type PeerConnectionState,
+} from "../../src/transport/peer-room";
 
 const { joinRoomMock } = vi.hoisted(() => ({ joinRoomMock: vi.fn() }));
 
@@ -9,6 +19,7 @@ vi.mock("trystero", () => ({ joinRoom: joinRoomMock }));
 interface RoomHarness {
   room: Room;
   poseAction: MessageAction;
+  poseLimitAction: RequestAction;
   leave: ReturnType<typeof vi.fn>;
   callbacks: () => JoinRoomCallbacks;
 }
@@ -21,8 +32,16 @@ function createRoomHarness(): RoomHarness {
     onMessage: null,
     onReceiveProgress: null,
   };
+  const poseLimitAction: RequestAction = {
+    request: vi.fn(async () => ({ poseLimit: 1 })),
+    requestMany: vi.fn(async () => []),
+    onRequest: null,
+    onReceiveProgress: null,
+  };
   const room = {
-    makeAction: vi.fn(() => poseAction),
+    makeAction: vi.fn((namespace: string) =>
+      namespace === "pose-limit" ? poseLimitAction : poseAction,
+    ),
     leave,
     onPeerJoin: null,
     onPeerLeave: null,
@@ -38,6 +57,7 @@ function createRoomHarness(): RoomHarness {
   return {
     room,
     poseAction,
+    poseLimitAction,
     leave,
     callbacks: () => {
       if (capturedCallbacks === undefined) {
@@ -48,7 +68,11 @@ function createRoomHarness(): RoomHarness {
   };
 }
 
-async function completeHandshake(harness: RoomHarness, role: "phone" | "tv"): Promise<void> {
+async function completeHandshake(
+  harness: RoomHarness,
+  role: "phone" | "tv",
+  protocol = PEER_PROTOCOL,
+): Promise<void> {
   const handshake = harness.callbacks().onPeerHandshake;
   if (handshake === undefined) {
     throw new Error("Peer handshake callback is missing.");
@@ -57,7 +81,7 @@ async function completeHandshake(harness: RoomHarness, role: "phone" | "tv"): Pr
     "peer-one",
     vi.fn(async () => undefined),
     vi.fn(async () => ({
-      data: { protocol: "jojixplay-skeleton", role },
+      data: { protocol, role },
     })),
     true,
   );
@@ -100,6 +124,142 @@ describe("peer room", () => {
     });
 
     await expect(completeHandshake(harness, "tv")).rejects.toThrow("incompatible role or protocol");
+  });
+
+  it("rejects the superseded peer protocol", async () => {
+    const harness = createRoomHarness();
+    connectPeerRoom({
+      role: "tv",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: vi.fn(),
+    });
+
+    await expect(completeHandshake(harness, "phone", "jojixplay-skeleton")).rejects.toThrow(
+      "incompatible role or protocol",
+    );
+  });
+
+  it("requests an absolute player limit and accepts only its matching acknowledgement", async () => {
+    const harness = createRoomHarness();
+    vi.mocked(harness.poseLimitAction.request).mockResolvedValue({ poseLimit: 2 });
+    const peerRoom = connectPeerRoom({
+      role: "tv",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: vi.fn(),
+    });
+
+    await completeHandshake(harness, "phone");
+    harness.room.onPeerJoin?.("peer-one");
+
+    await expect(peerRoom.requestPoseLimit(2)).resolves.toBe(2);
+    expect(harness.poseLimitAction.request).toHaveBeenCalledWith(
+      { poseLimit: 2 },
+      { target: "peer-one", timeoutMs: 10_000 },
+    );
+  });
+
+  it("terminates when the phone acknowledges a different player limit", async () => {
+    const harness = createRoomHarness();
+    const states: PeerConnectionState[] = [];
+    vi.mocked(harness.poseLimitAction.request).mockResolvedValue({ poseLimit: 1 });
+    const peerRoom = connectPeerRoom({
+      role: "tv",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: (state) => states.push(state),
+    });
+
+    await completeHandshake(harness, "phone");
+    harness.room.onPeerJoin?.("peer-one");
+
+    await expect(peerRoom.requestPoseLimit(2)).rejects.toThrow("invalid player-mode");
+    expect(states.at(-1)).toBe("error");
+    expect(harness.leave).toHaveBeenCalledOnce();
+  });
+
+  it("applies an authorized player-limit request on the phone and returns its acknowledgement", async () => {
+    const harness = createRoomHarness();
+    const onPoseLimitRequest = vi.fn(async (poseLimit: 1 | 2) => poseLimit);
+    connectPeerRoom({
+      role: "phone",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: vi.fn(),
+      onPoseLimitRequest,
+    });
+
+    await completeHandshake(harness, "tv");
+    harness.room.onPeerJoin?.("peer-one");
+    const response = await harness.poseLimitAction.onRequest?.(
+      { poseLimit: 2 },
+      { peerId: "peer-one", signal: new AbortController().signal },
+    );
+
+    expect(onPoseLimitRequest).toHaveBeenCalledWith(2);
+    expect(response).toEqual({ poseLimit: 2 });
+  });
+
+  it("terminates when an authorized player-limit request has extra fields", async () => {
+    const harness = createRoomHarness();
+    const states: PeerConnectionState[] = [];
+    const onPoseLimitRequest = vi.fn(async (poseLimit: 1 | 2) => poseLimit);
+    connectPeerRoom({
+      role: "phone",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: (state) => states.push(state),
+      onPoseLimitRequest,
+    });
+
+    await completeHandshake(harness, "tv");
+    harness.room.onPeerJoin?.("peer-one");
+
+    await expect(
+      harness.poseLimitAction.onRequest?.(
+        { poseLimit: 2, legacy: true },
+        { peerId: "peer-one", signal: new AbortController().signal },
+      ),
+    ).rejects.toThrow("invalid");
+    expect(onPoseLimitRequest).not.toHaveBeenCalled();
+    expect(states.at(-1)).toBe("error");
+    expect(harness.leave).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an unauthorized player-limit request without invoking the phone", async () => {
+    const harness = createRoomHarness();
+    const onPoseLimitRequest = vi.fn(async (poseLimit: 1 | 2) => poseLimit);
+    connectPeerRoom({
+      role: "phone",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: vi.fn(),
+      onPoseLimitRequest,
+    });
+
+    await completeHandshake(harness, "tv");
+    harness.room.onPeerJoin?.("peer-one");
+
+    await expect(
+      harness.poseLimitAction.onRequest?.(
+        { poseLimit: 2 },
+        { peerId: "peer-two", signal: new AbortController().signal },
+      ),
+    ).rejects.toThrow("not authorized");
+    expect(onPoseLimitRequest).not.toHaveBeenCalled();
   });
 
   it("does not poison an active pair when an extra peer fails", async () => {

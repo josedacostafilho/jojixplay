@@ -4,8 +4,8 @@ import {
   CIRCLE_BURST_DURATION_MS,
   type CircleBurst,
   drawSkeleton,
+  SKELETON_PALETTE,
   type SkeletonPalette,
-  SKELETON_PALETTES,
 } from "../render/skeleton";
 
 interface SkeletonCanvasProps {
@@ -27,7 +27,7 @@ export function SkeletonCanvas({
   label,
   className,
   mirrored = false,
-  palette = SKELETON_PALETTES[0],
+  palette = SKELETON_PALETTE,
   circleBurst = null,
 }: SkeletonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

@@ -10,7 +10,7 @@ scope: Television projection, fullscreen entry, temporary controller claiming, a
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** None
+- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint
 
 ## Context
 
@@ -59,7 +59,9 @@ Browser fullscreen entry is privileged and normally requires a trusted remote-co
 
 ### Prototype actions
 
-The first control row has exactly three television-local actions:
+The former **Skeleton** palette action and the statement that every prototype action is television-local were superseded by [ADR-0006](0006-session-player-limit-control.md). The coordinate, claim, adaptive-layout, dwell, and semantic-control decisions in this record remain active.
+
+The original first control row had three television-local actions:
 
 1. **Background** toggles between the fixed dark-navy and dark-plum stage themes.
 2. **Skeleton** toggles the complete two-pose palette between teal/rose and amber/violet, preserving per-frame multiperson distinction without implying identity.

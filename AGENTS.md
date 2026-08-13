@@ -19,7 +19,7 @@ These rules are architectural constraints, not preferences. See [ADR-0001](docs/
 
 ## Repository reality
 
-As last verified on **2026-08-13**, JojixPlay is a greenfield static web application with its first vertical slice deployed to GitHub Pages. The product is a phone-to-television skeleton viewer and body-control prototype: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. The television mirrors presentation, grants a temporary gesture-claimed control lease, and exposes adaptive dwell buttons. Complete real-device acceptance remains outstanding.
+As last verified on **2026-08-13**, JojixPlay is a greenfield static web application with its first vertical slice deployed to GitHub Pages. The product is a phone-to-television skeleton viewer and body-control prototype: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. The television mirrors presentation, grants a temporary gesture-claimed control lease, and exposes adaptive dwell buttons. New sessions use one-player inference by default; an acknowledged television-to-phone command can select two-player inference without restarting the camera. Complete real-device acceptance remains outstanding.
 
 The canonical product contract is [Skeleton-viewer prototype](docs/product/skeleton-viewer.md). The live implementation state is maintained in [Project status](docs/project/status.md), and exact tools and commands live in [Stack](docs/architecture/stack.md). Never infer capabilities beyond those sources.
 
@@ -54,7 +54,7 @@ If sources disagree, stop and reconcile them in the same change. Do not choose w
 
 ## Stack policy
 
-The selected client stack is TypeScript, Vite, Preact, MediaPipe Tasks Vision, Trystero, Canvas 2D, and npm. GitHub Actions validates and deploys the static artifact to GitHub Pages. [ADR-0002](docs/decisions/0002-static-peer-to-peer-runtime.md) and [ADR-0003](docs/decisions/0003-client-stack-and-renderer-boundary.md) govern these boundaries.
+The selected client stack is TypeScript, Vite, Preact, MediaPipe Tasks Vision, Trystero, Canvas 2D, Node 24, and npm. GitHub Actions validates pull requests and deploys validated `main` artifacts to GitHub Pages. [ADR-0002](docs/decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](docs/decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0006](docs/decisions/0006-session-player-limit-control.md), and [ADR-0007](docs/decisions/0007-node-24-and-dependency-maintenance.md) govern these boundaries.
 
 - Use only the versions and canonical commands in `docs/architecture/stack.md` and the committed lockfile.
 - Prefer current, supported stable releases and one canonical tool per concern.
@@ -77,6 +77,7 @@ Every implementation must preserve these invariants:
 10. Superseded code and documentation are deleted during the cutover.
 11. `PosePacket` remains in raw phone-camera coordinates. Television mirroring, drawing, cursor projection, adaptive layout, and hit testing share one presentation transform and never mutate transport data or swap anatomical landmark indices.
 12. Pose-array position is never a player identity. Only bounded television-local nearest-torso continuity may preserve a temporary control lease; it must not become a transmitted, persisted, or stable person identifier.
+13. Every pairing session starts with a one-pose inference limit. A switch to one or two poses is an absolute, strictly validated TV-to-phone request; the TV changes its displayed mode only after the phone has reconfigured the existing landmarker and returned the matching acknowledgement.
 
 If the chosen architecture legitimately changes an invariant, update this file and create or amend an ADR before relying on the new rule.
 

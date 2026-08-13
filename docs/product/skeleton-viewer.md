@@ -19,6 +19,7 @@ Deployed to GitHub Pages. The deterministic automated suite and production-like 
 | Camera scheduling and cleanup | [`src/pose/camera-pose-controller.ts`](../../src/pose/camera-pose-controller.ts) |
 | MediaPipe isolation and worker protocol | [`src/pose/`](../../src/pose/) |
 | Pose packet validation and ordering | [`src/domain/pose.ts`](../../src/domain/pose.ts) |
+| Player-limit domain contract | [`src/domain/pose-limit.ts`](../../src/domain/pose-limit.ts) |
 | Peer authentication and WebRTC actions | [`src/transport/peer-room.ts`](../../src/transport/peer-room.ts) |
 | Backpressure policy | [`src/transport/latest-sender.ts`](../../src/transport/latest-sender.ts) |
 | Renderer geometry and drawing | [`src/render/`](../../src/render/) and [`src/components/skeleton-canvas.tsx`](../../src/components/skeleton-canvas.tsx) |
@@ -44,9 +45,10 @@ Deployed to GitHub Pages. The deterministic automated suite and production-like 
 - Manual entry is case-insensitive, groups the key for readability, and normalizes the ambiguous Crockford characters O, I, and L. Both entry methods feed the same key derivation and session path.
 - Camera capture begins only after a user action and explicit browser permission.
 - Camera capture prefers the user-facing (selfie) camera.
-- MediaPipe Pose Landmarker Lite runs in a module worker with a maximum of two poses.
+- MediaPipe Pose Landmarker Lite runs in a module worker. Every pairing session starts with a one-pose limit; the acknowledged television control can reconfigure the existing landmarker to one or two poses without restarting the camera.
 - Inference is sampled at no more than 15 frames per second.
-- The phone previews its camera and latest local skeleton, and sends pose packets only while a peer is connected.
+- The phone previews its camera and latest local skeleton, reports the active pose limit, and sends pose packets only while a peer is connected.
+- Stopping and restarting tracking within one connected pairing session retains the last acknowledged limit. Disconnecting or creating a new pairing session resets it to one.
 - Stopping or leaving closes the worker, camera tracks, room, and peer connection.
 
 ### Pairing and transport
@@ -54,6 +56,7 @@ Deployed to GitHub Pages. The deterministic automated suite and production-like 
 - Both peers derive the same room and password from the ephemeral pairing key and use them through Trystero's public Nostr rendezvous network.
 - Every new TV session creates a fresh key. The television stops displaying the key and QR after a phone connects.
 - WebRTC DataChannels carry application data directly after discovery.
+- Pose packets travel phone-to-television. The only reverse application command is a strict absolute `{ poseLimit: 1 | 2 }` request; the television changes its mode only after the phone returns the matching applied limit.
 - No owned signaling service, WebSocket pose relay, TURN server, or transport fallback is implemented.
 - If public rendezvous or a direct WebRTC connection fails, the application reports the failure and asks the user to retry the session.
 
@@ -87,7 +90,7 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Source aspect ratio is preserved with contain-style letterboxing.
 - The television applies one shared horizontal mirror projection to its skeleton, effects, cursor, adaptive button layout, and hit testing. The phone preview is not changed by this television-only rule.
 - Landmarks below the visibility threshold are not connected or drawn.
-- Per-frame colors may distinguish simultaneous detections but never imply stable identity. The complete palette toggles between teal/rose and amber/violet.
+- Per-frame colors use one fixed teal/rose palette to distinguish simultaneous detections but never imply stable identity.
 - A packet older than one second in television receive time is stale and must not remain presented as live.
 - The future game host will consume the same validated pose-domain boundary, while each game will own its selected rendering implementation.
 
@@ -100,10 +103,11 @@ The sender retains at most one pending packet while an earlier send is in progre
 - The three-button row is anchored one-quarter of the way from the shoulder midpoint to the hip midpoint, centered on the torso, clamped within the projected camera viewport, and frozen until release.
 - A button activates after a 900 ms dwell, activates only once until the pointer leaves, and shows progress while dwelling.
 - Control releases after 600 ms below the hips, one second without the controlling pose, 600 ms materially displaced from the frozen layout, 15 seconds without pointer activity, or a viewport change.
-- The prototype buttons toggle a fixed background theme, toggle the complete skeleton palette, and replace the current effect with 12 palette-colored circles that fade within three seconds.
+- The prototype buttons toggle a fixed background theme, request the opposite one-/two-player limit, and replace the current effect with 12 palette-colored circles that fade within three seconds.
+- While a player-limit request is pending, all three actions are disabled. Failure keeps the last acknowledged mode; success updates the dynamic **Players: 1** or **Players: 2** label.
 - Buttons remain semantic and remotely clickable. Body interactions are the canonical in-session path; the semantic path preserves television-remote and accessibility operation.
 
-The durable rationale and exact coordinate rule are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md).
+The durable rationale and exact coordinate rule are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md).
 
 ## Capability baseline
 
@@ -128,13 +132,13 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 2. The television produces a scannable QR pairing link, a readable 20-character pairing key, and visibly waits for a phone.
 3. The phone accepts either the QR link or manual key, derives the matching session, and requests the user-facing camera only after user activation.
 4. Pose inference occurs locally with the vendored model and runtime assets.
-5. One or two detected people render on the phone preview and television without stable identity assumptions.
+5. New sessions initialize one-person inference; the television can switch to two-person inference and back only through an exact phone acknowledgement, without restarting the camera.
 6. Only strictly validated landmark packets enter television rendering.
 7. Stale, malformed, disconnected, permission-denied, unsupported, and initialization-failure states are explicit.
 8. All camera, worker, room, and animation resources are released on stop or unmount.
 9. Canonical formatting, linting, type analysis, unit/component tests, end-to-end smoke tests, dependency audit, and production build checks pass.
 10. A real phone-and-television run confirms pairing, camera framing, multiperson behavior where detectable, and acceptable perceived latency.
-11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, and supports adaptive dwell activation of all three prototype actions.
+11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, and supports adaptive dwell activation of the background, player-limit, and circle actions.
 
 ## Implementation plan
 
@@ -145,6 +149,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement decentralized rendezvous and latest-only WebRTC pose delivery.
 - [x] Implement the accessible role selection, phone controller, QR/manual-key pairing, status surfaces, and Canvas 2D skeleton renderer.
 - [x] Implement trusted TV-mode entry, the shared mirrored projection, adaptive temporary pose controls, and the three prototype actions.
+- [x] Default to one-player inference and implement an acknowledged in-place one-/two-player switch from the television control row.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the GitHub Pages artifact from the remote repository.
