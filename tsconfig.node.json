@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": false,
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.cache/jojixplay/tsconfig.node.tsbuildinfo",
+    "types": ["node", "@playwright/test"]
+  },
+  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts", "tests/e2e"]
+}
