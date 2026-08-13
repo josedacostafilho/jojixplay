@@ -3,6 +3,7 @@ import { StatusPill } from "../components/status-pill";
 import { TvPlayfield } from "../components/tv-playfield";
 import { roleUrl, UnsupportedPanel } from "../components/unsupported-panel";
 import { acceptIncreasingSequence, type PosePacket } from "../domain/pose";
+import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { inspectTvCapabilities } from "../platform/capabilities";
 import {
   buildPhonePairingUrl,
@@ -50,7 +51,11 @@ export function TvDisplay() {
   const [connection, setConnection] = useState<PeerConnectionState>("connecting");
   const [packet, setPacket] = useState<PosePacket | null>(null);
   const [stale, setStale] = useState(true);
+  const [poseLimit, setPoseLimit] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
+  const [poseLimitPending, setPoseLimitPending] = useState(false);
   const newestSequence = useRef(-1);
+  const peerRoomRef = useRef<PosePeerRoom | null>(null);
+  const poseLimitRequestTokenRef = useRef<symbol | null>(null);
   const startRequested = useRef(false);
 
   const startTvMode = useCallback(() => {
@@ -155,9 +160,12 @@ export function TvDisplay() {
         onStateChange: (state) => {
           setConnection(state);
           if (state !== "connected") {
+            poseLimitRequestTokenRef.current = null;
             newestSequence.current = -1;
             setPacket(null);
             setStale(true);
+            setPoseLimit(DEFAULT_POSE_LIMIT);
+            setPoseLimitPending(false);
           }
         },
         onPosePacket: (nextPacket) => {
@@ -177,7 +185,9 @@ export function TvDisplay() {
       setConnection("error");
       return;
     }
+    peerRoomRef.current = peerRoom;
     return () => {
+      peerRoomRef.current = null;
       void peerRoom.close();
     };
   }, [capabilities.supported, credentials]);
@@ -189,6 +199,31 @@ export function TvDisplay() {
     const timeoutId = window.setTimeout(() => setStale(true), STALE_AFTER_MS);
     return () => window.clearTimeout(timeoutId);
   }, [packet, connection]);
+
+  const requestPoseLimit = useCallback(async (requestedPoseLimit: PoseLimit) => {
+    const room = peerRoomRef.current;
+    if (room === null) {
+      throw new Error("The phone is not connected.");
+    }
+    if (poseLimitRequestTokenRef.current !== null) {
+      throw new Error("Player mode is already changing.");
+    }
+    const requestToken = Symbol("pose-limit-request");
+    poseLimitRequestTokenRef.current = requestToken;
+    setPoseLimitPending(true);
+    try {
+      const appliedPoseLimit = await room.requestPoseLimit(requestedPoseLimit);
+      if (poseLimitRequestTokenRef.current !== requestToken || peerRoomRef.current !== room) {
+        throw new Error("The phone disconnected before player mode changed.");
+      }
+      setPoseLimit(appliedPoseLimit);
+    } finally {
+      if (poseLimitRequestTokenRef.current === requestToken) {
+        poseLimitRequestTokenRef.current = null;
+        setPoseLimitPending(false);
+      }
+    }
+  }, []);
 
   if (!capabilities.supported) {
     return <UnsupportedPanel device="television" missing={capabilities.missing} />;
@@ -224,7 +259,14 @@ export function TvDisplay() {
       </header>
 
       <section class="tv-stage" aria-labelledby="tv-title">
-        {connection === "connected" ? <TvPlayfield packet={isLive ? packet : null} /> : null}
+        {connection === "connected" ? (
+          <TvPlayfield
+            packet={isLive ? packet : null}
+            poseLimit={poseLimit}
+            poseLimitPending={poseLimitPending}
+            onPoseLimitRequest={requestPoseLimit}
+          />
+        ) : null}
 
         {tvMode !== "started" ? (
           <div class="tv-start-card">

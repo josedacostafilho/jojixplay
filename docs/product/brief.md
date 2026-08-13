@@ -16,7 +16,7 @@ The first product proof is a live skeleton viewer. It validates camera capture, 
 
 - People who want free, Kinect-like motion experiences using devices they already own.
 - A modern phone with a camera and a television browser on the same Wi-Fi network.
-- One or two simultaneously visible players for the first prototype.
+- One player by default, with an explicit two-player detection mode for the first prototype.
 
 The initial experience assumes internet access to load the static application and perform decentralized peer discovery. After WebRTC connects, pose traffic should travel directly between the devices.
 
@@ -25,8 +25,8 @@ The initial experience assumes internet access to load the static application an
 1. Open JojixPlay on the television, choose **TV display**, and use the remote once to start TV mode and request fullscreen.
 2. Scan the displayed QR code, or open JojixPlay on the phone and enter the displayed 20-character key.
 3. Connect, grant camera access, and start pose tracking.
-4. See each currently detected person rendered as an identity-independent mirrored skeleton on the television.
-5. Raise one hand to claim control when alone, or both hands when multiple people are visible, then dwell over the adaptive test buttons.
+4. See the default single detection rendered as an identity-independent mirrored skeleton on the television.
+5. Raise one hand to claim control, then dwell over **Players: 1** to enable two-person detection when wanted; multiperson control claims require both hands.
 
 ## Product invariants
 

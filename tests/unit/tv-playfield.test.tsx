@@ -58,7 +58,7 @@ afterEach(() => {
 });
 
 describe("TV playfield", () => {
-  it("exposes all claimed actions as semantic buttons and applies each effect", () => {
+  it("exposes all claimed actions and applies acknowledged player-mode changes", async () => {
     let nowMs = 0;
     vi.spyOn(performance, "now").mockImplementation(() => nowMs);
     vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
@@ -69,14 +69,23 @@ describe("TV playfield", () => {
       () => ({}) as CanvasRenderingContext2D,
     );
 
-    const view = render(<TvPlayfield packet={createRaisedHandPacket(0)} />);
+    const onPoseLimitRequest = vi.fn(async () => undefined);
+    const renderPlayfield = (packet: PosePacket, poseLimit: 1 | 2 = 1) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={poseLimit}
+        poseLimitPending={false}
+        onPoseLimitRequest={onPoseLimitRequest}
+      />
+    );
+    const view = render(renderPlayfield(createRaisedHandPacket(0)));
     for (const sequence of [1, 2, 3]) {
       nowMs = sequence * 100;
-      view.rerender(<TvPlayfield packet={createRaisedHandPacket(sequence)} />);
+      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
     }
 
     const backgroundButton = screen.getByRole("button", { name: "Background" });
-    const skeletonButton = screen.getByRole("button", { name: "Skeleton" });
+    const playersButton = screen.getByRole("button", { name: "Switch to 2-player mode" });
     const circlesButton = screen.getByRole("button", { name: "Circles" });
     const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
     const cursor = view.container.querySelector<HTMLElement>(".pose-cursor");
@@ -88,13 +97,136 @@ describe("TV playfield", () => {
     fireEvent.click(backgroundButton);
     expect(playfield).toHaveAttribute("data-background-theme", "plum");
 
-    fireEvent.click(skeletonButton);
-    expect(cursor).toHaveStyle("--pose-cursor-color: #fbbf24");
-    expect(screen.getByText("Skeleton colors changed.")).toBeInTheDocument();
+    fireEvent.click(playersButton);
+    expect(onPoseLimitRequest).toHaveBeenCalledWith(2);
+    await screen.findByText("2-player mode is active.");
+
+    view.rerender(renderPlayfield(createRaisedHandPacket(4), 2));
+    expect(screen.getByRole("button", { name: "Switch to 1-player mode" })).toHaveTextContent(
+      "Players: 2",
+    );
+    expect(cursor).toHaveStyle("--pose-cursor-color: #5eead4");
 
     requestAnimationFrame.mockClear();
     fireEvent.click(circlesButton);
     expect(screen.getByText("Circle burst created.")).toBeInTheDocument();
     expect(requestAnimationFrame).toHaveBeenCalledOnce();
+  });
+
+  it("suspends actions while a player-mode request is pending", () => {
+    let nowMs = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
+    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => ({}) as CanvasRenderingContext2D,
+    );
+
+    const view = render(
+      <TvPlayfield
+        packet={createRaisedHandPacket(0)}
+        poseLimit={1}
+        poseLimitPending
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+      />,
+    );
+    for (const sequence of [1, 2, 3]) {
+      nowMs = sequence * 100;
+      view.rerender(
+        <TvPlayfield
+          packet={createRaisedHandPacket(sequence)}
+          poseLimit={1}
+          poseLimitPending
+          onPoseLimitRequest={vi.fn(async () => undefined)}
+        />,
+      );
+    }
+
+    expect(screen.getByRole("button", { name: "Background" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Switch to 2-player mode" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Circles" })).toBeDisabled();
+  });
+
+  it("suspends repeated semantic actions immediately when a player-mode request starts", () => {
+    let nowMs = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
+    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => ({}) as CanvasRenderingContext2D,
+    );
+
+    const onPoseLimitRequest = vi.fn(() => new Promise<void>(() => undefined));
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        onPoseLimitRequest={onPoseLimitRequest}
+      />
+    );
+    const view = render(renderPlayfield(createRaisedHandPacket(0)));
+    for (const sequence of [1, 2, 3]) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Background" }));
+
+    expect(onPoseLimitRequest).toHaveBeenCalledOnce();
+    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+      "data-background-theme",
+      "navy",
+    );
+  });
+
+  it("retains the acknowledged mode and announces a failed player-mode request", async () => {
+    let nowMs = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
+    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => ({}) as CanvasRenderingContext2D,
+    );
+
+    const onPoseLimitRequest = vi.fn(async () => {
+      throw new Error("Phone rejected the request.");
+    });
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        onPoseLimitRequest={onPoseLimitRequest}
+      />
+    );
+    const view = render(renderPlayfield(createRaisedHandPacket(0)));
+    for (const sequence of [1, 2, 3]) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
+
+    await screen.findByText(
+      "Player mode could not be changed. 1-player mode remains active. Check the phone and restart body tracking if needed.",
+    );
+    expect(screen.getByRole("button", { name: "Switch to 2-player mode" })).toHaveTextContent(
+      "Players: 1",
+    );
   });
 });

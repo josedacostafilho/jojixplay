@@ -40,7 +40,9 @@ docs/
 │   ├── 0002-static-peer-to-peer-runtime.md
 │   ├── 0003-client-stack-and-renderer-boundary.md
 │   ├── 0004-human-readable-pairing-key.md
-│   └── 0005-mirrored-tv-pose-controls.md
+│   ├── 0005-mirrored-tv-pose-controls.md
+│   ├── 0006-session-player-limit-control.md
+│   └── 0007-node-24-and-dependency-maintenance.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

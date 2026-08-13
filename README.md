@@ -6,7 +6,7 @@ Start with [`AGENTS.md`](AGENTS.md) and the [`docs/`](docs/README.md) knowledge 
 
 ## Local development
 
-Requirements: Node.js 22.22.0 and npm 11.
+Requirements: Node.js 24.19.0 and npm 11.17.0.
 
 ```sh
 npm ci
@@ -22,6 +22,7 @@ Use `npm run validate` for the complete canonical quality suite. All commands an
 3. Scan the generated QR with the phone, or choose **Open on the phone** and enter the TV's 20-character pairing key.
 4. Connect, then press **Start body tracking**.
 5. Place the phone so its front (selfie) camera can see the players' full bodies.
+6. Raise a hand to claim the TV controls; use **Players: 1** to switch to two-player detection and the same button to switch back.
 
 Camera access requires HTTPS or localhost. The application requests no audio, retains no session data, and sends only validated pose landmarks over the peer connection.
 

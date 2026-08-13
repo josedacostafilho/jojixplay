@@ -1,6 +1,7 @@
 import { joinRoom, type JsonValue, type Room } from "trystero";
 import type { PosePacket } from "../domain/pose";
 import { parsePosePacket } from "../domain/pose";
+import { type PoseLimit, type PoseLimitMessage, parsePoseLimitMessage } from "../domain/pose-limit";
 import type { SessionCredentials } from "../session/credentials";
 
 export type PeerRole = "phone" | "tv";
@@ -11,15 +12,18 @@ interface PeerRoomOptions {
   credentials: SessionCredentials;
   onStateChange: (state: PeerConnectionState) => void;
   onPosePacket?: (packet: PosePacket) => void;
+  onPoseLimitRequest?: (poseLimit: PoseLimit) => Promise<PoseLimit>;
 }
 
 export interface PosePeerRoom {
   sendPose(packet: PosePacket): Promise<void>;
+  requestPoseLimit(poseLimit: PoseLimit): Promise<PoseLimit>;
   close(): Promise<void>;
 }
 
-const PROTOCOL = "jojixplay-skeleton";
+export const PEER_PROTOCOL = "jojixplay-skeleton/2";
 const APP_ID = "gg.jojixplay.skeleton";
+const POSE_LIMIT_REQUEST_TIMEOUT_MS = 10_000;
 
 function isValidHandshake(value: unknown, expectedRole: PeerRole): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -27,7 +31,9 @@ function isValidHandshake(value: unknown, expectedRole: PeerRole): boolean {
   }
   const record = value as Record<string, unknown>;
   return (
-    Object.keys(record).length === 2 && record.protocol === PROTOCOL && record.role === expectedRole
+    Object.keys(record).length === 2 &&
+    record.protocol === PEER_PROTOCOL &&
+    record.role === expectedRole
   );
 }
 
@@ -68,7 +74,7 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
         handshakingPeerId = peerId;
         try {
           const incoming = receive();
-          await send({ protocol: PROTOCOL, role: options.role });
+          await send({ protocol: PEER_PROTOCOL, role: options.role });
           const handshake = await incoming;
           if (!isValidHandshake(handshake.data, expectedRole)) {
             throw new Error("The peer uses an incompatible role or protocol.");
@@ -84,6 +90,7 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
   );
 
   const poseAction = room.makeAction("pose");
+  const poseLimitAction = room.makeAction("pose-limit", { kind: "request" });
   let closePromise: Promise<void> | null = null;
   const closeRoom = (): Promise<void> => {
     if (closePromise !== null) {
@@ -91,6 +98,7 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
     }
     closed = true;
     poseAction.onMessage = null;
+    poseLimitAction.onRequest = null;
     room.onPeerJoin = null;
     room.onPeerLeave = null;
     closePromise = room.leave().catch(() => undefined);
@@ -109,6 +117,28 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
         options.onStateChange("error");
         void closeRoom();
       }
+    };
+  }
+
+  if (options.role === "phone") {
+    poseLimitAction.onRequest = async (data, context) => {
+      if (closed || context.peerId !== approvedPeerId) {
+        throw new Error("Player-mode request is not authorized.");
+      }
+      const parsed = parsePoseLimitMessage(data);
+      if (!parsed.ok || options.onPoseLimitRequest === undefined) {
+        options.onStateChange("error");
+        void closeRoom();
+        throw new Error("Player-mode request is invalid.");
+      }
+
+      const appliedPoseLimit = await options.onPoseLimitRequest(parsed.value.poseLimit);
+      if (appliedPoseLimit !== parsed.value.poseLimit) {
+        options.onStateChange("error");
+        void closeRoom();
+        throw new Error("Player-mode acknowledgement is invalid.");
+      }
+      return { poseLimit: appliedPoseLimit } satisfies PoseLimitMessage;
     };
   }
 
@@ -134,6 +164,23 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
       await poseAction.send(packet as unknown as JsonValue, {
         target: approvedPeerId,
       });
+    },
+    async requestPoseLimit(poseLimit) {
+      if (closed || options.role !== "tv" || approvedPeerId === null) {
+        throw new Error("The phone is not connected.");
+      }
+      const requested: PoseLimitMessage = { poseLimit };
+      const response = await poseLimitAction.request(requested as unknown as JsonValue, {
+        target: approvedPeerId,
+        timeoutMs: POSE_LIMIT_REQUEST_TIMEOUT_MS,
+      });
+      const parsed = parsePoseLimitMessage(response);
+      if (!parsed.ok || parsed.value.poseLimit !== poseLimit) {
+        options.onStateChange("error");
+        void closeRoom();
+        throw new Error("The phone returned an invalid player-mode acknowledgement.");
+      }
+      return parsed.value.poseLimit;
     },
     async close() {
       await closeRoom();

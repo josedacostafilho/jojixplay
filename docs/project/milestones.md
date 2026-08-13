@@ -8,6 +8,13 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-13 — Acknowledged player modes and Node 24 cutover implemented
+
+- Made one-player MediaPipe inference the session default and added a strict television-to-phone request/acknowledgement path for switching the existing landmarker between one and two poses.
+- Replaced the placeholder skeleton-palette action with the dynamic **Players: 1**/**Players: 2** action, retained one fixed palette, and suspended all actions while reconfiguration is pending.
+- Hard-cut the development and CI baseline to Node 24.19.0/npm 11.17.0 and upgraded jsdom and first-party GitHub Actions without retaining Node 22 behavior.
+- Added pull-request validation, immutable action references, least-privilege deployment jobs, grouped Dependabot maintenance with vulnerability alerts and security updates enabled, and direct tests for the new domain, transport, worker, concurrency, and accessible UI contracts.
+
 ## 2026-08-13 — Mirrored television pose controls implemented
 
 - Added explicit trusted TV-mode entry with a best-effort fullscreen request before session creation.
