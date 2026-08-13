@@ -8,7 +8,7 @@ scope: First vertical slice contract, acceptance criteria, and implementation pl
 
 ## Implementation state
 
-Implemented locally. The deterministic automated suite and production-like fake-camera browser journey cover the software-owned acceptance surface. GitHub Pages publication and real phone/television acceptance remain outstanding and are tracked in [Project status](../project/status.md).
+Deployed to GitHub Pages. The deterministic automated suite and production-like fake-camera browser journey cover the software-owned acceptance surface. Complete real phone/television acceptance remains outstanding and is tracked in [Project status](../project/status.md).
 
 ## Implementation map
 
@@ -38,6 +38,7 @@ Implemented locally. The deterministic automated suite and production-like fake-
 
 - The phone opens the QR link in the `phone` role, reads the room and secret from the URL fragment, and immediately removes the fragment from the visible history entry. Fragments are not sent to the static host in HTTP requests.
 - Camera capture begins only after a user action and explicit browser permission.
+- Camera capture prefers the user-facing (selfie) camera.
 - MediaPipe Pose Landmarker Lite runs in a module worker with a maximum of two poses.
 - Inference is sampled at no more than 15 frames per second.
 - The phone previews its camera and latest local skeleton, and sends pose packets only while a peer is connected.
@@ -102,7 +103,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 
 1. A production build can be served as static files from a GitHub Pages project path.
 2. The television produces a scannable QR pairing link and visibly waits for a phone.
-3. The phone validates the link, joins the matching room, and requests camera access only after user activation.
+3. The phone validates the link, joins the matching room, and requests the user-facing camera only after user activation.
 4. Pose inference occurs locally with the vendored model and runtime assets.
 5. One or two detected people render on the phone preview and television without stable identity assumptions.
 6. Only strictly validated landmark packets enter television rendering.
@@ -121,5 +122,5 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement the accessible role selection, phone controller, QR pairing, status surfaces, and Canvas 2D skeleton renderer.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
-- [ ] Publish the GitHub Pages artifact from the remote repository.
+- [x] Publish the GitHub Pages artifact from the remote repository.
 - [ ] Validate on the owner's real phone and television.

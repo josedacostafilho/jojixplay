@@ -53,7 +53,7 @@ export class CameraPoseController {
         .getUserMedia({
           audio: false,
           video: {
-            facingMode: { ideal: "environment" },
+            facingMode: { ideal: "user" },
             width: { ideal: 1280 },
             height: { ideal: 720 },
             frameRate: { ideal: 30, max: 30 },

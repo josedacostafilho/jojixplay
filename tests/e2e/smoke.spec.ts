@@ -26,6 +26,13 @@ test("phone route rejects a missing session", async ({ page }) => {
 });
 
 test("phone starts the camera and local pose worker after user activation", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (constraints) => {
+      Reflect.set(window, "__jojixplayCameraConstraints", JSON.stringify(constraints));
+      return originalGetUserMedia(constraints);
+    };
+  });
   await page.goto(
     "/?role=phone#room=abcdefghijklmnopqrstuv&secret=abcdefghijklmnopqrstuvwxyzABCDEF",
   );
@@ -37,6 +44,15 @@ test("phone starts the camera and local pose worker after user activation", asyn
 
   await expect(page.getByRole("button", { name: "Stop tracking" })).toBeVisible({
     timeout: 30_000,
+  });
+  const requestedConstraints = await page.evaluate(() => {
+    const value: unknown = Reflect.get(window, "__jojixplayCameraConstraints");
+    return typeof value === "string" ? value : null;
+  });
+  expect(requestedConstraints).not.toBeNull();
+  expect(JSON.parse(requestedConstraints ?? "null")).toMatchObject({
+    audio: false,
+    video: { facingMode: { ideal: "user" } },
   });
   await expect(page.getByText(/visible$/)).toBeVisible();
 });

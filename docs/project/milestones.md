@@ -8,6 +8,12 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-13 — First public deployment completed
+
+- Connected the public GitHub repository and published the validated `main` artifact through GitHub Actions.
+- Verified the production project site at `https://josedacostafilho.github.io/jojixplay/`.
+- Began real-phone acceptance against the deployed artifact; complete phone-to-television acceptance remains outstanding.
+
 ## 2026-08-13 — Skeleton-viewer vertical slice implemented locally
 
 - Implemented the static Preact/Vite shell, QR pairing, Trystero/Nostr rendezvous, opposite-role handshake, and direct latest-only WebRTC pose delivery.

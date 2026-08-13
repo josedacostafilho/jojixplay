@@ -19,7 +19,7 @@ These rules are architectural constraints, not preferences. See [ADR-0001](docs/
 
 ## Repository reality
 
-As last verified on **2026-08-13**, JojixPlay is a greenfield static web application with its first vertical slice implemented locally. The product is a phone-to-television skeleton viewer: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. Publishing and real-device acceptance remain outstanding.
+As last verified on **2026-08-13**, JojixPlay is a greenfield static web application with its first vertical slice deployed to GitHub Pages. The product is a phone-to-television skeleton viewer: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. Complete real-device acceptance remains outstanding.
 
 The canonical product contract is [Skeleton-viewer prototype](docs/product/skeleton-viewer.md). The live implementation state is maintained in [Project status](docs/project/status.md), and exact tools and commands live in [Stack](docs/architecture/stack.md). Never infer capabilities beyond those sources.
 

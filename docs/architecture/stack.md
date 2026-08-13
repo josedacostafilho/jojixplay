@@ -59,7 +59,7 @@ These commands are executable and are the only canonical paths for their concern
 - `npm run build` writes the root-hosted artifact to `dist/`.
 - `BASE_PATH=/jojixplay/ npm run build` writes an artifact whose asset URLs target a GitHub Pages project path. Replace `jojixplay` only if the repository name changes.
 - `.github/workflows/pages.yml` validates on every push to `main`, rebuilds with `/${repository-name}/` as the base, and deploys through GitHub Pages.
-- The repository owner must select **GitHub Actions** as the Pages source once the remote repository exists. No deploy has been executed from this workspace.
+- The production artifact is published at `https://josedacostafilho.github.io/jojixplay/`; GitHub Actions is the configured Pages source.
 - Rollback is a new deployment of the chosen earlier Git commit. Do not keep an alternate runtime or compatibility path in the application.
 
 ## Selection criteria

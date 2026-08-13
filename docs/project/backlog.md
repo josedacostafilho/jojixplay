@@ -10,8 +10,7 @@ This is a compact queue, not a wish list. Keep entries actionable and ordered. O
 
 ## P0 — release the skeleton-viewer vertical slice
 
-- [ ] Connect the remote repository, select GitHub Actions as the Pages source, deploy `main`, and verify the public project-path URL.
-- [ ] Run acceptance on the owner's real phone and television: QR pairing, camera consent, one- and two-person rendering, stale/disconnect states, cleanup, and perceived latency.
+- [ ] Run acceptance on the owner's real phone and television: QR pairing, selfie-camera selection and consent, one- and two-person rendering, stale/disconnect states, cleanup, and perceived latency.
 - [ ] Inspect the real peer connection and confirm that the application sends pose packets only, never a camera media track or pixel payload.
 
 ## P1 — establish measured product budgets

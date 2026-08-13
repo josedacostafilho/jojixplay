@@ -8,7 +8,7 @@ scope: Current system shape, boundaries, and architectural constraints
 
 ## Current state
 
-The first runtime architecture is implemented as a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, and television-local Canvas rendering. No application backend or persistence exists. GitHub Pages publishing and real-device acceptance remain outstanding.
+The first runtime architecture is deployed as a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, and television-local Canvas rendering. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
 
 See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), and the [prototype contract](../product/skeleton-viewer.md).
 
@@ -52,9 +52,9 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Runtime components | Implemented | Preact shell, phone camera controller, MediaPipe worker, peer room, packet validator, Canvas renderer |
 | Data flow | Implemented | Camera → worker → strict PosePacket → WebRTC → validator → Canvas |
 | Persistence | None | Sessions and pose data are memory-only and ephemeral |
-| External integrations | Configured | GitHub Pages workflow, Nostr relays through Trystero, browser WebRTC, MediaPipe runtime |
+| External integrations | Active | GitHub Pages workflow, Nostr relays through Trystero, browser WebRTC, MediaPipe runtime |
 | Authentication/authorization | Possession-based session | High-entropy room and separate secret delivered through QR; exactly opposite phone/TV roles handshake |
-| Deployment topology | Configured, unpublished | One static production artifact under a GitHub Pages project base path |
+| Deployment topology | Published | One static production artifact at `https://josedacostafilho.github.io/jojixplay/` |
 | Observability | Local only | User-visible state and non-sensitive development diagnostics; no telemetry service |
 
 ## Component ownership

@@ -20,10 +20,10 @@ Use `npm run validate` for the complete canonical quality suite. All commands an
 1. Run `npm run dev` and open the shown URL on a supported device.
 2. Choose **Open on the TV** on the display device.
 3. Scan the generated QR with the phone, open the link, and press **Start body tracking**.
-4. Place the phone so its camera can see the players' full bodies.
+4. Place the phone so its front (selfie) camera can see the players' full bodies.
 
 Camera access requires HTTPS or localhost. The application requests no audio, retains no session data, and sends only validated pose landmarks over the peer connection.
 
 ## Deployment
 
-The committed GitHub Actions workflow validates and deploys `main` to a GitHub Pages project site. After connecting the repository remote, select **GitHub Actions** as the Pages source in repository settings. Deployment and real phone/television acceptance have not been performed from this workspace; see [`docs/project/status.md`](docs/project/status.md).
+The committed GitHub Actions workflow validates and deploys `main` to [the live GitHub Pages site](https://josedacostafilho.github.io/jojixplay/). Complete phone/television acceptance remains outstanding; see [`docs/project/status.md`](docs/project/status.md).
