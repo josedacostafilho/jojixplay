@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { PosePacket } from "../domain/pose";
-import { drawSkeleton } from "../render/skeleton";
+import {
+  CIRCLE_BURST_DURATION_MS,
+  type CircleBurst,
+  drawSkeleton,
+  type SkeletonPalette,
+  SKELETON_PALETTES,
+} from "../render/skeleton";
 
 interface SkeletonCanvasProps {
   packet: PosePacket | null;
   label: string;
   className?: string;
+  mirrored?: boolean;
+  palette?: SkeletonPalette;
+  circleBurst?: CircleBurst | null;
 }
 
 interface CanvasSize {
@@ -13,7 +22,14 @@ interface CanvasSize {
   height: number;
 }
 
-export function SkeletonCanvas({ packet, label, className }: SkeletonCanvasProps) {
+export function SkeletonCanvas({
+  packet,
+  label,
+  className,
+  mirrored = false,
+  palette = SKELETON_PALETTES[0],
+  circleBurst = null,
+}: SkeletonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
 
@@ -46,10 +62,29 @@ export function SkeletonCanvas({ packet, label, className }: SkeletonCanvasProps
       canvas.height = size.height;
     }
     const context = canvas.getContext("2d");
-    if (context !== null) {
-      drawSkeleton(context, packet, size.width, size.height);
+    if (context === null) {
+      return;
     }
-  }, [packet, size]);
+
+    let animationFrameId: number | null = null;
+    const render = (nowMs: number) => {
+      drawSkeleton(context, packet, size.width, size.height, {
+        mirrored,
+        palette,
+        circleBurst,
+        nowMs,
+      });
+      if (circleBurst !== null && nowMs - circleBurst.createdAtMs < CIRCLE_BURST_DURATION_MS) {
+        animationFrameId = window.requestAnimationFrame(render);
+      }
+    };
+    animationFrameId = window.requestAnimationFrame(render);
+    return () => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [packet, size, mirrored, palette, circleBurst]);
 
   return (
     <canvas ref={canvasRef} class={className} role="img" aria-label={label}>

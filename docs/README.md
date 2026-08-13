@@ -38,7 +38,9 @@ docs/
 │   ├── 0000-template.md             # Copyable ADR template
 │   ├── 0001-greenfield-hard-cutover.md
 │   ├── 0002-static-peer-to-peer-runtime.md
-│   └── 0003-client-stack-and-renderer-boundary.md
+│   ├── 0003-client-stack-and-renderer-boundary.md
+│   ├── 0004-human-readable-pairing-key.md
+│   └── 0005-mirrored-tv-pose-controls.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

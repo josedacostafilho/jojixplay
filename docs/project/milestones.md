@@ -8,6 +8,13 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-13 — Mirrored television pose controls implemented
+
+- Added explicit trusted TV-mode entry with a best-effort fullscreen request before session creation.
+- Unified skeletons, effects, adaptive controls, cursor, and hit testing under one contained horizontal-mirror projection while preserving raw transport coordinates.
+- Added temporary one-hand or multiperson two-hand controller claiming, torso-relative frozen targets, 900 ms dwell activation, deterministic release rules, and semantic remote-operable controls.
+- Added the background, complete skeleton-palette, and bounded three-second circle-burst prototype actions without changing the pose packet or transport contract.
+
 ## 2026-08-13 — Manual TV pairing implemented
 
 - Replaced QR-only room/secret delivery with one canonical 100-bit pairing-key contract.

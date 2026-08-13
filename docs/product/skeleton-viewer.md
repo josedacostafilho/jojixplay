@@ -22,6 +22,7 @@ Deployed to GitHub Pages. The deterministic automated suite and production-like 
 | Peer authentication and WebRTC actions | [`src/transport/peer-room.ts`](../../src/transport/peer-room.ts) |
 | Backpressure policy | [`src/transport/latest-sender.ts`](../../src/transport/latest-sender.ts) |
 | Renderer geometry and drawing | [`src/render/`](../../src/render/) and [`src/components/skeleton-canvas.tsx`](../../src/components/skeleton-canvas.tsx) |
+| Television pose controls | [`src/interaction/pose-controls.ts`](../../src/interaction/pose-controls.ts) and [`src/components/tv-playfield.tsx`](../../src/components/tv-playfield.tsx) |
 | Production deployment | [`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) |
 
 ## Selected behavior
@@ -29,10 +30,12 @@ Deployed to GitHub Pages. The deterministic automated suite and production-like 
 ### Television
 
 - The television selects the `tv` role from the static application.
+- It waits for one trusted television-side **Start TV mode** activation, requests fullscreen on a best-effort basis, and only then creates and joins a pairing session.
 - It creates a cryptographically random 20-character Crockford base32 pairing key with 100 bits of entropy and displays it in five readable groups.
 - It derives a 128-bit room value and 192-bit password representation from that key with purpose-separated SHA-256 inputs, then joins through Trystero's Nostr strategy.
 - It displays both a QR link carrying the key in its URL fragment and the same key for manual phone entry.
 - It accepts one phone peer, validates every received packet, and renders the newest valid packet on a Canvas 2D surface.
+- It mirrors the contained pose presentation horizontally without changing anatomical landmark indices or network data.
 - It shows explicit waiting, connected, stale-signal, disconnected, unsupported, and fatal-error states.
 
 ### Phone
@@ -82,10 +85,25 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Canvas 2D is the intentional renderer for this prototype.
 - The renderer consumes only validated `PosePacket` values and has no dependency on MediaPipe or Trystero.
 - Source aspect ratio is preserved with contain-style letterboxing.
+- The television applies one shared horizontal mirror projection to its skeleton, effects, cursor, adaptive button layout, and hit testing. The phone preview is not changed by this television-only rule.
 - Landmarks below the visibility threshold are not connected or drawn.
-- Per-frame colors may distinguish simultaneous detections but never imply stable identity.
+- Per-frame colors may distinguish simultaneous detections but never imply stable identity. The complete palette toggles between teal/rose and amber/violet.
 - A packet older than one second in television receive time is stale and must not remain presented as live.
 - The future game host will consume the same validated pose-domain boundary, while each game will own its selected rendering implementation.
+
+## Body-control contract
+
+- Buttons appear only after a temporary controller claim. Before that, a visible single person is prompted to raise either hand; with multiple visible people, one person is prompted to raise both hands.
+- A single-person claim requires one wrist above its elbow for 300 ms. A multiperson claim requires both wrists above the shoulders for 500 ms.
+- The claim selects one wrist as a direct mirrored pointer. Raising is an engagement gesture only; the active pointer may move below its elbow.
+- The television uses short-lived nearest-torso continuity only to survive pose-array reordering. It creates no stable skeleton or player identifier.
+- The three-button row is anchored one-quarter of the way from the shoulder midpoint to the hip midpoint, centered on the torso, clamped within the projected camera viewport, and frozen until release.
+- A button activates after a 900 ms dwell, activates only once until the pointer leaves, and shows progress while dwelling.
+- Control releases after 600 ms below the hips, one second without the controlling pose, 600 ms materially displaced from the frozen layout, 15 seconds without pointer activity, or a viewport change.
+- The prototype buttons toggle a fixed background theme, toggle the complete skeleton palette, and replace the current effect with 12 palette-colored circles that fade within three seconds.
+- Buttons remain semantic and remotely clickable. Body interactions are the canonical in-session path; the semantic path preserves television-remote and accessibility operation.
+
+The durable rationale and exact coordinate rule are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md).
 
 ## Capability baseline
 
@@ -116,6 +134,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 8. All camera, worker, room, and animation resources are released on stop or unmount.
 9. Canonical formatting, linting, type analysis, unit/component tests, end-to-end smoke tests, dependency audit, and production build checks pass.
 10. A real phone-and-television run confirms pairing, camera framing, multiperson behavior where detectable, and acceptable perceived latency.
+11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, and supports adaptive dwell activation of all three prototype actions.
 
 ## Implementation plan
 
@@ -125,6 +144,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement the MediaPipe worker and bounded phone inference loop.
 - [x] Implement decentralized rendezvous and latest-only WebRTC pose delivery.
 - [x] Implement the accessible role selection, phone controller, QR/manual-key pairing, status surfaces, and Canvas 2D skeleton renderer.
+- [x] Implement trusted TV-mode entry, the shared mirrored projection, adaptive temporary pose controls, and the three prototype actions.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the GitHub Pages artifact from the remote repository.

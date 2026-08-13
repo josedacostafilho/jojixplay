@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { SkeletonCanvas } from "../components/skeleton-canvas";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { StatusPill } from "../components/status-pill";
+import { TvPlayfield } from "../components/tv-playfield";
 import { roleUrl, UnsupportedPanel } from "../components/unsupported-panel";
 import { acceptIncreasingSequence, type PosePacket } from "../domain/pose";
 import { inspectTvCapabilities } from "../platform/capabilities";
@@ -9,6 +9,7 @@ import {
   createPairingKey,
   deriveSessionCredentials,
   formatPairingKey,
+  type PairingKey,
   type SessionCredentials,
 } from "../session/credentials";
 import {
@@ -18,6 +19,7 @@ import {
 } from "../transport/peer-room";
 
 const STALE_AFTER_MS = 1_000;
+type TvModeState = "ready" | "starting" | "started";
 
 function connectionLabel(state: PeerConnectionState): string {
   switch (state) {
@@ -36,10 +38,8 @@ function connectionLabel(state: PeerConnectionState): string {
 
 export function TvDisplay() {
   const capabilities = useMemo(inspectTvCapabilities, []);
-  const pairingKey = useMemo(
-    () => (capabilities.supported ? createPairingKey() : null),
-    [capabilities.supported],
-  );
+  const [tvMode, setTvMode] = useState<TvModeState>("ready");
+  const [pairingKey, setPairingKey] = useState<PairingKey | null>(null);
   const pairingUrl = useMemo(
     () => (pairingKey === null ? null : buildPhonePairingUrl(window.location.href, pairingKey)),
     [pairingKey],
@@ -51,6 +51,47 @@ export function TvDisplay() {
   const [packet, setPacket] = useState<PosePacket | null>(null);
   const [stale, setStale] = useState(true);
   const newestSequence = useRef(-1);
+  const startRequested = useRef(false);
+
+  const startTvMode = useCallback(() => {
+    if (startRequested.current || !capabilities.supported) {
+      return;
+    }
+    startRequested.current = true;
+    setTvMode("starting");
+
+    const beginPairing = () => {
+      setPairingKey(createPairingKey());
+      setTvMode("started");
+    };
+    const requestFullscreen = document.documentElement.requestFullscreen;
+    if (document.fullscreenElement || typeof requestFullscreen !== "function") {
+      beginPairing();
+      return;
+    }
+    try {
+      void Promise.resolve(
+        requestFullscreen.call(document.documentElement, { navigationUI: "hide" }),
+      ).then(beginPairing, beginPairing);
+    } catch {
+      beginPairing();
+    }
+  }, [capabilities.supported]);
+
+  useEffect(() => {
+    if (tvMode !== "ready") {
+      return;
+    }
+    const handleRemoteActivation = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      startTvMode();
+    };
+    window.addEventListener("keydown", handleRemoteActivation);
+    return () => window.removeEventListener("keydown", handleRemoteActivation);
+  }, [tvMode, startTvMode]);
 
   useEffect(() => {
     if (!capabilities.supported || pairingKey === null) {
@@ -154,9 +195,21 @@ export function TvDisplay() {
   }
 
   const isLive = connection === "connected" && packet !== null && !stale;
-  const showPairing = connection !== "connected";
+  const showPairing = tvMode === "started" && connection !== "connected";
   const tone =
-    connection === "connected" ? "active" : connection === "error" ? "danger" : "neutral";
+    tvMode !== "started"
+      ? "neutral"
+      : connection === "connected"
+        ? "active"
+        : connection === "error"
+          ? "danger"
+          : "neutral";
+  const statusLabel =
+    tvMode === "ready"
+      ? "Ready for TV mode"
+      : tvMode === "starting"
+        ? "Entering TV mode"
+        : connectionLabel(connection);
 
   return (
     <main class="tv-page">
@@ -167,17 +220,31 @@ export function TvDisplay() {
           </span>
           <span>jojixplay</span>
         </a>
-        <StatusPill tone={tone}>{connectionLabel(connection)}</StatusPill>
+        <StatusPill tone={tone}>{statusLabel}</StatusPill>
       </header>
 
       <section class="tv-stage" aria-labelledby="tv-title">
-        <SkeletonCanvas
-          packet={isLive ? packet : null}
-          label="Live body skeleton from the paired phone"
-          className="skeleton-canvas skeleton-canvas--tv"
-        />
+        {connection === "connected" ? <TvPlayfield packet={isLive ? packet : null} /> : null}
 
-        {showPairing ? (
+        {tvMode !== "started" ? (
+          <div class="tv-start-card">
+            <p class="eyebrow">Television display</p>
+            <h1 id="tv-title">Make this screen the playground.</h1>
+            <p>
+              Use the TV remote once to enter fullscreen and begin pairing. After your phone
+              connects, your body controls the on-screen actions.
+            </p>
+            <button
+              class="button button--primary tv-start-card__button"
+              type="button"
+              onClick={startTvMode}
+              disabled={tvMode === "starting"}
+            >
+              {tvMode === "starting" ? "Starting TV mode…" : "Start TV mode"}
+            </button>
+            <span>Fullscreen is used when this television browser permits it.</span>
+          </div>
+        ) : showPairing ? (
           <div class="pairing-card">
             <div class="pairing-card__copy">
               <p class="eyebrow">Pair your controller</p>
@@ -215,7 +282,7 @@ export function TvDisplay() {
               )}
             </div>
           </div>
-        ) : (
+        ) : connection === "connected" ? (
           <div class="live-hud">
             <div>
               <p class="eyebrow">Live pose</p>
@@ -236,13 +303,15 @@ export function TvDisplay() {
                   ? "waiting for pose"
                   : stale
                     ? "signal is stale"
-                    : packet.poses.length === 1
-                      ? "person visible"
-                      : "people visible"}
+                    : packet.poses.length === 0
+                      ? "no people visible"
+                      : packet.poses.length === 1
+                        ? "person visible"
+                        : "people visible"}
               </span>
             </div>
           </div>
-        )}
+        ) : null}
       </section>
 
       <footer class="tv-footer">

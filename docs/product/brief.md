@@ -22,17 +22,18 @@ The initial experience assumes internet access to load the static application an
 
 ## Core experience
 
-1. Open JojixPlay on the television and choose **TV display**.
+1. Open JojixPlay on the television, choose **TV display**, and use the remote once to start TV mode and request fullscreen.
 2. Scan the displayed QR code, or open JojixPlay on the phone and enter the displayed 20-character key.
 3. Connect, grant camera access, and start pose tracking.
-4. See each currently detected person rendered as an identity-independent skeleton on the television.
+4. See each currently detected person rendered as an identity-independent mirrored skeleton on the television.
+5. Raise one hand to claim control when alone, or both hands when multiple people are visible, then dwell over the adaptive test buttons.
 
 ## Product invariants
 
 - Camera frames and video streams remain on the phone.
 - The network contract contains pose landmarks and minimal session metadata only.
 - No account, database, owned backend, analytics, or retained session data exists in the prototype.
-- People are independent detections. Array position is not an identity and must not be tracked across frames.
+- People are identity-independent detections. Array position is never an identity; only the bounded television-local torso continuity defined by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md) may preserve a temporary control lease.
 - The application shell does not depend on a particular game renderer.
 - Each future game selects exactly one renderer and loads it only when needed.
 - The repository remains greenfield and follows mandatory hard cutovers under [ADR-0001](../decisions/0001-greenfield-hard-cutover.md).
@@ -40,11 +41,11 @@ The initial experience assumes internet access to load the static application an
 ## Prototype non-goals
 
 - A playable game, scoring, menus for a game catalogue, or a game-engine integration.
-- Stable player identity, cross-frame skeleton matching, profiles, or accounts.
+- Stable player identity, persistent/general-purpose cross-frame skeleton tracking, profiles, or accounts; the temporary local control lease is the only bounded continuity exception.
 - Camera-pixel streaming, recording, upload, or persistence.
 - TURN service, relay transport, transport fallbacks, or offline peer discovery.
 - Supporting obsolete browsers through polyfills or alternate implementations.
 
 ## First-outcome success criteria
 
-The prototype succeeds when the journey in [Skeleton-viewer specification](skeleton-viewer.md) works on a real phone and television, one or two detected bodies render continuously, failures are actionable, and inspection confirms that no camera pixels cross the peer connection.
+The prototype succeeds when the journey in [Skeleton-viewer specification](skeleton-viewer.md) works on a real phone and television, one or two detected bodies render continuously, mirrored adaptive dwell controls operate without unacceptable false activations, failures are actionable, and inspection confirms that no camera pixels cross the peer connection.

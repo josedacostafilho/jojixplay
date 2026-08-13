@@ -10,7 +10,7 @@ scope: Current system shape, boundaries, and architectural constraints
 
 The first runtime architecture is deployed as a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, and television-local Canvas rendering. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
 
-See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), and the [prototype contract](../product/skeleton-viewer.md).
+See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), and the [prototype contract](../product/skeleton-viewer.md).
 
 ## System flow
 
@@ -67,7 +67,9 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Pose contract | Validate the only network-domain representation | Reject malformed or obsolete-shaped packets |
 | Peer room | Authenticate opposite roles, discover peers, and coalesce pose sends | Trystero/Nostr and WebRTC |
 | Skeleton renderer | Draw validated current detections without identity assumptions | Canvas 2D only |
-| TV display | Create QR/manual-key session, receive packets, and present connection freshness | User-visible session lifecycle |
+| Pose controls | Claim a temporary controller, project one mirrored wrist, freeze adaptive targets, and emit dwell actions | Validated television-local pose input only |
+| TV playfield | Align stage effects, mirrored skeleton, semantic controls, and cursor in one projection | Canvas/DOM presentation boundary |
+| TV display | Enter TV mode, create QR/manual-key session, receive packets, and present connection freshness | User-visible session lifecycle |
 
 ## Required component documentation
 

@@ -19,7 +19,7 @@ These rules are architectural constraints, not preferences. See [ADR-0001](docs/
 
 ## Repository reality
 
-As last verified on **2026-08-13**, JojixPlay is a greenfield static web application with its first vertical slice deployed to GitHub Pages. The product is a phone-to-television skeleton viewer: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. Complete real-device acceptance remains outstanding.
+As last verified on **2026-08-13**, JojixPlay is a greenfield static web application with its first vertical slice deployed to GitHub Pages. The product is a phone-to-television skeleton viewer and body-control prototype: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. The television mirrors presentation, grants a temporary gesture-claimed control lease, and exposes adaptive dwell buttons. Complete real-device acceptance remains outstanding.
 
 The canonical product contract is [Skeleton-viewer prototype](docs/product/skeleton-viewer.md). The live implementation state is maintained in [Project status](docs/project/status.md), and exact tools and commands live in [Stack](docs/architecture/stack.md). Never infer capabilities beyond those sources.
 
@@ -75,6 +75,8 @@ Every implementation must preserve these invariants:
 8. Builds and tests are deterministic, isolated from ambient machine state, and suitable for CI.
 9. Operational failures are observable without leaking sensitive data.
 10. Superseded code and documentation are deleted during the cutover.
+11. `PosePacket` remains in raw phone-camera coordinates. Television mirroring, drawing, cursor projection, adaptive layout, and hit testing share one presentation transform and never mutate transport data or swap anatomical landmark indices.
+12. Pose-array position is never a player identity. Only bounded television-local nearest-torso continuity may preserve a temporary control lease; it must not become a transmitted, persisted, or stable person identifier.
 
 If the chosen architecture legitimately changes an invariant, update this file and create or amend an ADR before relying on the new rule.
 

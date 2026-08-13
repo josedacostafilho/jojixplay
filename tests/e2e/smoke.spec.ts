@@ -10,9 +10,26 @@ test("landing page exposes both device roles", async ({ page }) => {
   await expect(page.getByRole("link", { name: /Open on the phone/ })).toBeVisible();
 });
 
-test("television creates QR and manual pairing surfaces", async ({ page }) => {
+test("television enters TV mode and creates QR and manual pairing surfaces", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      configurable: true,
+      value: () => {
+        Reflect.set(window, "__jojixplayFullscreenRequested", true);
+        return Promise.reject(new DOMException("Fullscreen unavailable in the test browser."));
+      },
+    });
+  });
   await page.goto("/?role=tv");
 
+  await expect(
+    page.getByRole("heading", { name: "Make this screen the playground." }),
+  ).toBeVisible();
+  await expect(page.getByLabel("TV pairing key")).toHaveCount(0);
+  await page.getByRole("button", { name: "Start TV mode" }).click();
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, "__jojixplayFullscreenRequested")))
+    .toBe(true);
   await expect(page.getByRole("heading", { name: "Connect your phone" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Phone pairing QR code" })).toBeVisible();
   await expect(page.getByLabel("TV pairing key")).toHaveText(

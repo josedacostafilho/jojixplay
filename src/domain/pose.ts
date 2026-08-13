@@ -1,5 +1,6 @@
 export const MAX_POSES = 2;
 export const LANDMARKS_PER_POSE = 33;
+export const USABLE_LANDMARK_VISIBILITY = 0.35;
 
 export interface PoseLandmark {
   x: number;

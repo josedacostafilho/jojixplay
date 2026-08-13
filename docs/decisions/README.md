@@ -16,6 +16,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0002](0002-static-peer-to-peer-runtime.md) | Accepted | Deploy static assets and use decentralized rendezvous for direct WebRTC sessions |
 | [0003](0003-client-stack-and-renderer-boundary.md) | Accepted | Use a typed static client with worker inference and a renderer-independent pose boundary |
 | [0004](0004-human-readable-pairing-key.md) | Accepted | Use one 100-bit human-readable key for QR and manual session pairing |
+| [0005](0005-mirrored-tv-pose-controls.md) | Accepted | Mirror television presentation and use adaptive dwell-based temporary pose controls |
 
 Use [0000-template.md](0000-template.md) for the next record.
 
