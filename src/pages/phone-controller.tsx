@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { SkeletonCanvas } from "../components/skeleton-canvas";
 import { StatusPill } from "../components/status-pill";
-import { roleUrl, UnsupportedPanel } from "../components/unsupported-panel";
+import { roleUrl } from "../components/unsupported-panel";
 import type { PosePacket } from "../domain/pose";
-import { inspectPhoneCapabilities } from "../platform/capabilities";
 import { CameraPoseController } from "../pose/camera-pose-controller";
 import type { SessionCredentials } from "../session/credentials";
 import { LatestOnlySender } from "../transport/latest-sender";
@@ -36,7 +35,6 @@ function peerLabel(state: PeerConnectionState): string {
 }
 
 export function PhoneController({ credentials }: PhoneControllerProps) {
-  const capabilities = useMemo(inspectPhoneCapabilities, []);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraController = useRef<CameraPoseController | null>(null);
   const peerRoom = useRef<PosePeerRoom | null>(null);
@@ -48,18 +46,6 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (window.location.hash === "") {
-      return;
-    }
-    const scrubbedUrl = new URL(window.location.href);
-    scrubbedUrl.hash = "";
-    window.history.replaceState(null, "", scrubbedUrl);
-  }, []);
-
-  useEffect(() => {
-    if (!capabilities.supported) {
-      return;
-    }
     let pairingTimeoutId: number | null = null;
     const clearPairingTimeout = () => {
       if (pairingTimeoutId !== null) {
@@ -123,11 +109,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
       peerRoom.current = null;
       void room.close();
     };
-  }, [capabilities.supported, credentials]);
-
-  if (!capabilities.supported) {
-    return <UnsupportedPanel device="phone" missing={capabilities.missing} />;
-  }
+  }, [credentials]);
 
   const startTracking = async () => {
     const video = videoRef.current;
@@ -234,8 +216,8 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
         ) : null}
         {connection === "error" ? (
           <p class="inline-error" role="alert">
-            The TV could not be reached. Return to the TV, create a new session, and scan its new QR
-            code.
+            The TV could not be reached. Return to the TV, create a new session, and use its new
+            pairing key or QR code.
           </p>
         ) : null}
 

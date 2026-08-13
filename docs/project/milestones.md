@@ -8,6 +8,12 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-13 — Manual TV pairing implemented
+
+- Replaced QR-only room/secret delivery with one canonical 100-bit pairing-key contract.
+- Added a large television key and validated phone entry while retaining the shorter QR path for the same key.
+- Added deterministic, domain-separated room/password derivation and removed the superseded fragment shape in a hard cutover.
+
 ## 2026-08-13 — First public deployment completed
 
 - Connected the public GitHub repository and published the validated `main` artifact through GitHub Actions.

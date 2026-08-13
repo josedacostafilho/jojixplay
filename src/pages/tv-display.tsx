@@ -4,7 +4,13 @@ import { StatusPill } from "../components/status-pill";
 import { roleUrl, UnsupportedPanel } from "../components/unsupported-panel";
 import { acceptIncreasingSequence, type PosePacket } from "../domain/pose";
 import { inspectTvCapabilities } from "../platform/capabilities";
-import { buildPhonePairingUrl, createSessionCredentials } from "../session/credentials";
+import {
+  buildPhonePairingUrl,
+  createPairingKey,
+  deriveSessionCredentials,
+  formatPairingKey,
+  type SessionCredentials,
+} from "../session/credentials";
 import {
   connectPeerRoom,
   type PeerConnectionState,
@@ -30,20 +36,42 @@ function connectionLabel(state: PeerConnectionState): string {
 
 export function TvDisplay() {
   const capabilities = useMemo(inspectTvCapabilities, []);
-  const credentials = useMemo(
-    () => (capabilities.supported ? createSessionCredentials() : null),
+  const pairingKey = useMemo(
+    () => (capabilities.supported ? createPairingKey() : null),
     [capabilities.supported],
   );
   const pairingUrl = useMemo(
-    () => (credentials === null ? null : buildPhonePairingUrl(window.location.href, credentials)),
-    [credentials],
+    () => (pairingKey === null ? null : buildPhonePairingUrl(window.location.href, pairingKey)),
+    [pairingKey],
   );
+  const [credentials, setCredentials] = useState<SessionCredentials | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrError, setQrError] = useState(false);
   const [connection, setConnection] = useState<PeerConnectionState>("connecting");
   const [packet, setPacket] = useState<PosePacket | null>(null);
   const [stale, setStale] = useState(true);
   const newestSequence = useRef(-1);
+
+  useEffect(() => {
+    if (!capabilities.supported || pairingKey === null) {
+      return;
+    }
+    let active = true;
+    void deriveSessionCredentials(pairingKey)
+      .then((nextCredentials) => {
+        if (active) {
+          setCredentials(nextCredentials);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setConnection("error");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [capabilities.supported, pairingKey]);
 
   useEffect(() => {
     if (!capabilities.supported || pairingUrl === null) {
@@ -153,12 +181,19 @@ export function TvDisplay() {
           <div class="pairing-card">
             <div class="pairing-card__copy">
               <p class="eyebrow">Pair your controller</p>
-              <h1 id="tv-title">Scan with your phone</h1>
+              <h1 id="tv-title">Connect your phone</h1>
               <ol class="pairing-steps">
-                <li>Open your camera and scan the code.</li>
-                <li>Open the link, then start body tracking.</li>
+                <li>Scan the QR code, or open Jojixplay on your phone.</li>
+                <li>If scanning fails, choose Open on the phone and enter the key below.</li>
+                <li>Connect, then start body tracking.</li>
                 <li>Step back until your full body is visible.</li>
               </ol>
+              {pairingKey !== null ? (
+                <div class="pairing-key">
+                  <span>TV pairing key</span>
+                  <output aria-label="TV pairing key">{formatPairingKey(pairingKey)}</output>
+                </div>
+              ) : null}
               {connection === "error" ? (
                 <p class="inline-error" role="alert">
                   The session could not continue. Check the network and create a new session.
@@ -171,7 +206,7 @@ export function TvDisplay() {
             <div class="qr-frame" aria-busy={qrCode === null && !qrError}>
               {qrError ? (
                 <span class="qr-loading" role="alert">
-                  QR creation failed. Create a new session.
+                  QR creation failed. Enter the TV pairing key instead.
                 </span>
               ) : qrCode === null ? (
                 <span class="qr-loading">Preparing secure QR…</span>

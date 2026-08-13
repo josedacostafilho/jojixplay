@@ -70,7 +70,7 @@ Every implementation must preserve these invariants:
 3. Domain behavior is separated from transport, persistence, UI, and vendor details once those layers exist.
 4. Dependencies point toward stable domain concepts; external systems are accessed through explicit boundaries.
 5. Configuration is explicit, validated at startup, and free of hidden environment-dependent defaults.
-6. Long-lived secrets and personal data are never committed, logged, embedded in fixtures, or exposed in build artifacts. Ephemeral pairing credentials travel only through the intended QR fragment, are scrubbed after parsing, and otherwise remain in runtime memory.
+6. Long-lived secrets and personal data are never committed, logged, embedded in fixtures, or exposed in build artifacts. Each ephemeral 100-bit pairing key is shown only on its television session, travels through the QR fragment or direct user entry, is scrubbed from the URL after parsing, and otherwise remains in runtime memory.
 7. Behavior changes include proportional automated tests; defect fixes include regression tests.
 8. Builds and tests are deterministic, isolated from ambient machine state, and suitable for CI.
 9. Operational failures are observable without leaking sensitive data.

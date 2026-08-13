@@ -23,8 +23,8 @@ The initial experience assumes internet access to load the static application an
 ## Core experience
 
 1. Open JojixPlay on the television and choose **TV display**.
-2. Scan the displayed QR code with the phone's normal camera application.
-3. Open the link, grant camera access, and start pose tracking.
+2. Scan the displayed QR code, or open JojixPlay on the phone and enter the displayed 20-character key.
+3. Connect, grant camera access, and start pose tracking.
 4. See each currently detected person rendered as an identity-independent skeleton on the television.
 
 ## Product invariants
@@ -44,9 +44,7 @@ The initial experience assumes internet access to load the static application an
 - Camera-pixel streaming, recording, upload, or persistence.
 - TURN service, relay transport, transport fallbacks, or offline peer discovery.
 - Supporting obsolete browsers through polyfills or alternate implementations.
-- A manually typed pairing code; the initial pairing secret is delivered by QR.
 
 ## First-outcome success criteria
 
 The prototype succeeds when the journey in [Skeleton-viewer specification](skeleton-viewer.md) works on a real phone and television, one or two detected bodies render continuously, failures are actionable, and inspection confirms that no camera pixels cross the peer connection.
-

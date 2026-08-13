@@ -12,9 +12,9 @@ Vitest, Testing Library, Playwright, Biome, TypeScript, production building, and
 
 ## Prototype-specific coverage
 
-- Unit tests prove strict session-fragment parsing, cryptographic credential shape, pose-packet validation, sequence rejection, opposite-role peer authentication, malformed-packet termination, extra-peer isolation, aspect-ratio mapping, and latest-only send coalescing.
+- Unit tests prove pairing-key entropy and normalization, strict fragment parsing, stable domain-separated credential derivation, pose-packet validation, sequence rejection, opposite-role peer authentication, malformed-packet termination, extra-peer isolation, aspect-ratio mapping, and latest-only send coalescing.
 - Component tests prove role selection, blocking phone-link errors, and unsupported-device behavior through accessible queries.
-- End-to-end smoke tests prove the static role-selection journey, television pairing surface, invalid phone session, production asset loading, fake camera acquisition after user activation, real MediaPipe worker/model initialization, and completion of the first inference packet.
+- End-to-end smoke tests prove the static role-selection journey, television QR/manual-key surface, phone manual entry, production asset loading, fake camera acquisition after user activation, real MediaPipe worker/model initialization, and completion of the first inference packet.
 - Browser automation must not depend on public Nostr relay availability. Direct peer discovery is verified separately on real devices.
 - The phone camera/inference path uses Chromium fake-media support where deterministic; it does not claim pose-quality or device-performance coverage.
 - Manual acceptance on a real phone and television is required before the hardware-dependent milestone is complete.

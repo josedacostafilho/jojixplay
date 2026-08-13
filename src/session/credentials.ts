@@ -3,17 +3,18 @@ export interface SessionCredentials {
   secret: string;
 }
 
-export type SessionCredentialsResult =
-  | { ok: true; value: SessionCredentials }
-  | { ok: false; error: string };
+declare const pairingKeyBrand: unique symbol;
+export type PairingKey = string & { readonly [pairingKeyBrand]: true };
 
-const ROOM_BYTES = 16;
-const SECRET_BYTES = 24;
-const ROOM_PATTERN = /^[A-Za-z0-9_-]{22}$/;
-const SECRET_PATTERN = /^[A-Za-z0-9_-]{32}$/;
+export type PairingKeyResult = { ok: true; value: PairingKey } | { ok: false; error: string };
 
-function randomBase64Url(byteLength: number): string {
-  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(byteLength));
+const PAIRING_KEY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const PAIRING_KEY_LENGTH = 20;
+const PAIRING_KEY_GROUP_LENGTH = 4;
+const PAIRING_KEY_PATTERN = /^[0-9A-HJKMNP-TV-Z]{20}$/;
+const DERIVATION_CONTEXT = "gg.jojixplay.skeleton:pairing";
+
+function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
@@ -21,48 +22,90 @@ function randomBase64Url(byteLength: number): string {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
 }
 
-export function createSessionCredentials(): SessionCredentials {
-  return {
-    room: randomBase64Url(ROOM_BYTES),
-    secret: randomBase64Url(SECRET_BYTES),
-  };
+function compactPairingKey(input: string): string {
+  return input.toUpperCase().replaceAll("O", "0").replace(/[IL]/gu, "1").replace(/[\s-]/gu, "");
 }
 
-export function parseSessionFragment(fragment: string): SessionCredentialsResult {
+function groupPairingKey(input: string): string {
+  const groups: string[] = [];
+  for (let index = 0; index < input.length; index += PAIRING_KEY_GROUP_LENGTH) {
+    groups.push(input.slice(index, index + PAIRING_KEY_GROUP_LENGTH));
+  }
+  return groups.join("-");
+}
+
+export function createPairingKey(): PairingKey {
+  const randomValues = globalThis.crypto.getRandomValues(new Uint8Array(PAIRING_KEY_LENGTH));
+  let key = "";
+  for (const value of randomValues) {
+    key += PAIRING_KEY_ALPHABET[value & 31];
+  }
+  return key as PairingKey;
+}
+
+export function parsePairingKey(input: string): PairingKeyResult {
+  const key = compactPairingKey(input);
+  if (!PAIRING_KEY_PATTERN.test(key)) {
+    return {
+      ok: false,
+      error: "Enter the 20-character pairing key shown on your TV.",
+    };
+  }
+  return { ok: true, value: key as PairingKey };
+}
+
+export function formatPairingKey(key: PairingKey): string {
+  return groupPairingKey(key);
+}
+
+export function formatPairingKeyInput(input: string): string {
+  const compact = compactPairingKey(input);
+  if (compact.length > PAIRING_KEY_LENGTH || !PAIRING_KEY_PATTERN.test(compact.padEnd(20, "0"))) {
+    return input.toUpperCase().slice(0, 24);
+  }
+  return groupPairingKey(compact);
+}
+
+export function parsePairingKeyFragment(fragment: string): PairingKeyResult {
   const normalized = fragment.startsWith("#") ? fragment.slice(1) : fragment;
   const params = new URLSearchParams(normalized);
   const keys = [...params.keys()];
 
-  if (
-    keys.length !== 2 ||
-    keys.some((key) => key !== "room" && key !== "secret") ||
-    params.getAll("room").length !== 1 ||
-    params.getAll("secret").length !== 1
-  ) {
+  if (keys.length !== 1 || keys[0] !== "key" || params.getAll("key").length !== 1) {
     return { ok: false, error: "This pairing link is incomplete or malformed." };
   }
 
-  const room = params.get("room");
-  const secret = params.get("secret");
-  if (
-    room === null ||
-    secret === null ||
-    !ROOM_PATTERN.test(room) ||
-    !SECRET_PATTERN.test(secret)
-  ) {
-    return { ok: false, error: "This pairing link is not valid." };
-  }
-
-  return { ok: true, value: { room, secret } };
+  const key = params.get("key");
+  return key === null
+    ? { ok: false, error: "This pairing link is not valid." }
+    : parsePairingKey(key);
 }
 
-export function buildPhonePairingUrl(pageUrl: string, credentials: SessionCredentials): string {
+export function buildPhonePairingUrl(pageUrl: string, pairingKey: PairingKey): string {
   const url = new URL(pageUrl);
   url.search = "";
   url.searchParams.set("role", "phone");
-  url.hash = new URLSearchParams({
-    room: credentials.room,
-    secret: credentials.secret,
-  }).toString();
+  url.hash = new URLSearchParams({ key: pairingKey }).toString();
   return url.toString();
+}
+
+export async function deriveSessionCredentials(
+  pairingKey: PairingKey,
+): Promise<SessionCredentials> {
+  const encoder = new TextEncoder();
+  const [roomHash, secretHash] = await Promise.all([
+    globalThis.crypto.subtle.digest(
+      "SHA-256",
+      encoder.encode(`${DERIVATION_CONTEXT}:room:${pairingKey}`),
+    ),
+    globalThis.crypto.subtle.digest(
+      "SHA-256",
+      encoder.encode(`${DERIVATION_CONTEXT}:secret:${pairingKey}`),
+    ),
+  ]);
+
+  return {
+    room: bytesToBase64Url(new Uint8Array(roomHash).slice(0, 16)),
+    secret: bytesToBase64Url(new Uint8Array(secretHash).slice(0, 24)),
+  };
 }

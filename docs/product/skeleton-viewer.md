@@ -29,14 +29,16 @@ Deployed to GitHub Pages. The deterministic automated suite and production-like 
 ### Television
 
 - The television selects the `tv` role from the static application.
-- It creates a 128-bit cryptographically random room identifier and a separate 192-bit secret, both encoded as unpadded base64url.
-- It joins the room through Trystero's Nostr strategy and displays a QR code whose URL fragment carries the room and secret.
+- It creates a cryptographically random 20-character Crockford base32 pairing key with 100 bits of entropy and displays it in five readable groups.
+- It derives a 128-bit room value and 192-bit password representation from that key with purpose-separated SHA-256 inputs, then joins through Trystero's Nostr strategy.
+- It displays both a QR link carrying the key in its URL fragment and the same key for manual phone entry.
 - It accepts one phone peer, validates every received packet, and renders the newest valid packet on a Canvas 2D surface.
 - It shows explicit waiting, connected, stale-signal, disconnected, unsupported, and fatal-error states.
 
 ### Phone
 
-- The phone opens the QR link in the `phone` role, reads the room and secret from the URL fragment, and immediately removes the fragment from the visible history entry. Fragments are not sent to the static host in HTTP requests.
+- The phone obtains the pairing key from the QR fragment or a validated manual-entry form. It immediately removes a QR fragment from the visible history entry; fragments are not sent to the static host in HTTP requests.
+- Manual entry is case-insensitive, groups the key for readability, and normalizes the ambiguous Crockford characters O, I, and L. Both entry methods feed the same key derivation and session path.
 - Camera capture begins only after a user action and explicit browser permission.
 - Camera capture prefers the user-facing (selfie) camera.
 - MediaPipe Pose Landmarker Lite runs in a module worker with a maximum of two poses.
@@ -46,7 +48,8 @@ Deployed to GitHub Pages. The deterministic automated suite and production-like 
 
 ### Pairing and transport
 
-- Both peers use the same high-entropy room and password through Trystero's public Nostr rendezvous network.
+- Both peers derive the same room and password from the ephemeral pairing key and use them through Trystero's public Nostr rendezvous network.
+- Every new TV session creates a fresh key. The television stops displaying the key and QR after a phone connects.
 - WebRTC DataChannels carry application data directly after discovery.
 - No owned signaling service, WebSocket pose relay, TURN server, or transport fallback is implemented.
 - If public rendezvous or a direct WebRTC connection fails, the application reports the failure and asks the user to retry the session.
@@ -92,9 +95,11 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 
 ## Privacy and security
 
-- Session credentials use `crypto.getRandomValues`; `Math.random` is forbidden for pairing.
+- Pairing keys use `crypto.getRandomValues`; `Math.random` is forbidden for pairing.
+- A pairing key has 100 bits of random entropy. Short numeric PINs are forbidden because Trystero's signaling-encryption derivation is intentionally fast and would permit cheap offline guessing.
+- Domain-separated SHA-256 derivations produce distinct room and password values; the session's security is bounded by the pairing key's 100 bits, not the encoded output lengths.
 - The room password encrypts session descriptions while they traverse public rendezvous relays.
-- The QR secret arrives in the URL fragment, is scrubbed after parsing, and must not be logged.
+- The QR key arrives in the URL fragment, is scrubbed after parsing, and must not be logged. A manually entered key remains only in runtime memory.
 - No application telemetry or persistent storage is used.
 - User-facing errors must not include room credentials, raw SDP, ICE candidates, stack traces, or camera content.
 - Only the phone requests camera permission; audio is never requested.
@@ -102,8 +107,8 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 ## Acceptance criteria
 
 1. A production build can be served as static files from a GitHub Pages project path.
-2. The television produces a scannable QR pairing link and visibly waits for a phone.
-3. The phone validates the link, joins the matching room, and requests the user-facing camera only after user activation.
+2. The television produces a scannable QR pairing link, a readable 20-character pairing key, and visibly waits for a phone.
+3. The phone accepts either the QR link or manual key, derives the matching session, and requests the user-facing camera only after user activation.
 4. Pose inference occurs locally with the vendored model and runtime assets.
 5. One or two detected people render on the phone preview and television without stable identity assumptions.
 6. Only strictly validated landmark packets enter television rendering.
@@ -119,7 +124,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement strict session-link and pose-packet domain contracts.
 - [x] Implement the MediaPipe worker and bounded phone inference loop.
 - [x] Implement decentralized rendezvous and latest-only WebRTC pose delivery.
-- [x] Implement the accessible role selection, phone controller, QR pairing, status surfaces, and Canvas 2D skeleton renderer.
+- [x] Implement the accessible role selection, phone controller, QR/manual-key pairing, status surfaces, and Canvas 2D skeleton renderer.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the GitHub Pages artifact from the remote repository.

@@ -36,7 +36,7 @@ export function LandingPage() {
             </span>
             <span class="role-card__title">Open on the TV</span>
             <span class="role-card__description">
-              Show the pairing QR and render the live skeleton.
+              Show the pairing QR and manual key, then render the live skeleton.
             </span>
             <span class="role-card__action">
               Set up display <span aria-hidden="true">→</span>
@@ -52,10 +52,10 @@ export function LandingPage() {
             </span>
             <span class="role-card__title">Open on the phone</span>
             <span class="role-card__description">
-              Normally you arrive here by scanning the TV's QR code.
+              Scan the TV's QR code or enter its 20-character pairing key.
             </span>
             <span class="role-card__action">
-              Check pairing link <span aria-hidden="true">→</span>
+              Enter pairing key <span aria-hidden="true">→</span>
             </span>
           </a>
         </section>

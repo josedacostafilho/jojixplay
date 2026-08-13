@@ -59,7 +59,7 @@ The project is greenfield. Optimize for a clear current design, not historical b
 - Use safe parameterization and context-appropriate encoding; never construct executable queries or markup from untrusted strings.
 - Avoid collecting or logging data that is not needed. Define retention and deletion before persisting sensitive data.
 - Review dependencies and generated artifacts for supply-chain and secret-exposure risks.
-- Enforce authorization at the authoritative runtime boundary, never through hidden UI state alone. In this serverless prototype, possession of the session secret plus the opposite-role peer handshake is the authorization boundary.
+- Enforce authorization at the authoritative runtime boundary, never through hidden UI state alone. In this serverless prototype, possession of the ephemeral 100-bit pairing key-derived secret plus the opposite-role peer handshake is the authorization boundary.
 
 ## Dependencies and generated code
 

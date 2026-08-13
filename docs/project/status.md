@@ -27,7 +27,8 @@ This snapshot describes observed repository state, not a proposed architecture.
 
 ## Current capabilities
 
-- The role-selection shell, blocking capability checks, television QR pairing surface, and phone controller are implemented.
+- The role-selection shell, blocking capability checks, television QR/manual-key pairing surface, and phone controller are implemented.
+- A fresh 100-bit pairing key feeds the same domain-separated room/password derivation whether scanned or typed; the former room/secret fragment is rejected.
 - The phone requests its user-facing camera only after a user action, loads the vendored MediaPipe Lite model in a module worker, samples at no more than 15 Hz, and previews locally detected skeletons.
 - The Trystero room authenticates exactly one opposite-role peer and carries latest-only, strictly validated pose packets over WebRTC DataChannels.
 - The television ignores malformed and non-increasing packets, clears stale or disconnected output, and renders up to two identity-independent skeletons through Canvas 2D.
@@ -40,12 +41,12 @@ Validate the complete journey on the project owner's real phone and television. 
 
 ## Pre-release exit criteria
 
-- A real phone and television complete QR pairing, camera startup, pose delivery, stale/disconnect behavior, and cleanup.
+- A real phone and television complete QR and manual-key pairing, camera startup, pose delivery, stale/disconnect behavior, and cleanup.
 - One- and two-person detection behavior and perceived latency are recorded from the target hardware.
 
 ## Verification evidence
 
-On 2026-08-13, `npm run validate` passed from the locked dependency graph: formatting and lint checks were clean, 23 unit/component tests passed, the vendored model checksum and production build succeeded with the versioned MediaPipe assets, four Chromium end-to-end journeys passed, and `npm audit --audit-level=high` reported zero vulnerabilities. GitHub Actions run `31727084787` then validated and deployed commit `16f9537` to the public project URL.
+On 2026-08-13, `npm run validate` passed from the locked dependency graph after the manual-pairing cutover: formatting and lint checks were clean, 30 unit/component tests passed, the vendored model checksum and production build succeeded with the versioned MediaPipe assets, five Chromium end-to-end journeys passed, and `npm audit --audit-level=high` reported zero vulnerabilities. The GitHub Pages workflow independently repeats this suite before deploying `main`.
 
 ## Known risks
 

@@ -38,7 +38,7 @@ Any initial architecture must satisfy these constraints:
 - Validate input and authentication/authorization at owned trust boundaries.
 - Keep configuration explicit and validated at process startup.
 - Make state ownership, transaction boundaries, idempotency needs, and failure semantics explicit.
-- Keep long-lived sensitive data out of logs, build artifacts, examples, and fixtures; keep ephemeral session credentials confined to the intentional QR fragment flow.
+- Keep long-lived sensitive data out of logs, build artifacts, examples, and fixtures; keep ephemeral pairing keys confined to the intentional QR-fragment or manual-entry flow and runtime memory.
 - Design interfaces for accessibility and operational behavior for observability from the first implemented slice.
 - Avoid speculative services, repositories, adapters, event buses, plugin systems, and generic abstraction layers without a demonstrated consumer.
 
@@ -53,7 +53,7 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Data flow | Implemented | Camera → worker → strict PosePacket → WebRTC → validator → Canvas |
 | Persistence | None | Sessions and pose data are memory-only and ephemeral |
 | External integrations | Active | GitHub Pages workflow, Nostr relays through Trystero, browser WebRTC, MediaPipe runtime |
-| Authentication/authorization | Possession-based session | High-entropy room and separate secret delivered through QR; exactly opposite phone/TV roles handshake |
+| Authentication/authorization | Possession-based session | One 100-bit key delivered by QR or manual entry derives domain-separated room credentials; exactly opposite phone/TV roles handshake |
 | Deployment topology | Published | One static production artifact at `https://josedacostafilho.github.io/jojixplay/` |
 | Observability | Local only | User-visible state and non-sensitive development diagnostics; no telemetry service |
 
@@ -67,7 +67,7 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Pose contract | Validate the only network-domain representation | Reject malformed or obsolete-shaped packets |
 | Peer room | Authenticate opposite roles, discover peers, and coalesce pose sends | Trystero/Nostr and WebRTC |
 | Skeleton renderer | Draw validated current detections without identity assumptions | Canvas 2D only |
-| TV display | Create QR session, receive packets, and present connection freshness | User-visible session lifecycle |
+| TV display | Create QR/manual-key session, receive packets, and present connection freshness | User-visible session lifecycle |
 
 ## Required component documentation
 

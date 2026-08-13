@@ -10,7 +10,7 @@ scope: Static deployment, decentralized rendezvous, and peer-to-peer session top
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** None
+- **Superseded by:** ADR-0004 for pairing-credential generation and delivery only
 
 ## Context
 
@@ -21,7 +21,7 @@ The project owner approved a static-only application deployment and an existing 
 ## Decision
 
 - Deploy the application as static assets on GitHub Pages.
-- Use Trystero's Nostr strategy with a cryptographically random room identifier and separate high-entropy password to exchange encrypted WebRTC setup information.
+- Use Trystero's Nostr strategy with ephemeral room credentials to exchange encrypted WebRTC setup information. [ADR-0004](0004-human-readable-pairing-key.md) governs their current generation and delivery.
 - Send pose packets through the resulting direct WebRTC DataChannel.
 - Do not deploy an application backend, database, owned signaling service, WebSocket pose relay, or TURN service for the prototype.
 - Treat rendezvous failure, router client isolation, and unsupported WebRTC as explicit terminal session errors.
@@ -68,5 +68,5 @@ Not selected as the canonical path because receiver support is not portable acro
 
 - The production artifact contains no server runtime or server deployment configuration.
 - Network-facing code uses Trystero only for room discovery and actions only for validated application messages.
-- Tests prove that session credentials use Web Crypto, arrive through the URL fragment, are scrubbed after parsing, and are rejected when malformed.
+- Tests prove that session credentials follow ADR-0004, QR credentials are scrubbed after parsing, and malformed input is rejected.
 - Code and dependency searches find no TURN configuration or alternate transport.
