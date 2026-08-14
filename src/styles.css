@@ -534,8 +534,15 @@ button {
 }
 
 .pose-control-hint--active {
+  top: auto;
+  bottom: clamp(1rem, 3vh, 2.25rem);
   color: #99f6e4;
   border-color: rgb(94 234 212 / 24%);
+}
+
+.pose-control-hint--needs-headroom {
+  color: #fde68a;
+  border-color: rgb(253 230 138 / 28%);
 }
 
 .pose-control-hint__progress {

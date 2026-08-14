@@ -17,12 +17,19 @@ function visibleLandmark(pose: DetectedPose, index: number, x: number, y: number
 
 function createRaisedHandPacket(sequence: number): PosePacket {
   const pose: DetectedPose = { landmarks: Array.from({ length: 33 }, hiddenLandmark) };
+  visibleLandmark(pose, 0, 0.5, 0.16);
   visibleLandmark(pose, 11, 0.4, 0.3);
   visibleLandmark(pose, 12, 0.6, 0.3);
   visibleLandmark(pose, 13, 0.4, 0.5);
   visibleLandmark(pose, 14, 0.6, 0.5);
   visibleLandmark(pose, 15, 0.4, 0.2);
   visibleLandmark(pose, 16, 0.6, 0.55);
+  visibleLandmark(pose, 17, 0.38, 0.18);
+  visibleLandmark(pose, 18, 0.58, 0.57);
+  visibleLandmark(pose, 19, 0.4, 0.17);
+  visibleLandmark(pose, 20, 0.6, 0.58);
+  visibleLandmark(pose, 21, 0.42, 0.18);
+  visibleLandmark(pose, 22, 0.62, 0.57);
   visibleLandmark(pose, 23, 0.43, 0.65);
   visibleLandmark(pose, 24, 0.57, 0.65);
   return {
@@ -87,6 +94,7 @@ describe("TV playfield", () => {
     const backgroundButton = screen.getByRole("button", { name: "Background" });
     const playersButton = screen.getByRole("button", { name: "Switch to 2-player mode" });
     const circlesButton = screen.getByRole("button", { name: "Circles" });
+    expect(screen.getByText("Move your hand clear of the buttons to arm them")).toBeInTheDocument();
     const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
     const cursor = view.container.querySelector<HTMLElement>(".pose-cursor");
     expect(playfield).not.toBeNull();
@@ -111,6 +119,46 @@ describe("TV playfield", () => {
     fireEvent.click(circlesButton);
     expect(screen.getByText("Circle burst created.")).toBeInTheDocument();
     expect(requestAnimationFrame).toHaveBeenCalledOnce();
+  });
+
+  it("asks for overhead framing and withholds controls when the head is too close to the frame", () => {
+    let nowMs = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
+    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => ({}) as CanvasRenderingContext2D,
+    );
+
+    const noHeadroomPacket = (sequence: number) => {
+      const posePacket = createRaisedHandPacket(sequence);
+      const face = posePacket.poses[0]?.landmarks[0];
+      if (face === undefined) {
+        throw new Error("Expected a face landmark.");
+      }
+      face.y = 0.04;
+      return posePacket;
+    };
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+      />
+    );
+    const view = render(renderPlayfield(noHeadroomPacket(0)));
+    for (const sequence of [1, 2, 3]) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(noHeadroomPacket(sequence)));
+    }
+
+    expect(screen.getByText("Step back and leave clear space above your head")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Background" })).not.toBeInTheDocument();
   });
 
   it("suspends actions while a player-mode request is pending", () => {

@@ -27,6 +27,7 @@ const EMPTY_SNAPSHOT: PoseControlSnapshot = {
   claimProgress: 0,
   targets: [],
   pointer: null,
+  controlsArmed: false,
   hoveredAction: null,
   dwellProgress: 0,
   controllerPoseIndex: null,
@@ -41,6 +42,7 @@ function sameSnapshot(left: PoseControlSnapshot, right: PoseControlSnapshot): bo
     (left.targets === right.targets || (left.targets.length === 0 && right.targets.length === 0)) &&
     left.pointer?.x === right.pointer?.x &&
     left.pointer?.y === right.pointer?.y &&
+    left.controlsArmed === right.controlsArmed &&
     left.hoveredAction === right.hoveredAction &&
     Math.abs(left.dwellProgress - right.dwellProgress) < 0.01 &&
     left.controllerPoseIndex === right.controllerPoseIndex
@@ -51,14 +53,21 @@ function controlInstruction(snapshot: PoseControlSnapshot): string {
   switch (snapshot.phase) {
     case "no-pose":
       return "Step back until your full body is visible";
+    case "needs-headroom":
+      return "Step back and leave clear space above your head";
     case "ready":
       return snapshot.requiresBothHands
-        ? "One person: raise both hands to take control"
-        : "Raise either hand to take control";
+        ? "One person: raise both hands and keep one whole hand visible"
+        : "Raise either hand and keep your whole hand visible";
     case "claiming":
       return snapshot.requiresBothHands ? "Keep both hands raised" : "Keep your hand raised";
     case "active":
-      return "Move your hand onto a button and hold";
+      if (snapshot.pointer === null) {
+        return "Keep your whole controlling hand visible";
+      }
+      return snapshot.controlsArmed
+        ? "Move your hand onto a button and hold"
+        : "Move your hand clear of the buttons to arm them";
   }
 }
 
@@ -215,7 +224,7 @@ export function TvPlayfield({
         circleBurst={circleBurst}
       />
 
-      {packet !== null ? (
+      {packet !== null && announcement === "" ? (
         <p class={`pose-control-hint pose-control-hint--${snapshot.phase}`} aria-live="polite">
           {instruction}
           {snapshot.phase === "claiming" ? (

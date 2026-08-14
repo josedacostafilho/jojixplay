@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Television projection, fullscreen entry, temporary controller claiming, and pose-button interaction
 ---
 
@@ -10,7 +10,7 @@ scope: Television projection, fullscreen entry, temporary controller claiming, a
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint
+- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint; [ADR-0008](0008-above-head-coarse-hand-controls.md) for the torso-relative row, direct wrist pointer, and immediately armed lease
 
 ## Context
 
@@ -35,6 +35,8 @@ Browser fullscreen entry is privileged and normally requires a trusted remote-co
 
 ### Temporary controller claim
 
+[ADR-0008](0008-above-head-coarse-hand-controls.md) supersedes the direct wrist pointer below while retaining the wrist-based claim and release rules. The original rule remains here as historical context.
+
 - No stable player identifier is transmitted, stored, or inferred.
 - With one usable pose, holding either wrist above its corresponding elbow for 300 ms claims control with that hand.
 - With multiple usable poses, one person must hold both wrists above the shoulders for 500 ms. This deliberate gesture prevents an ordinary raised arm in a crowd from stealing control.
@@ -43,6 +45,8 @@ Browser fullscreen entry is privileged and normally requires a trusted remote-co
 - Release the lease when the selected wrist stays below the hips for 600 ms, the controlling pose is lost for one second, the torso remains materially displaced from the frozen layout for 600 ms, the pointer is inactive for 15 seconds, or the viewport changes.
 
 ### Adaptive controls and activation
+
+[ADR-0008](0008-above-head-coarse-hand-controls.md) supersedes the torso-relative anchor and immediate post-claim activation below. The original rules remain here as historical context.
 
 - Show instructions whenever a live skeleton exists but no controller is claimed. Show actionable buttons only for the active control lease.
 - Derive the button-row anchor from the controlling torso, never from either arm:

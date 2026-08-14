@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: First vertical slice contract, acceptance criteria, and implementation plan
 ---
 
@@ -8,7 +8,7 @@ scope: First vertical slice contract, acceptance criteria, and implementation pl
 
 ## Implementation state
 
-Deployed to GitHub Pages. The deterministic automated suite and production-like fake-camera browser journey cover the software-owned acceptance surface. Complete real phone/television acceptance remains outstanding and is tracked in [Project status](../project/status.md).
+The skeleton viewer is implemented. Publication state, automated verification evidence, and the outstanding real phone/television acceptance are tracked in [Project status](../project/status.md).
 
 ## Implementation map
 
@@ -96,18 +96,21 @@ The sender retains at most one pending packet while an earlier send is in progre
 
 ## Body-control contract
 
-- Buttons appear only after a temporary controller claim. Before that, a visible single person is prompted to raise either hand; with multiple visible people, one person is prompted to raise both hands.
+- A control claim is available only when the complete three-button row can fit above the highest usable face landmark inside the projected camera viewport. Otherwise, the television asks the user to step back and leave clear overhead space; no alternate placement is used.
+- Buttons appear only after a temporary controller claim. Before that, an eligible single person is prompted to raise either hand with the whole hand visible; with multiple visible people, one person is prompted to raise both hands and keep one whole hand visible.
 - A single-person claim requires one wrist above its elbow for 300 ms. A multiperson claim requires both wrists above the shoulders for 500 ms.
-- The claim selects one wrist as a direct mirrored pointer. Raising is an engagement gesture only; the active pointer may move below its elbow.
+- The claim selects a controlling side. Raising and below-hips release use that side's wrist, while the direct mirrored pointer is the arithmetic center of its wrist, pinky, index, and thumb landmarks.
+- All four coarse-hand landmarks must be usable. A missing point hides the pointer and resets dwell instead of falling back to the wrist; a sustained loss releases the lease through the one-second loss bound.
 - The television uses short-lived nearest-torso continuity only to survive pose-array reordering. It creates no stable skeleton or player identifier.
-- The three-button row is anchored one-quarter of the way from the shoulder midpoint to the hip midpoint, centered on the torso, clamped within the projected camera viewport, and frozen until release.
+- The three-button row is centered on the shoulder midpoint, placed with a small gap above the visibly drawn head, constrained wholly within the projected camera viewport, and frozen until release.
+- A new lease is body-unarmed. The coarse hand must be observed outside every target and its hover margin once before reaching into a button can begin dwell; semantic remote and accessibility activation remain available throughout.
 - A button activates after a 900 ms dwell, activates only once until the pointer leaves, and shows progress while dwelling.
-- Control releases after 600 ms below the hips, one second without the controlling pose, 600 ms materially displaced from the frozen layout, 15 seconds without pointer activity, or a viewport change.
+- Control releases after 600 ms with the selected wrist below the hips, one second without the controlling pose/hand, 600 ms materially displaced from the frozen layout, 15 seconds without coarse-hand activity, or a viewport change.
 - The prototype buttons toggle a fixed background theme, request the opposite one-/two-player limit, and replace the current effect with 12 palette-colored circles that fade within three seconds.
 - While a player-limit request is pending, all three actions are disabled. Failure keeps the last acknowledged mode; success updates the dynamic **Players: 1** or **Players: 2** label.
 - Buttons remain semantic and remotely clickable. Body interactions are the canonical in-session path; the semantic path preserves television-remote and accessibility operation.
 
-The durable rationale and exact coordinate rule are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md).
+Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md).
 
 ## Capability baseline
 
@@ -138,7 +141,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 8. All camera, worker, room, and animation resources are released on stop or unmount.
 9. Canonical formatting, linting, type analysis, unit/component tests, end-to-end smoke tests, dependency audit, and production build checks pass.
 10. A real phone-and-television run confirms pairing, camera framing, multiperson behavior where detectable, and acceptable perceived latency.
-11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, and supports adaptive dwell activation of the background, player-limit, and circle actions.
+11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, requires reachable space above the visible head, points with the complete coarse hand without wrist fallback, neutral-arms, and supports dwell activation of the background, player-limit, and circle actions.
 
 ## Implementation plan
 
@@ -150,6 +153,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement the accessible role selection, phone controller, QR/manual-key pairing, status surfaces, and Canvas 2D skeleton renderer.
 - [x] Implement trusted TV-mode entry, the shared mirrored projection, adaptive temporary pose controls, and the three prototype actions.
 - [x] Default to one-player inference and implement an acknowledged in-place one-/two-player switch from the television control row.
+- [x] Move the frozen row above the visible head, require overhead framing, replace direct wrist pointing with the coarse-hand center, and add neutral post-claim arming.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the GitHub Pages artifact from the remote repository.

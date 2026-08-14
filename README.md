@@ -21,8 +21,8 @@ Use `npm run validate` for the complete canonical quality suite. All commands an
 2. Choose **Open on the TV** on the display device.
 3. Scan the generated QR with the phone, or choose **Open on the phone** and enter the TV's 20-character pairing key.
 4. Connect, then press **Start body tracking**.
-5. Place the phone so its front (selfie) camera can see the players' full bodies.
-6. Raise a hand to claim the TV controls; use **Players: 1** to switch to two-player detection and the same button to switch back.
+5. Place the phone so its front (selfie) camera can see the players' full bodies with clear space above their heads.
+6. Raise a hand to claim the TV controls, move it clear once to arm the buttons, then reach and hold over an action. Use **Players: 1** to switch to two-player detection and the same button to switch back.
 
 Camera access requires HTTPS or localhost. The application requests no audio, retains no session data, and sends only validated pose landmarks over the peer connection.
 

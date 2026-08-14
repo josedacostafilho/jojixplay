@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Documentation system and navigation
 ---
 
@@ -42,7 +42,8 @@ docs/
 │   ├── 0004-human-readable-pairing-key.md
 │   ├── 0005-mirrored-tv-pose-controls.md
 │   ├── 0006-session-player-limit-control.md
-│   └── 0007-node-24-and-dependency-maintenance.md
+│   ├── 0007-node-24-and-dependency-maintenance.md
+│   └── 0008-above-head-coarse-hand-controls.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

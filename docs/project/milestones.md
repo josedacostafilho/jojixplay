@@ -1,12 +1,19 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Sparse record of durable completed project milestones
 ---
 
 # Milestone log
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
+
+## 2026-08-14 — Above-head coarse-hand controls implemented
+
+- Replaced the torso-overlay row with one frozen row wholly above the controlling pose's visible head and an explicit framing gate when the projected camera area lacks headroom.
+- Replaced direct wrist pointing with the selected wrist/pinky/index/thumb center while retaining wrist-based claim and release gestures; incomplete hands now pause rather than jump the pointer.
+- Added a mandatory post-claim leave-to-arm transition so a raised hand cannot begin dwelling on a button that spawned underneath it.
+- Added exact interaction instructions and regression coverage; real-device acceptance remains outstanding.
 
 ## 2026-08-13 — Acknowledged player modes and Node 24 cutover implemented
 

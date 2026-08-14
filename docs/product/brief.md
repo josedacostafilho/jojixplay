@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Product purpose, users, constraints, and first outcome
 ---
 
@@ -26,7 +26,7 @@ The initial experience assumes internet access to load the static application an
 2. Scan the displayed QR code, or open JojixPlay on the phone and enter the displayed 20-character key.
 3. Connect, grant camera access, and start pose tracking.
 4. See the default single detection rendered as an identity-independent mirrored skeleton on the television.
-5. Raise one hand to claim control, then dwell over **Players: 1** to enable two-person detection when wanted; multiperson control claims require both hands.
+5. Leave space above the head, raise one hand to claim control, move the coarse-hand cursor clear once to arm it, then dwell over **Players: 1** to enable two-person detection when wanted; multiperson control claims require both hands.
 
 ## Product invariants
 

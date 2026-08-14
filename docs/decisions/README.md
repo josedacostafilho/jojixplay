@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Architectural decision record process and index
 ---
 
@@ -19,6 +19,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0005](0005-mirrored-tv-pose-controls.md) | Accepted | Mirror television presentation and use adaptive dwell-based temporary pose controls |
 | [0006](0006-session-player-limit-control.md) | Accepted | Default to one-player inference and use an acknowledged television-to-phone command to select one or two players |
 | [0007](0007-node-24-and-dependency-maintenance.md) | Accepted | Hard-cut over to Node 24 LTS and validate grouped, immutable dependency updates before deployment |
+| [0008](0008-above-head-coarse-hand-controls.md) | Accepted | Place controls above the visible head and use a neutral-gated coarse-hand pointer |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

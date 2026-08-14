@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Prioritized project work until a canonical issue tracker exists
 ---
 
@@ -10,7 +10,7 @@ This is a compact queue, not a wish list. Keep entries actionable and ordered. O
 
 ## P0 — release the skeleton-viewer vertical slice
 
-- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, default one-person inference, acknowledged switching to two players and back without camera restart, mirrored rendering, temporary controller claiming, adaptive reach, all three dwell actions, release behavior, stale/disconnect states, cleanup, and perceived latency.
+- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, default one-person inference, acknowledged switching to two players and back without camera restart, mirrored rendering, overhead framing guidance, coarse-hand pointing and dropout, neutral post-claim arming, adaptive reach and fatigue, all three dwell actions, release behavior, stale/disconnect states, cleanup, and perceived latency.
 - [ ] Inspect the real peer connection and confirm that the application sends pose packets only, never a camera media track or pixel payload.
 
 ## P1 — establish measured product budgets

@@ -31,7 +31,7 @@ export const POSE_CONTROL_ACTIONS = [
 ] as const;
 
 export type PoseControlAction = (typeof POSE_CONTROL_ACTIONS)[number]["action"];
-export type PoseControlPhase = "no-pose" | "ready" | "claiming" | "active";
+export type PoseControlPhase = "no-pose" | "needs-headroom" | "ready" | "claiming" | "active";
 
 export interface PoseControlTarget {
   action: PoseControlAction;
@@ -46,6 +46,7 @@ export interface PoseControlSnapshot {
   claimProgress: number;
   targets: readonly PoseControlTarget[];
   pointer: Point | null;
+  controlsArmed: boolean;
   hoveredAction: PoseControlAction | null;
   dwellProgress: number;
   controllerPoseIndex: number | null;
@@ -63,12 +64,15 @@ interface PoseDescriptor {
   shoulderCenter: Point;
   hipCenter: Point;
   torsoCenter: Point;
+  headTopY: number | null;
   leftShoulder: PoseLandmark;
   rightShoulder: PoseLandmark;
   leftElbow: PoseLandmark | null;
   rightElbow: PoseLandmark | null;
   leftWrist: PoseLandmark | null;
   rightWrist: PoseLandmark | null;
+  leftHandCenter: Point | null;
+  rightHandCenter: Point | null;
 }
 
 interface ClaimCandidate {
@@ -89,6 +93,7 @@ interface ControlLease {
   frame: Size;
   targets: readonly PoseControlTarget[];
   pointer: Point | null;
+  controlsArmed: boolean;
   poseIndex: number;
   hoveredAction: PoseControlAction | null;
   hoverStartedAtMs: number | null;
@@ -103,8 +108,17 @@ const LEFT_ELBOW = 13;
 const RIGHT_ELBOW = 14;
 const LEFT_WRIST = 15;
 const RIGHT_WRIST = 16;
+const LEFT_PINKY = 17;
+const RIGHT_PINKY = 18;
+const LEFT_INDEX = 19;
+const RIGHT_INDEX = 20;
+const LEFT_THUMB = 21;
+const RIGHT_THUMB = 22;
 const LEFT_HIP = 23;
 const RIGHT_HIP = 24;
+const FACE_LANDMARK_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const LEFT_HAND_LANDMARK_INDICES = [LEFT_WRIST, LEFT_PINKY, LEFT_INDEX, LEFT_THUMB] as const;
+const RIGHT_HAND_LANDMARK_INDICES = [RIGHT_WRIST, RIGHT_PINKY, RIGHT_INDEX, RIGHT_THUMB] as const;
 const RAISE_MARGIN = 0.015;
 const CANDIDATE_MATCH_DISTANCE = 0.18;
 const LEASE_MATCH_DISTANCE = 0.28;
@@ -132,6 +146,31 @@ function usableLandmark(pose: DetectedPose, index: number): PoseLandmark | null 
     : null;
 }
 
+function topmostVisibleLandmarkY(pose: DetectedPose, indices: readonly number[]): number | null {
+  let top: number | null = null;
+  for (const index of indices) {
+    const landmark = usableLandmark(pose, index);
+    if (landmark !== null && (top === null || landmark.y < top)) {
+      top = landmark.y;
+    }
+  }
+  return top;
+}
+
+function landmarkCenter(pose: DetectedPose, indices: readonly number[]): Point | null {
+  let x = 0;
+  let y = 0;
+  for (const index of indices) {
+    const landmark = usableLandmark(pose, index);
+    if (landmark === null) {
+      return null;
+    }
+    x += landmark.x;
+    y += landmark.y;
+  }
+  return { x: x / indices.length, y: y / indices.length };
+}
+
 function describePose(pose: DetectedPose, poseIndex: number): PoseDescriptor | null {
   const leftShoulder = usableLandmark(pose, LEFT_SHOULDER);
   const rightShoulder = usableLandmark(pose, RIGHT_SHOULDER);
@@ -148,17 +187,24 @@ function describePose(pose: DetectedPose, poseIndex: number): PoseDescriptor | n
     shoulderCenter,
     hipCenter,
     torsoCenter: midpoint(shoulderCenter, hipCenter),
+    headTopY: topmostVisibleLandmarkY(pose, FACE_LANDMARK_INDICES),
     leftShoulder,
     rightShoulder,
     leftElbow: usableLandmark(pose, LEFT_ELBOW),
     rightElbow: usableLandmark(pose, RIGHT_ELBOW),
     leftWrist: usableLandmark(pose, LEFT_WRIST),
     rightWrist: usableLandmark(pose, RIGHT_WRIST),
+    leftHandCenter: landmarkCenter(pose, LEFT_HAND_LANDMARK_INDICES),
+    rightHandCenter: landmarkCenter(pose, RIGHT_HAND_LANDMARK_INDICES),
   };
 }
 
 function wristForHand(pose: PoseDescriptor, hand: ControlHand): PoseLandmark | null {
   return hand === "left" ? pose.leftWrist : pose.rightWrist;
+}
+
+function handCenterForHand(pose: PoseDescriptor, hand: ControlHand): Point | null {
+  return hand === "left" ? pose.leftHandCenter : pose.rightHandCenter;
 }
 
 function isSinglePersonClaim(pose: PoseDescriptor, hand: ControlHand): boolean {
@@ -176,20 +222,26 @@ function isMultiplePeopleClaim(pose: PoseDescriptor): boolean {
   );
 }
 
-function preferredHand(pose: PoseDescriptor): ControlHand {
-  if (pose.leftWrist === null) {
-    return "right";
+function preferredHand(pose: PoseDescriptor): ControlHand | null {
+  if (pose.leftHandCenter === null) {
+    return pose.rightHandCenter === null ? null : "right";
   }
-  if (pose.rightWrist === null) {
+  if (pose.rightHandCenter === null) {
     return "left";
   }
-  return pose.leftWrist.y <= pose.rightWrist.y ? "left" : "right";
+  return (pose.leftWrist?.y ?? Number.POSITIVE_INFINITY) <=
+    (pose.rightWrist?.y ?? Number.POSITIVE_INFINITY)
+    ? "left"
+    : "right";
 }
 
 function descriptorCanContinueClaim(pose: PoseDescriptor, candidate: ClaimCandidate): boolean {
-  return candidate.multiplePeople
-    ? isMultiplePeopleClaim(pose)
-    : isSinglePersonClaim(pose, candidate.hand);
+  return (
+    handCenterForHand(pose, candidate.hand) !== null &&
+    (candidate.multiplePeople
+      ? isMultiplePeopleClaim(pose)
+      : isSinglePersonClaim(pose, candidate.hand))
+  );
 }
 
 function chooseNewCandidate(
@@ -199,15 +251,21 @@ function chooseNewCandidate(
   for (const pose of poses) {
     if (multiplePeople) {
       if (isMultiplePeopleClaim(pose)) {
-        return { pose, hand: preferredHand(pose) };
+        const hand = preferredHand(pose);
+        if (hand !== null) {
+          return { pose, hand };
+        }
       }
       continue;
     }
 
-    const leftRaised = isSinglePersonClaim(pose, "left");
-    const rightRaised = isSinglePersonClaim(pose, "right");
+    const leftRaised = pose.leftHandCenter !== null && isSinglePersonClaim(pose, "left");
+    const rightRaised = pose.rightHandCenter !== null && isSinglePersonClaim(pose, "right");
     if (leftRaised && rightRaised) {
-      return { pose, hand: preferredHand(pose) };
+      const hand = preferredHand(pose);
+      if (hand !== null) {
+        return { pose, hand };
+      }
     }
     if (leftRaised) {
       return { pose, hand: "left" };
@@ -240,7 +298,10 @@ function createControlTargets(
   pose: PoseDescriptor,
   frame: Size,
   viewport: Size,
-): readonly PoseControlTarget[] {
+): readonly PoseControlTarget[] | null {
+  if (pose.headTopY === null) {
+    return null;
+  }
   const projection = createPoseProjection(
     frame.width,
     frame.height,
@@ -249,11 +310,7 @@ function createControlTargets(
     true,
   );
   const frameBounds = projectedFrameBounds(projection);
-  const anchor = projectNormalizedPoint(
-    pose.shoulderCenter.x,
-    pose.shoulderCenter.y + (pose.hipCenter.y - pose.shoulderCenter.y) * 0.25,
-    projection,
-  );
+  const headTop = projectNormalizedPoint(pose.shoulderCenter.x, pose.headTopY, projection);
   const minimumFrameDimension = Math.min(frameBounds.width, frameBounds.height);
   const safeMargin = Math.min(32, Math.max(8, minimumFrameDimension * 0.025));
   const availableWidth = Math.max(1, frameBounds.width - safeMargin * 2);
@@ -267,12 +324,14 @@ function createControlTargets(
   const rowWidth = targetWidth * 3 + gap * 2;
   const minimumCenterX = frameBounds.x + safeMargin + rowWidth / 2;
   const maximumCenterX = frameBounds.x + frameBounds.width - safeMargin - rowWidth / 2;
-  const centerX = clamp(anchor.x, minimumCenterX, maximumCenterX);
-  const centerY = clamp(
-    anchor.y,
-    frameBounds.y + safeMargin + targetHeight / 2,
-    frameBounds.y + frameBounds.height - safeMargin - targetHeight / 2,
-  );
+  const centerX = clamp(headTop.x, minimumCenterX, maximumCenterX);
+  const headGap = clamp(minimumFrameDimension * 0.025, 12, 24);
+  const rowTop = headTop.y - headGap - targetHeight;
+  const minimumTop = frameBounds.y + safeMargin;
+  const maximumBottom = frameBounds.y + frameBounds.height - safeMargin;
+  if (rowTop < minimumTop || rowTop + targetHeight > maximumBottom) {
+    return null;
+  }
   const rowLeft = centerX - rowWidth / 2;
 
   return POSE_CONTROL_ACTIONS.map(({ action, label }, index) => ({
@@ -280,7 +339,7 @@ function createControlTargets(
     label,
     rect: {
       x: rowLeft + index * (targetWidth + gap),
-      y: centerY - targetHeight / 2,
+      y: rowTop,
       width: targetWidth,
       height: targetHeight,
     },
@@ -300,6 +359,7 @@ export class PoseControlSession {
   private viewport: Size | null = null;
   private visiblePeople = 0;
   private multiplePeople = false;
+  private headroomAvailable = false;
   private candidate: ClaimCandidate | null = null;
   private lease: ControlLease | null = null;
 
@@ -317,6 +377,7 @@ export class PoseControlSession {
     if (packet === null) {
       this.visiblePeople = 0;
       this.multiplePeople = false;
+      this.headroomAvailable = false;
       this.candidate = null;
       this.clearPointer();
       return this.tick(nowMs);
@@ -327,6 +388,10 @@ export class PoseControlSession {
       .filter((pose): pose is PoseDescriptor => pose !== null);
     this.visiblePeople = poses.length;
     this.multiplePeople = poses.length > 1;
+    const posesWithHeadroom = poses.filter(
+      (pose) => createControlTargets(pose, packet.frame, viewport) !== null,
+    );
+    this.headroomAvailable = posesWithHeadroom.length > 0;
 
     if (this.lease !== null) {
       if (
@@ -340,7 +405,7 @@ export class PoseControlSession {
       return this.updateLease(poses, packet.frame, nowMs);
     }
 
-    return this.updateClaim(poses, packet.frame, nowMs, viewport);
+    return this.updateClaim(posesWithHeadroom, packet.frame, nowMs, viewport);
   }
 
   tick(nowMs: number): PoseControlUpdate {
@@ -416,7 +481,9 @@ export class PoseControlSession {
     nowMs: number,
   ): void {
     const wrist = wristForHand(pose, hand);
-    if (wrist === null) {
+    const handCenter = handCenterForHand(pose, hand);
+    const targets = createControlTargets(pose, frame, viewport);
+    if (wrist === null || handCenter === null || targets === null) {
       this.candidate = null;
       return;
     }
@@ -427,17 +494,17 @@ export class PoseControlSession {
       viewport.height,
       true,
     );
-    const wristPoint = { x: wrist.x, y: wrist.y };
     this.lease = {
       hand,
       torsoCenter: pose.torsoCenter,
       homeTorsoCenter: pose.torsoCenter,
       lastSeenAtMs: nowMs,
       lastMotionAtMs: nowMs,
-      lastMotionPoint: wristPoint,
+      lastMotionPoint: handCenter,
       frame: { ...frame },
-      targets: createControlTargets(pose, frame, viewport),
-      pointer: projectNormalizedPoint(wrist.x, wrist.y, projection),
+      targets,
+      pointer: projectNormalizedPoint(handCenter.x, handCenter.y, projection),
+      controlsArmed: false,
       poseIndex: pose.poseIndex,
       hoveredAction: null,
       hoverStartedAtMs: null,
@@ -465,7 +532,8 @@ export class PoseControlSession {
       return this.tick(nowMs);
     }
     const wrist = wristForHand(pose, lease.hand);
-    if (wrist === null) {
+    const handCenter = handCenterForHand(pose, lease.hand);
+    if (wrist === null || handCenter === null) {
       this.clearPointer();
       return this.tick(nowMs);
     }
@@ -480,11 +548,10 @@ export class PoseControlSession {
       viewport.height,
       true,
     );
-    lease.pointer = projectNormalizedPoint(wrist.x, wrist.y, projection);
+    lease.pointer = projectNormalizedPoint(handCenter.x, handCenter.y, projection);
 
-    const normalizedWrist = { x: wrist.x, y: wrist.y };
-    if (distance(normalizedWrist, lease.lastMotionPoint) >= MEANINGFUL_POINTER_MOVEMENT) {
-      lease.lastMotionPoint = normalizedWrist;
+    if (distance(handCenter, lease.lastMotionPoint) >= MEANINGFUL_POINTER_MOVEMENT) {
+      lease.lastMotionPoint = handCenter;
       lease.lastMotionAtMs = nowMs;
     }
 
@@ -518,6 +585,18 @@ export class PoseControlSession {
       return null;
     }
     const pointer = lease.pointer;
+
+    if (!lease.controlsArmed) {
+      lease.hoveredAction = null;
+      lease.hoverStartedAtMs = null;
+      lease.latchedAction = null;
+      if (
+        lease.targets.every((target) => !containsPoint(target.rect, pointer, HOVER_HYSTERESIS_PX))
+      ) {
+        lease.controlsArmed = true;
+      }
+      return null;
+    }
 
     const previousTarget = lease.targets.find((target) => target.action === lease.hoveredAction);
     const retainedTarget =
@@ -574,6 +653,7 @@ export class PoseControlSession {
           claimProgress: 1,
           targets: this.lease.targets,
           pointer: this.lease.pointer,
+          controlsArmed: this.lease.controlsArmed,
           hoveredAction: this.lease.hoveredAction,
           dwellProgress,
           controllerPoseIndex: this.lease.poseIndex,
@@ -588,7 +668,13 @@ export class PoseControlSession {
       activated,
       snapshot: {
         phase:
-          this.visiblePeople === 0 ? "no-pose" : this.candidate === null ? "ready" : "claiming",
+          this.visiblePeople === 0
+            ? "no-pose"
+            : !this.headroomAvailable
+              ? "needs-headroom"
+              : this.candidate === null
+                ? "ready"
+                : "claiming",
         visiblePeople: this.visiblePeople,
         requiresBothHands: this.multiplePeople,
         claimProgress:
@@ -597,6 +683,7 @@ export class PoseControlSession {
             : clamp((nowMs - this.candidate.startedAtMs) / requiredHoldMs, 0, 1),
         targets: [],
         pointer: null,
+        controlsArmed: false,
         hoveredAction: null,
         dwellProgress: 0,
         controllerPoseIndex: null,

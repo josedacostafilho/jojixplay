@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Current repository state, risks, and immediate decisions
 ---
 
@@ -12,7 +12,7 @@ scope: Current repository state, risks, and immediate decisions
 | --- | --- |
 | Lifecycle | Greenfield / deployed first vertical slice / pre-release |
 | Product purpose | Free phone-as-body-controller experiences; first proof is a television skeleton viewer |
-| Application code | Complete local skeleton-viewer vertical slice |
+| Application code | Complete skeleton-viewer vertical slice |
 | Runtime architecture | Implemented under ADR-0002 through ADR-0006 |
 | Language and framework | TypeScript and Preact |
 | Package/build tooling | Node 24.19.0, npm 11.17.0, and Vite |
@@ -32,7 +32,7 @@ This snapshot describes observed repository state, not a proposed architecture.
 - The phone requests its user-facing camera only after a user action, loads the vendored MediaPipe Lite model in a module worker, samples at no more than 15 Hz, and previews locally detected skeletons. Each pairing session defaults to one-pose inference.
 - The Trystero room authenticates exactly one opposite-role peer and carries latest-only, strictly validated pose packets plus one strict acknowledged player-limit command over WebRTC DataChannels.
 - The television ignores malformed and non-increasing packets, clears stale or disconnected output, and renders up to two identity-independent skeletons through a shared mirrored Canvas projection.
-- A single person claims a temporary controller with one raised hand; in a multiperson frame, one person must raise both. Body-relative semantic buttons freeze for the lease and use deliberate dwell activation.
+- A single person claims a temporary controller with one raised hand; in a multiperson frame, one person must raise both. The complete semantic button row must fit above the controlling head, freezes for the lease, and requires the coarse hand to leave once before deliberate dwell activation arms.
 - The three prototype actions toggle the background, request acknowledged one-/two-player inference, or replace a three-second 12-circle effect. Skeletons and circles use one fixed two-color palette.
 - Unit/component tests and production-browser smoke tests cover the deterministic boundaries, including fake-camera MediaPipe initialization.
 - The repository is cut over to Node 24, jsdom 30, immutable GitHub Action SHAs, grouped Dependabot updates, pull-request validation, and least-privilege publication jobs. GitHub reports Dependabot vulnerability alerts and automatic security-update pull requests enabled.
@@ -40,16 +40,16 @@ This snapshot describes observed repository state, not a proposed architecture.
 
 ## Immediate work
 
-Validate the complete journey on the project owner's real phone and television. This is an external acceptance step; it does not justify an alternate implementation in the meantime.
+Validate the complete journey on the project owner's real phone and television, including the above-head coarse-hand control cutover. This is an external acceptance step; it does not justify an alternate implementation in the meantime.
 
 ## Pre-release exit criteria
 
 - A real phone and television complete TV-mode/fullscreen entry, QR and manual-key pairing, camera startup, pose delivery, stale/disconnect behavior, and cleanup.
-- Default one-person detection, acknowledged one-/two-player switching, mirrored presentation, temporary controller claiming, adaptive reach, dwell false-positive behavior, and perceived latency are recorded from the target hardware.
+- Default one-person detection, acknowledged one-/two-player switching, mirrored presentation, overhead framing, coarse-hand stability, temporary controller claiming, neutral arming, adaptive reach, dwell false-positive behavior, and perceived latency are recorded from the target hardware.
 
 ## Verification evidence
 
-On 2026-08-13, a clean `npm ci` and `npm run validate` passed under Node 24.19.0/npm 11.17.0: exact toolchain verification, formatting, linting, 61 unit/component tests, vendored-model integrity, two production builds, five Chromium end-to-end journeys, and the high-severity dependency audit all passed; npm reported zero vulnerabilities. Remote pull-request validation and the resulting `main` Pages deployment are verified separately during publication.
+On 2026-08-14, `npm run validate` passed under Node 24.19.0/npm 11.17.0 after the above-head coarse-hand control cutover: exact toolchain verification, formatting, linting, 66 unit/component tests, vendored-model integrity, two production builds, five Chromium end-to-end journeys, and the high-severity dependency audit all passed; npm reported zero vulnerabilities. Remote pull-request validation and the resulting `main` Pages deployment are verified separately during publication.
 
 ## Known risks
 
@@ -59,7 +59,7 @@ On 2026-08-13, a clean `npm ci` and `npm run validate` passed under Node 24.19.0
 | Public Nostr relay availability is external | A room may not discover its peer | Surface a terminal pairing error; replace the architecture only through a hard cutover if evidence requires it |
 | No TURN service exists | Isolated Wi-Fi clients cannot connect | Treat direct connection failure as unsupported for this prototype |
 | Real camera and model behavior is hardware-dependent | Fake media proves initialization, not accuracy, thermals, or sustained latency | Run the documented real-device acceptance pass |
-| Pose-control geometry and timing are human factors | Buttons may feel difficult to reach or dwell may misfire | Measure the accepted defaults on real people and replace them only from recorded evidence |
+| Above-head pose-control geometry and timing are human factors | Buttons may be tiring to reach, the coarse hand may disappear, or dwell may misfire | Measure the accepted defaults on real people and replace them only from recorded evidence |
 | Runtime player-limit replacement is device-dependent | `setOptions()` may pause or fail on a target phone | Keep acknowledgement fail-closed, terminate an uncertain tracking run, and measure switching on real hardware |
 | Future game rendering can attract speculative abstractions | Complexity can precede evidence | Keep the shell independent, but install no game engine until a real game consumes it |
 | Compatibility habits can introduce permanent clutter | Multiple paths become de facto contracts | Enforce ADR-0001 and delete displaced paths in the same change |
