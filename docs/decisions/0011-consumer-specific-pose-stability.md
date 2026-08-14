@@ -1,7 +1,7 @@
 ---
 status: Active
 last_verified: 2026-08-14
-scope: One-player pose stability, Draw stationarity evidence, diagnostics, and model-selection boundaries
+scope: Raw-pose ownership, consumer-specific filtering, diagnostics, model selection, and historical Draw stationarity rationale
 ---
 
 # ADR-0011: Consumer-specific pose stability
@@ -10,7 +10,9 @@ scope: One-player pose stability, Draw stationarity evidence, diagnostics, and m
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The single-anchor, every-outlier-resets stationary test in [ADR-0010](0010-menu-and-draw-game.md)
-- **Superseded by:** None
+- **Superseded by:** [ADR-0012](0012-two-hand-draw-grip.md) for Draw's stationary engagement/lifting classifier; the raw-pose, consumer-specific filtering, diagnostics, and model-selection decisions remain active
+
+> **Current-scope note:** ADR-0012 supersedes every Draw stationarity rule and test expectation below. Those passages remain only as historical rationale. Raw-pose ownership, consumer-specific filtering, local diagnostics, and the model-selection boundary remain operative.
 
 ## Context
 

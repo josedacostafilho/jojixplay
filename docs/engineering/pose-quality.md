@@ -35,7 +35,7 @@ Run each measurement with exactly one player selected.
 4. Record camera, submission, completion, and processing-age values over a sustained 60-second run. Note temperature, visible throttling, and battery impact.
 5. Hold the left hand still for at least five seconds and record its coarse-hand and worst-landmark spread after the two-second window is fully stationary. Repeat three times.
 6. Repeat for the right hand.
-7. Enter Draw and record perceived cursor delay, successful 500 ms engagement/lifting, false activations, and visible path quality while making slow curves and fast direction changes.
+7. Enter Draw and record perceived cursor delay, immediate close-hand activation, wide-hand release, false activation/release, grip continuity, and visible Pencil/Eraser path quality while making slow curves and fast direction changes.
 8. Keep the exact camera position, lighting, distance, warm-up, and motions for every model comparison.
 
 Do not interpret a rolling spread captured during movement as model jitter. Do not report a requested 30 FPS ceiling as achieved inference cadence.

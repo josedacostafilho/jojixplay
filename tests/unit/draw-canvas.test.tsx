@@ -25,9 +25,9 @@ function drawing(generation = 0, commands: DrawSnapshot["commands"] = []): DrawS
     commands,
     generation,
     revision: commands.length,
-    activeTool: null,
-    brush: { point: null, phase: "unavailable", dwellProgress: 0 },
-    eraser: { point: null, phase: "unavailable", dwellProgress: 0 },
+    selectedTool: "pencil",
+    gripActive: false,
+    cursor: { point: null, phase: "unavailable" },
   };
 }
 
@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 describe("Draw canvas", () => {
-  it("mirrors normalized brush and eraser commands and clears on a new generation", async () => {
+  it("mirrors normalized pencil and eraser commands and clears on a new generation", async () => {
     vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
     const compositeOperations: string[] = [];
     const context = {
@@ -59,7 +59,7 @@ describe("Draw canvas", () => {
 
     const commands: DrawSnapshot["commands"] = [
       {
-        tool: "brush",
+        tool: "pencil",
         color: "#2563eb",
         from: { x: 0.2, y: 0.3 },
         to: { x: 0.4, y: 0.5 },

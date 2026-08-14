@@ -40,6 +40,23 @@ function createRaisedHandPacket(sequence: number): PosePacket {
   };
 }
 
+function createCloseHandsPacket(sequence: number): PosePacket {
+  const posePacket = createRaisedHandPacket(sequence);
+  const pose = posePacket.poses[0];
+  if (pose === undefined) {
+    throw new Error("Expected one pose.");
+  }
+  for (const [index, x, y] of [
+    [16, 0.47, 0.2],
+    [18, 0.45, 0.19],
+    [20, 0.47, 0.18],
+    [22, 0.49, 0.19],
+  ] as const) {
+    visibleLandmark(pose, index, x, y);
+  }
+  return posePacket;
+}
+
 class ImmediateResizeObserver {
   public constructor(private readonly callback: ResizeObserverCallback) {}
 
@@ -147,9 +164,13 @@ describe("TV playfield", () => {
     expect(playfield).toHaveAttribute("data-playfield-view", "main");
   });
 
-  it("opens Draw on the exact camera projection and retains its color across Exit", () => {
+  it("uses a compact left Draw toolbar and retains its tool and color across Exit", () => {
     const createPortraitPacket = (sequence: number) => ({
       ...createRaisedHandPacket(sequence),
+      frame: { width: 720, height: 1_280 },
+    });
+    const createClosePortraitPacket = (sequence: number) => ({
+      ...createCloseHandsPacket(sequence),
       frame: { width: 720, height: 1_280 },
     });
     const renderPlayfield = (packet: PosePacket) => (
@@ -175,12 +196,48 @@ describe("TV playfield", () => {
       height: "720px",
     });
     expect(screen.getByRole("img", { name: "Your Draw artwork" })).toBeInTheDocument();
+    const toolButton = screen.getByRole("button", {
+      name: "Switch to Eraser; current tool Pencil",
+    });
     expect(screen.getByRole("button", { name: /Change drawing color/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear drawing" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Exit Draw" })).toBeInTheDocument();
+    const drawButtons = [
+      toolButton,
+      screen.getByRole("button", { name: /Change drawing color/ }),
+      screen.getByRole("button", { name: "Clear drawing" }),
+      screen.getByRole("button", { name: "Exit Draw" }),
+    ];
+    expect(view.container.querySelector(".pose-control-targets")).toHaveAttribute(
+      "data-control-placement",
+      "left-column",
+    );
+    expect(drawButtons.map(({ style }) => style.left)).toEqual([
+      drawButtons[0]?.style.left,
+      drawButtons[0]?.style.left,
+      drawButtons[0]?.style.left,
+      drawButtons[0]?.style.left,
+    ]);
+    expect(drawButtons.map(({ style }) => Number.parseFloat(style.top))).toEqual(
+      [...drawButtons]
+        .map(({ style }) => Number.parseFloat(style.top))
+        .sort((left, right) => left - right),
+    );
+    expect(Number.parseFloat(toolButton.style.width)).toBeLessThan(150);
+
+    nowMs = 400;
+    view.rerender(renderPlayfield(createClosePortraitPacket(4)));
+    expect(view.container.querySelectorAll(".draw-tool-cursor")).toHaveLength(1);
+    expect(view.container.querySelector(".draw-tool-cursor--pencil")).toBeInTheDocument();
     animationCallbacks.at(-1)?.(0);
     expect(canvasContext.globalAlpha).toBe(0.28);
 
+    fireEvent.click(toolButton);
+    expect(screen.getByText("Eraser selected.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Switch to Pencil; current tool Eraser" }),
+    ).toBeInTheDocument();
+    expect(view.container.querySelector(".draw-tool-cursor--eraser")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Change drawing color/ }));
     expect(
       screen.getByRole("button", { name: "Change drawing color; current color #2563eb" }),
@@ -188,6 +245,9 @@ describe("TV playfield", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exit Draw" }));
     expect(playfield).toHaveAttribute("data-playfield-view", "games");
     fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(
+      screen.getByRole("button", { name: "Switch to Pencil; current tool Eraser" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Change drawing color; current color #2563eb" }),
     ).toBeInTheDocument();

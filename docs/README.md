@@ -48,7 +48,8 @@ docs/
 │   ├── 0008-above-head-coarse-hand-controls.md
 │   ├── 0009-camera-paced-inference.md
 │   ├── 0010-menu-and-draw-game.md
-│   └── 0011-consumer-specific-pose-stability.md
+│   ├── 0011-consumer-specific-pose-stability.md
+│   └── 0012-two-hand-draw-grip.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

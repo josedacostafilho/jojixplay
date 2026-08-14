@@ -8,7 +8,7 @@ scope: User-visible contract and acceptance criteria for the first JojixPlay gam
 
 ## Outcome
 
-Draw is the first playable JojixPlay content. One temporarily claimed controller uses the selected hand as a brush and the other hand as an eraser on a television-local canvas. Camera pixels remain on the phone; Draw consumes only the same validated `PosePacket` landmarks as the skeleton viewer.
+Draw is the first playable JojixPlay content. One temporarily claimed controller brings both hands together to activate a selected Pencil or Eraser, then draws with the lease's main hand until deliberately spreading both hands wide. Camera pixels remain on the phone; Draw consumes only the same validated `PosePacket` landmarks as the skeleton viewer.
 
 ## Navigation contract
 
@@ -21,6 +21,7 @@ Main Menu
     └── Return → Main Menu
 
 Draw
+├── Pencil / Eraser
 ├── Color
 ├── Clear
 └── Exit → Games
@@ -29,73 +30,76 @@ Draw
 - Replacing a view replaces every body-control target in one operation. No hidden prior action remains active.
 - The controller lease survives navigation, while target hover, dwell, latch, and neutral arming restart for each new view.
 - Main Menu and Games show the normal skeleton-viewer stage. Draw changes only the game presentation inside the television playfield.
-- Draw state is ephemeral. Artwork and the active color survive navigation within the same mounted television session but not page reload, disconnect, or a new session.
+- Draw state is ephemeral. Artwork, selected tool, and active color survive navigation within the same mounted television session but not page reload, disconnect, or a new session. The grip never survives view exit.
 
 ## Draw presentation
 
 - The exact contained camera projection is the white drawable board with a clear dark border.
 - Letterbox or pillarbox space outside the projected camera frame remains the selected dark stage theme and rejects marks.
 - Existing drawing is opaque. The live mirrored skeleton is rendered above it at 28% opacity.
-- Semantic tool buttons remain above the controlling pose's visible head under the canonical headroom rule.
-- The brush cursor uses the active ink color. The eraser cursor shows its circular footprint. Both cursors show engagement dwell progress and a distinct active state.
+- Four compact buttons form one vertical column just inside the projected camera frame's left edge. The column is centered around the leased torso, clamped inside the reachable frame, and frozen for the lease.
+- The main-hand cursor shows the selected Pencil color or the Eraser footprint. A highlighted cursor means the two-hand grip is active. The supporting hand has no drawing cursor.
 
 ## Drawing data
 
 - A path point is `{ x, y }` in normalized raw phone-camera coordinates.
-- Paths are tagged as brush or eraser. Brush paths retain the color active when that path began.
-- Brush width and eraser diameter scale from the projected camera frame's minimum dimension, not the television viewport or CSS pixels.
+- Paths are tagged as Pencil or Eraser. Pencil paths retain the color active when each command was created.
+- Pencil width and Eraser diameter scale from the projected camera frame's minimum dimension, not the television viewport or CSS pixels.
 - Rendering mirrors `x` at presentation time and never changes anatomical landmarks or the network packet.
-- Points closer than the accepted sampling distance are not retained. A gap, dropout, frame change, or implausible jump ends the current path rather than connecting across unknown motion.
+- Points closer than the accepted sampling distance are not retained. A main-hand gap or dropout, frame change, toolbar crossing, board exit, or implausible main-hand jump ends the current path rather than connecting across unknown motion. Supporting-hand loss alone does not interrupt a valid main-hand path.
 
 ## Interaction contract
 
-### Controller and hands
+### Controller and main hand
 
-- The existing claim and lease rules select the controlling pose and brush hand.
-- The opposite hand belongs to the same leased pose and operates the eraser.
-- A complete hand requires the wrist, pinky, index, and thumb landmarks at the canonical visibility threshold.
-- Loss of the selected hand immediately lifts the brush but retains the controller lease for its existing one-second recovery window. Loss of only the opposite hand immediately lifts the eraser without changing controller ownership.
+- The existing claim and lease rules select one controlling pose and one main hand.
+- Only the main hand supplies Pencil and Eraser coordinates. Changing tool does not change hands.
+- Both complete coarse hands and both visible shoulders belong to the same leased pose. A complete hand requires wrist, pinky, index, and thumb landmarks at the canonical visibility threshold.
+- Hand and shoulder distances are measured in aspect-corrected camera space, so the gesture scales with camera orientation and person-to-camera distance.
 
-### Tool dwell
+### Two-hand grip
 
-1. Place an available hand on the white board while no toolbar button is under it.
-2. Hold within the stationary tolerance for 500 ms. The cursor progress ring fills; a bounded isolated landmark excursion is treated as noise rather than restarting the entire hold.
-3. On completion, that tool engages and any other engaged tool lifts.
-4. Move to draw or erase. Speed-aware smoothing applies only to the continuous tool point, reducing low-speed path noise while retaining faster movement response.
-5. Hold still for 500 ms again to lift, or lift immediately by entering the toolbar, leaving the board, losing the hand, receiving stale input, changing camera dimensions, or jumping beyond the accepted movement bound.
+1. Choose Pencil or Eraser through the left toolbar.
+2. Bring both complete hands within `0.75 ×` the current visible shoulder span. One qualifying pose sample activates the selected tool immediately; there is no timer or stationary hold.
+3. Move the main hand to draw or erase. Capture-timestamp speed-adaptive smoothing reduces low-speed path noise while preserving faster motion response.
+4. Ordinary hand separation does not interrupt the grip. It remains active throughout the gap between the engagement and release thresholds.
+5. Spread both complete hands to at least `1.25 ×` the current shoulder span to release. This exaggerated shoulder-width-or-greater gesture is intentionally much wider than the engagement pose.
 
-No mark is produced before engagement. Re-engagement begins a new path. Stationarity is evaluated from capture-time evidence rather than from the lagging smoothed cursor: sustained movement or frequent excursions restart the hold, while one short excursion cannot make an otherwise valid hold impossible.
+No mark is produced before engagement. Re-engagement or any path-breaking boundary begins a new path without a bridge segment. Supporting-hand loss alone cannot prove wide separation and therefore does not cancel an active grip or interrupt main-hand drawing; stale overall pose input still fails closed.
 
 ## Tool actions
 
-| Action | Result | Dwell |
+| Action | Result | Button dwell |
 | --- | --- | --- |
-| Color | Cycle near-black → blue → red → green → near-black | 900 ms |
-| Clear | Remove all brush and eraser paths and lift both tools | 1,500 ms |
-| Exit | Lift both tools and return to Games without deleting artwork | 900 ms |
+| Pencil / Eraser | Toggle the selected tool and break the current path without cancelling a valid grip | 900 ms |
+| Color | Cycle near-black → blue → red → green → near-black and break the current path | 900 ms |
+| Clear | Remove all Pencil and Eraser paths and break the current path | 1,500 ms |
+| Exit | Cancel the grip and return to Games without deleting artwork | 900 ms |
 
 Semantic click, remote, and keyboard activation produce the same result as body dwell.
 
 ## Failure and boundary behavior
 
 - With no live pose, Draw retains artwork but accepts no marks.
-- When the controller lease releases, both tools lift and Draw returns to claim guidance without exiting the game.
+- When the controller lease releases, the grip and current path end while Draw returns to claim guidance without exiting the game.
+- A brief missing main hand, board exit, toolbar entry, or implausible jump hides or moves the cursor and breaks the path without cancelling an otherwise valid grip.
+- Input stale for more than 250 ms, a viewport/controller reset, a camera frame-dimension change, leaving Draw, or session cleanup cancels the grip.
 - A viewport resize releases the controller under the existing contract; normalized artwork is reprojected and retained.
-- A camera frame-dimension change lifts both tools and reprojects retained normalized paths to the new camera bounds.
 - Physical camera movement cannot be detected or compensated reliably from pose-only data. The phone is expected to remain stationary.
 - Draw never sends artwork, tool state, or pixels to the phone or a remote service.
 
 ## Acceptance criteria
 
-1. Main Menu exposes Background, Players, and Games; no Circles action or effect remains.
-2. Games exposes Draw and Return, and every menu transition requires neutral re-arming without releasing the controller.
+1. Main Menu exposes Background, Players, and Games; Games exposes Draw and Return.
+2. Draw atomically exposes Pencil/Eraser, Color, Clear, and Exit in a smaller vertical column inside the projected frame's left edge.
 3. Draw shows a white board exactly matching the projected camera frame and dark non-drawable letterbox space.
-4. The selected complete coarse hand can dwell-engage an opaque colored brush, move a continuous smoothed path, and dwell-lift it.
-5. The opposite complete coarse hand can independently dwell-engage a visible circular eraser; engaging either tool lifts the other.
-6. Toolbar entry, bounds exit, dropout, stale input, frame change, and large jumps break paths without bridge segments.
-7. Color cycles the fixed palette, Clear requires 1,500 ms body dwell, and Exit/Return navigate as specified.
-8. Artwork survives Draw exit/re-entry within the same television session and is never persisted or transmitted.
-9. The skeleton remains useful but visually subordinate at 28% opacity.
-10. Automated gates prove outlier-tolerant 500 ms stationarity without cursor-filter latency, while real phone/television acceptance records latency, stability, ergonomics, and thermal behavior separately.
+4. Bringing both complete hands within `0.75 ×` shoulder span immediately activates the selected tool without a timer.
+5. The selected main hand draws one continuous smoothed Pencil or Eraser path throughout ordinary movement and the full hysteresis band.
+6. Only observed separation at or above `1.25 ×` shoulder span deliberately releases the grip; safety resets remain fail closed.
+7. The opposite hand never produces an independent path or cursor, and switching tools retains main-hand ownership.
+8. Toolbar entry, bounds exit, main-hand dropout, stale input, frame change, and large jumps create no bridge segments; supporting-hand loss alone does not interrupt a latched grip.
+9. Tool and Color selections and artwork survive Draw exit/re-entry within the same television session; Clear remains a 1,500 ms body action.
+10. The skeleton remains useful but visually subordinate at 28% opacity.
+11. Automated gates prove the threshold boundaries, hysteresis, main-hand ownership, one-cursor UI, and vertical layout; real-device acceptance records comfort, continuity, false activation/release, button reach, and perceived latency.
 
-The architectural rationale is governed by [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Pose-signal ownership, robust stationarity, and measurement are governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).
+The current Draw interaction is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md). The game boundary originates in [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md), while raw-pose ownership and diagnostics remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).

@@ -2,6 +2,7 @@ import type { DetectedPose, PoseLandmark, PosePacket } from "../domain/pose";
 import { coarseHand, usablePoseLandmark } from "../domain/pose-features";
 import {
   createPoseProjection,
+  frameNormalizedDistance,
   type Point,
   projectedFrameBounds,
   projectNormalizedPoint,
@@ -20,9 +21,10 @@ export const POSE_CONTROL_TIMING = {
   freshPoseMs: 250,
 } as const;
 
-export const MAX_POSE_CONTROL_TARGETS = 3;
+export const MAX_POSE_CONTROL_TARGETS = 4;
 export type PoseControlPhase = "no-pose" | "needs-headroom" | "ready" | "claiming" | "active";
 export type ControlHand = "left" | "right";
+export type PoseControlPlacement = "overhead-row" | "left-column";
 
 export interface PoseControlActionDefinition<TAction extends string> {
   action: TAction;
@@ -41,6 +43,7 @@ export interface PoseControlHands {
   selected: ControlHand;
   left: Point | null;
   right: Point | null;
+  shoulderSpan: number;
 }
 
 export interface PoseControlSnapshot<TAction extends string = string> {
@@ -86,13 +89,25 @@ interface ClaimCandidate {
   lastSeenAtMs: number;
 }
 
-interface ControlLayout {
+interface OverheadControlLayout {
+  placement: "overhead-row";
   centerX: number;
   rowTop: number;
   targetWidth: number;
   targetHeight: number;
   gap: number;
 }
+
+interface LeftColumnControlLayout {
+  placement: "left-column";
+  columnLeft: number;
+  columnTop: number;
+  targetWidth: number;
+  targetHeight: number;
+  gap: number;
+}
+
+type ControlLayout = OverheadControlLayout | LeftColumnControlLayout;
 
 interface ControlLease<TAction extends string> {
   hand: ControlHand;
@@ -103,6 +118,7 @@ interface ControlLease<TAction extends string> {
   lastMotionPoint: Point;
   frame: Size;
   layout: ControlLayout;
+  overheadLayout: OverheadControlLayout | null;
   targets: readonly PoseControlTarget<TAction>[];
   pointer: Point | null;
   hands: PoseControlHands | null;
@@ -129,12 +145,18 @@ const LAYOUT_DISPLACEMENT_DISTANCE = 0.24;
 const MEANINGFUL_POINTER_MOVEMENT = 0.0125;
 const CLAIM_PACKET_GAP_MS = POSE_CONTROL_TIMING.freshPoseMs;
 const HOVER_HYSTERESIS_PX = 10;
+const MAX_OVERHEAD_TARGETS = 3;
 
 function validateActions<TAction extends string>(
   actions: readonly PoseControlActionDefinition<TAction>[],
+  placement: PoseControlPlacement,
 ): readonly PoseControlActionDefinition<TAction>[] {
-  if (actions.length === 0 || actions.length > MAX_POSE_CONTROL_TARGETS) {
-    throw new Error(`Pose controls require 1 to ${MAX_POSE_CONTROL_TARGETS} actions.`);
+  const maximumTargets =
+    placement === "overhead-row" ? MAX_OVERHEAD_TARGETS : MAX_POSE_CONTROL_TARGETS;
+  if (actions.length === 0 || actions.length > maximumTargets) {
+    throw new Error(
+      `Pose controls require 1 to ${maximumTargets} actions for ${placement} placement.`,
+    );
   }
   const seen = new Set<string>();
   return actions.map((definition) => {
@@ -301,11 +323,11 @@ function nearestPose(
   return nearest;
 }
 
-function createControlLayout(
+function createOverheadControlLayout(
   pose: PoseDescriptor,
   frame: Size,
   viewport: Size,
-): ControlLayout | null {
+): OverheadControlLayout | null {
   if (pose.headTopY === null) {
     return null;
   }
@@ -325,16 +347,13 @@ function createControlLayout(
   const gap = Math.min(clamp(viewport.width * 0.012, 8, 24), availableWidth * 0.04);
   const targetWidth = Math.max(
     1,
-    Math.min(
-      220,
-      (availableWidth - gap * (MAX_POSE_CONTROL_TARGETS - 1)) / MAX_POSE_CONTROL_TARGETS,
-    ),
+    Math.min(220, (availableWidth - gap * (MAX_OVERHEAD_TARGETS - 1)) / MAX_OVERHEAD_TARGETS),
   );
   const targetHeight = Math.max(
     1,
     Math.min(clamp(viewport.height * 0.09, 68, 112), availableHeight, targetWidth * 0.58),
   );
-  const rowWidth = targetWidth * MAX_POSE_CONTROL_TARGETS + gap * (MAX_POSE_CONTROL_TARGETS - 1);
+  const rowWidth = targetWidth * MAX_OVERHEAD_TARGETS + gap * (MAX_OVERHEAD_TARGETS - 1);
   const minimumCenterX = frameBounds.x + safeMargin + rowWidth / 2;
   const maximumCenterX = frameBounds.x + frameBounds.width - safeMargin - rowWidth / 2;
   const centerX = clamp(headTop.x, minimumCenterX, maximumCenterX);
@@ -345,13 +364,83 @@ function createControlLayout(
   if (rowTop < minimumTop || rowTop + targetHeight > maximumBottom) {
     return null;
   }
-  return { centerX, rowTop, targetWidth, targetHeight, gap };
+  return { placement: "overhead-row", centerX, rowTop, targetWidth, targetHeight, gap };
+}
+
+function createLeftColumnControlLayout(
+  torsoCenter: Point,
+  frame: Size,
+  viewport: Size,
+  actionCount: number,
+): LeftColumnControlLayout {
+  const projection = createPoseProjection(
+    frame.width,
+    frame.height,
+    viewport.width,
+    viewport.height,
+    true,
+  );
+  const frameBounds = projectedFrameBounds(projection);
+  const minimumFrameDimension = Math.min(frameBounds.width, frameBounds.height);
+  const safeMargin = Math.min(24, Math.max(8, minimumFrameDimension * 0.025));
+  const availableWidth = Math.max(1, frameBounds.width - safeMargin * 2);
+  const availableHeight = Math.max(1, frameBounds.height - safeMargin * 2);
+  const gap = Math.min(clamp(viewport.height * 0.012, 8, 14), availableHeight * 0.04);
+  const targetWidth = Math.max(
+    1,
+    Math.min(clamp(viewport.width * 0.1, 96, 144), availableWidth * 0.28),
+  );
+  const targetHeight = Math.max(
+    1,
+    Math.min(
+      clamp(viewport.height * 0.07, 48, 68),
+      (availableHeight - gap * Math.max(0, actionCount - 1)) / actionCount,
+      targetWidth * 0.62,
+    ),
+  );
+  const columnHeight = targetHeight * actionCount + gap * Math.max(0, actionCount - 1);
+  const torso = projectNormalizedPoint(torsoCenter.x, torsoCenter.y, projection);
+  const minimumTop = frameBounds.y + safeMargin;
+  const maximumTop = frameBounds.y + frameBounds.height - safeMargin - columnHeight;
+  return {
+    placement: "left-column",
+    columnLeft: frameBounds.x + safeMargin,
+    columnTop: clamp(torso.y - columnHeight / 2, minimumTop, Math.max(minimumTop, maximumTop)),
+    targetWidth,
+    targetHeight,
+    gap,
+  };
+}
+
+function createControlLayout(
+  pose: PoseDescriptor,
+  frame: Size,
+  viewport: Size,
+  placement: PoseControlPlacement,
+  actionCount: number,
+): ControlLayout | null {
+  return placement === "overhead-row"
+    ? createOverheadControlLayout(pose, frame, viewport)
+    : createLeftColumnControlLayout(pose.torsoCenter, frame, viewport, actionCount);
 }
 
 function createControlTargets<TAction extends string>(
   layout: ControlLayout,
   actions: readonly PoseControlActionDefinition<TAction>[],
 ): readonly PoseControlTarget<TAction>[] {
+  if (layout.placement === "left-column") {
+    return actions.map(({ action, label, dwellMs }, index) => ({
+      action,
+      label,
+      dwellMs: dwellMs ?? POSE_CONTROL_TIMING.dwellMs,
+      rect: {
+        x: layout.columnLeft,
+        y: layout.columnTop + index * (layout.targetHeight + layout.gap),
+        width: layout.targetWidth,
+        height: layout.targetHeight,
+      },
+    }));
+  }
   const rowWidth =
     layout.targetWidth * actions.length + layout.gap * Math.max(0, actions.length - 1);
   const rowLeft = layout.centerX - rowWidth / 2;
@@ -379,6 +468,7 @@ function containsPoint(rect: Rectangle, point: Point, padding: number): boolean 
 
 export class PoseControlSession<TAction extends string> {
   private actions: readonly PoseControlActionDefinition<TAction>[];
+  private placement: PoseControlPlacement;
   private viewport: Size | null = null;
   private visiblePeople = 0;
   private multiplePeople = false;
@@ -386,16 +476,38 @@ export class PoseControlSession<TAction extends string> {
   private candidate: ClaimCandidate | null = null;
   private lease: ControlLease<TAction> | null = null;
 
-  public constructor(actions: readonly PoseControlActionDefinition<TAction>[]) {
-    this.actions = validateActions(actions);
+  public constructor(
+    actions: readonly PoseControlActionDefinition<TAction>[],
+    placement: PoseControlPlacement,
+  ) {
+    this.actions = validateActions(actions, placement);
+    this.placement = placement;
   }
 
   public setActions(
     actions: readonly PoseControlActionDefinition<TAction>[],
+    placement: PoseControlPlacement,
     nowMs: number,
   ): PoseControlUpdate<TAction> {
-    this.actions = validateActions(actions);
+    this.actions = validateActions(actions, placement);
+    this.placement = placement;
     if (this.lease !== null) {
+      const nextLayout =
+        placement === "overhead-row"
+          ? this.lease.overheadLayout
+          : createLeftColumnControlLayout(
+              this.lease.torsoCenter,
+              this.lease.frame,
+              this.viewport ?? this.lease.frame,
+              this.actions.length,
+            );
+      if (nextLayout === null) {
+        this.lease = null;
+        this.candidate = null;
+        this.headroomAvailable = false;
+        return this.result(nowMs, null);
+      }
+      this.lease.layout = nextLayout;
       this.lease.targets = createControlTargets(this.lease.layout, this.actions);
       this.lease.controlsArmed = false;
       this.lease.hoveredAction = null;
@@ -435,7 +547,9 @@ export class PoseControlSession<TAction extends string> {
     this.visiblePeople = poses.length;
     this.multiplePeople = poses.length > 1;
     const posesWithHeadroom = poses.filter(
-      (pose) => createControlLayout(pose, packet.frame, viewport) !== null,
+      (pose) =>
+        createControlLayout(pose, packet.frame, viewport, this.placement, this.actions.length) !==
+        null,
     );
     this.headroomAvailable = posesWithHeadroom.length > 0;
 
@@ -528,7 +642,8 @@ export class PoseControlSession<TAction extends string> {
   ): void {
     const wrist = wristForHand(pose, hand);
     const handCenter = handCenterForHand(pose, hand);
-    const layout = createControlLayout(pose, frame, viewport);
+    const overheadLayout = createOverheadControlLayout(pose, frame, viewport);
+    const layout = createControlLayout(pose, frame, viewport, this.placement, this.actions.length);
     if (wrist === null || handCenter === null || layout === null) {
       this.candidate = null;
       return;
@@ -549,12 +664,14 @@ export class PoseControlSession<TAction extends string> {
       lastMotionPoint: handCenter,
       frame: { ...frame },
       layout,
+      overheadLayout,
       targets: createControlTargets(layout, this.actions),
       pointer: projectNormalizedPoint(handCenter.x, handCenter.y, projection),
       hands: {
         selected: hand,
         left: pose.leftHandCenter,
         right: pose.rightHandCenter,
+        shoulderSpan: frameNormalizedDistance(pose.leftShoulder, pose.rightShoulder, frame),
       },
       controlsArmed: false,
       poseIndex: pose.poseIndex,
@@ -597,6 +714,7 @@ export class PoseControlSession<TAction extends string> {
       selected: lease.hand,
       left: pose.leftHandCenter,
       right: pose.rightHandCenter,
+      shoulderSpan: frameNormalizedDistance(pose.leftShoulder, pose.rightShoulder, frame),
     };
     const projection = createPoseProjection(
       frame.width,

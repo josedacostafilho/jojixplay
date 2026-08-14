@@ -2,15 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { PosePacket } from "../domain/pose";
 import { type PoseLimit, MAX_POSE_LIMIT } from "../domain/pose-limit";
 import { DrawCanvas } from "../games/draw/draw-canvas";
-import {
-  DRAW_ERASER_WIDTH,
-  DrawSession,
-  type DrawSnapshot,
-  type DrawTool,
-  type DrawToolSnapshot,
-} from "../games/draw/draw-session";
+import { DRAW_ERASER_WIDTH, DrawSession, type DrawSnapshot } from "../games/draw/draw-session";
 import {
   type PoseControlActionDefinition,
+  type PoseControlPlacement,
   PoseControlSession,
   type PoseControlSnapshot,
   type PoseControlUpdate,
@@ -41,6 +36,7 @@ type PlayfieldAction =
   | "open-games"
   | "open-draw"
   | "return-main"
+  | "draw-tool"
   | "draw-color"
   | "draw-clear"
   | "draw-exit";
@@ -57,6 +53,7 @@ const GAMES_ACTIONS = [
 ] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
 
 const DRAW_ACTIONS = [
+  { action: "draw-tool", label: "Pencil" },
   { action: "draw-color", label: "Color" },
   { action: "draw-clear", label: "Clear", dwellMs: 1_500 },
   { action: "draw-exit", label: "Exit" },
@@ -76,16 +73,19 @@ const EMPTY_SNAPSHOT: PoseControlSnapshot<PlayfieldAction> = {
   controllerPoseIndex: null,
 };
 
-function actionsForView(
-  view: PlayfieldView,
-): readonly PoseControlActionDefinition<PlayfieldAction>[] {
+interface ViewControls {
+  actions: readonly PoseControlActionDefinition<PlayfieldAction>[];
+  placement: PoseControlPlacement;
+}
+
+function controlsForView(view: PlayfieldView): ViewControls {
   switch (view) {
     case "main":
-      return MAIN_ACTIONS;
+      return { actions: MAIN_ACTIONS, placement: "overhead-row" };
     case "games":
-      return GAMES_ACTIONS;
+      return { actions: GAMES_ACTIONS, placement: "overhead-row" };
     case "draw":
-      return DRAW_ACTIONS;
+      return { actions: DRAW_ACTIONS, placement: "left-column" };
   }
 }
 
@@ -118,6 +118,7 @@ function sameSnapshot(
     left.hands?.selected === right.hands?.selected &&
     samePoint(left.hands?.left ?? null, right.hands?.left ?? null) &&
     samePoint(left.hands?.right ?? null, right.hands?.right ?? null) &&
+    left.hands?.shoulderSpan === right.hands?.shoulderSpan &&
     left.controlsArmed === right.controlsArmed &&
     left.hoveredAction === right.hoveredAction &&
     Math.abs(left.dwellProgress - right.dwellProgress) < 0.01 &&
@@ -125,42 +126,24 @@ function sameSnapshot(
   );
 }
 
-function sameDrawTool(left: DrawToolSnapshot, right: DrawToolSnapshot): boolean {
-  return (
-    left.phase === right.phase &&
-    samePoint(left.point, right.point) &&
-    Math.abs(left.dwellProgress - right.dwellProgress) < 0.01
-  );
-}
-
 function sameDrawing(left: DrawSnapshot, right: DrawSnapshot): boolean {
   return (
     left.colorIndex === right.colorIndex &&
+    left.selectedTool === right.selectedTool &&
+    left.gripActive === right.gripActive &&
     left.generation === right.generation &&
     left.revision === right.revision &&
-    left.activeTool === right.activeTool &&
-    sameDrawTool(left.brush, right.brush) &&
-    sameDrawTool(left.eraser, right.eraser)
+    left.cursor.phase === right.cursor.phase &&
+    samePoint(left.cursor.point, right.cursor.point)
   );
 }
 
 function drawInstruction(drawing: DrawSnapshot): string {
-  const progressingTool: DrawTool | null =
-    drawing.brush.phase === "arming" || drawing.brush.phase === "lifting"
-      ? "brush"
-      : drawing.eraser.phase === "arming" || drawing.eraser.phase === "lifting"
-        ? "eraser"
-        : null;
-  if (progressingTool !== null) {
-    const phase = progressingTool === "brush" ? drawing.brush.phase : drawing.eraser.phase;
-    return phase === "lifting"
-      ? `Keep your ${progressingTool} hand still to lift`
-      : `Keep your ${progressingTool} hand still to engage`;
+  const tool = drawing.selectedTool === "pencil" ? "pencil" : "eraser";
+  if (drawing.gripActive) {
+    return `${tool === "pencil" ? "Pencil" : "Eraser"} active — spread both hands wide to stop`;
   }
-  if (drawing.activeTool !== null) {
-    return `Move to ${drawing.activeTool === "brush" ? "draw" : "erase"}, then hold still to lift`;
-  }
-  return "Hold either hand still on the white board to draw or erase";
+  return `Bring both hands together to start the ${tool}`;
 }
 
 function controlInstruction(
@@ -185,7 +168,7 @@ function controlInstruction(
       }
       if (!snapshot.controlsArmed) {
         return view === "draw"
-          ? "Move your brush hand clear of the toolbar to arm it"
+          ? "Move your drawing hand clear of the toolbar to arm it"
           : "Move your hand clear of the buttons to arm them";
       }
       return view === "draw" ? drawInstruction(drawing) : "Move your hand onto a button and hold";
@@ -202,6 +185,8 @@ function accessibleActionLabel(
       return `Switch to ${poseLimit === 1 ? 2 : 1}-player mode`;
     case "draw-color":
       return `Change drawing color; current color ${drawing.color}`;
+    case "draw-tool":
+      return `Switch to ${drawing.selectedTool === "pencil" ? "Eraser" : "Pencil"}; current tool ${drawing.selectedTool === "pencil" ? "Pencil" : "Eraser"}`;
     case "background":
       return "Background";
     case "open-games":
@@ -217,8 +202,19 @@ function accessibleActionLabel(
   }
 }
 
-function actionLabel(action: PlayfieldAction, fallback: string, poseLimit: PoseLimit): string {
-  return action === "players" ? `Players: ${poseLimit}` : fallback;
+function actionLabel(
+  action: PlayfieldAction,
+  fallback: string,
+  poseLimit: PoseLimit,
+  drawing: DrawSnapshot,
+): string {
+  if (action === "players") {
+    return `Players: ${poseLimit}`;
+  }
+  if (action === "draw-tool") {
+    return drawing.selectedTool === "pencil" ? "Pencil" : "Eraser";
+  }
+  return fallback;
 }
 
 function toolScreenPoint(point: Point | null, frame: Size | null, viewport: Size): Point | null {
@@ -239,7 +235,9 @@ export function TvPlayfield({
   onPoseLimitRequest,
 }: TvPlayfieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [controlSession] = useState(() => new PoseControlSession<PlayfieldAction>(MAIN_ACTIONS));
+  const [controlSession] = useState(
+    () => new PoseControlSession<PlayfieldAction>(MAIN_ACTIONS, "overhead-row"),
+  );
   const [drawSession] = useState(() => new DrawSession());
   const latestFrameRef = useRef<Size | null>(null);
   const viewportRef = useRef<Size>({ width: 0, height: 0 });
@@ -267,7 +265,8 @@ export function TvPlayfield({
       const nowMs = performance.now();
       viewRef.current = nextView;
       setView(nextView);
-      const controlUpdate = controlSession.setActions(actionsForView(nextView), nowMs);
+      const controls = controlsForView(nextView);
+      const controlUpdate = controlSession.setActions(controls.actions, controls.placement, nowMs);
       setSnapshot(controlUpdate.snapshot);
       applyDrawing(drawSession.setEnabled(nextView === "draw"));
     },
@@ -309,6 +308,14 @@ export function TvPlayfield({
         case "return-main":
           transitionTo("main");
           break;
+        case "draw-tool": {
+          const nextDrawing = drawSession.cycleTool();
+          applyDrawing(nextDrawing);
+          setAnnouncement(
+            `${nextDrawing.selectedTool === "pencil" ? "Pencil" : "Eraser"} selected.`,
+          );
+          break;
+        }
         case "draw-color":
           applyDrawing(drawSession.cycleColor());
           setAnnouncement("Drawing color changed.");
@@ -409,9 +416,8 @@ export function TvPlayfield({
       : createPoseProjection(frame.width, frame.height, size.width, size.height, true);
   const drawBounds: Rectangle | null =
     projection === null ? null : projectedFrameBounds(projection);
-  const brushPoint = toolScreenPoint(drawing.brush.point, frame, size);
-  const eraserPoint = toolScreenPoint(drawing.eraser.point, frame, size);
-  const eraserDiameter =
+  const toolPoint = toolScreenPoint(drawing.cursor.point, frame, size);
+  const toolDiameter =
     drawBounds === null ? 0 : Math.min(drawBounds.width, drawBounds.height) * DRAW_ERASER_WIDTH;
 
   return (
@@ -444,6 +450,7 @@ export function TvPlayfield({
         <span>{viewLabel(view)}</span>
         {view === "draw" ? (
           <>
+            <span>{drawing.selectedTool === "pencil" ? "Pencil" : "Eraser"}</span>
             <span
               class="playfield-view-label__swatch"
               style={`--draw-color: ${drawing.color}`}
@@ -466,7 +473,10 @@ export function TvPlayfield({
       ) : null}
 
       {packet !== null && snapshot.phase === "active" ? (
-        <fieldset class="pose-control-targets">
+        <fieldset
+          class="pose-control-targets"
+          data-control-placement={view === "draw" ? "left-column" : "overhead-row"}
+        >
           <legend class="visually-hidden">{viewLabel(view)} body-controlled actions</legend>
           {snapshot.targets.map((target) => {
             const hovered = snapshot.hoveredAction === target.action;
@@ -482,7 +492,7 @@ export function TvPlayfield({
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
                 <span class="pose-control-button__label">
-                  {actionLabel(target.action, target.label, poseLimit)}
+                  {actionLabel(target.action, target.label, poseLimit, drawing)}
                   {target.action === "draw-color" ? (
                     <span
                       class="pose-control-button__swatch"
@@ -510,18 +520,11 @@ export function TvPlayfield({
         />
       ) : null}
 
-      {view === "draw" && brushPoint !== null ? (
+      {view === "draw" && toolPoint !== null ? (
         <span
-          class={`draw-tool-cursor draw-tool-cursor--brush draw-tool-cursor--${drawing.brush.phase}`}
+          class={`draw-tool-cursor draw-tool-cursor--${drawing.selectedTool} draw-tool-cursor--${drawing.cursor.phase}`}
           aria-hidden="true"
-          style={`left: ${brushPoint.x}px; top: ${brushPoint.y}px; --draw-tool-color: ${drawing.color}; --draw-tool-progress: ${Math.round(drawing.brush.dwellProgress * 360)}deg`}
-        />
-      ) : null}
-      {view === "draw" && eraserPoint !== null ? (
-        <span
-          class={`draw-tool-cursor draw-tool-cursor--eraser draw-tool-cursor--${drawing.eraser.phase}`}
-          aria-hidden="true"
-          style={`left: ${eraserPoint.x}px; top: ${eraserPoint.y}px; width: ${eraserDiameter}px; height: ${eraserDiameter}px; --draw-tool-progress: ${Math.round(drawing.eraser.dwellProgress * 360)}deg`}
+          style={`left: ${toolPoint.x}px; top: ${toolPoint.y}px; --draw-tool-color: ${drawing.color}${drawing.selectedTool === "eraser" ? `; width: ${toolDiameter}px; height: ${toolDiameter}px` : ""}`}
         />
       ) : null}
 

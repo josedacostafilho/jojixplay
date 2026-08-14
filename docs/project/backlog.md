@@ -10,7 +10,7 @@ This is a compact queue, not a wish list. Keep entries actionable and ordered. O
 
 ## P0 — release the current prototype
 
-- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, achieved inference cadence, acknowledged switching without camera restart, mirrored rendering, overhead framing guidance, Main Menu/Games/Draw navigation, neutral re-arming, outlier-tolerant brush/eraser dwell ergonomics, path quality, camera-bump behavior, long-session drawing, thermal behavior, stale/disconnect states, cleanup, and perceived latency. Record the one-player Lite baseline through [Pose quality](../engineering/pose-quality.md); two-player stability is not part of the current pose-quality decision.
+- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, achieved inference cadence, acknowledged switching without camera restart, mirrored rendering, overhead framing guidance, Main Menu/Games/Draw navigation, neutral re-arming, close-hand grip activation, wide-hand release, false activation/release, compact left-toolbar reach, Pencil/Eraser continuity, camera-bump behavior, long-session drawing, thermal behavior, stale/disconnect states, cleanup, and perceived latency. Record the one-player Lite baseline through [Pose quality](../engineering/pose-quality.md); two-player stability is not part of the current pose-quality decision.
 - [ ] Inspect the real peer connection and confirm that the application sends pose packets only, never a camera media track or pixel payload.
 
 ## P1 — establish measured product budgets

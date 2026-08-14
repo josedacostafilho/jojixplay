@@ -10,7 +10,7 @@ scope: Television navigation, first game lifecycle, Draw interaction, coordinate
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The Circles prototype action and circle-effect layer in [ADR-0005](0005-mirrored-tv-pose-controls.md), including the retained circle references in [ADR-0006](0006-session-player-limit-control.md)
-- **Superseded by:** [ADR-0011](0011-consumer-specific-pose-stability.md) for the single-anchor, every-outlier-resets stationary test and temporal-signal ownership
+- **Superseded by:** [ADR-0011](0011-consumer-specific-pose-stability.md) for temporal-signal ownership, then [ADR-0012](0012-two-hand-draw-grip.md) for Draw engagement, tool ownership, and toolbar placement
 
 ## Context
 

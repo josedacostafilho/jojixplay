@@ -8,6 +8,13 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-14 — Two-hand Draw grip implemented
+
+- Replaced Draw's stationary engagement/lifting classifier with one immediate, body-relative two-hand grip: close hands activate at `0.75 ×` shoulder span and only a deliberate wide spread releases at `1.25 ×`.
+- Hard-cut the independent opposite-hand eraser to one main-hand Pencil/Eraser tool selected through the body-controlled toolbar while preserving active-grip continuity across ordinary path breaks.
+- Replaced Draw's overhead action row with four smaller buttons in a frozen vertical column at the left edge of the reachable camera projection.
+- Added threshold, hysteresis, main-hand ownership, tool, layout, and component regression coverage. Real-device threshold and ergonomics acceptance remain outstanding.
+
 ## 2026-08-14 — Camera-paced inference and Draw implemented
 
 - Removed the arbitrary 15 Hz sampling gate while retaining a 30 FPS camera ceiling, one inference in flight, busy-frame dropping, and latest-only transport backpressure.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
-  DRAW_BRUSH_WIDTH,
+  DRAW_PENCIL_WIDTH,
   DRAW_ERASER_WIDTH,
   type DrawCommand,
   type DrawSnapshot,
@@ -23,11 +23,11 @@ function drawCommand(
 ): void {
   const minimumDimension = Math.min(width, height);
   const lineWidth =
-    minimumDimension * (command.tool === "brush" ? DRAW_BRUSH_WIDTH : DRAW_ERASER_WIDTH);
+    minimumDimension * (command.tool === "pencil" ? DRAW_PENCIL_WIDTH : DRAW_ERASER_WIDTH);
   const from = { x: (1 - command.from.x) * width, y: command.from.y * height };
   const to = { x: (1 - command.to.x) * width, y: command.to.y * height };
   context.save();
-  context.globalCompositeOperation = command.tool === "brush" ? "source-over" : "destination-out";
+  context.globalCompositeOperation = command.tool === "pencil" ? "source-over" : "destination-out";
   context.strokeStyle = command.color;
   context.fillStyle = command.color;
   context.lineWidth = lineWidth;

@@ -27,7 +27,7 @@ The initial experience assumes internet access to load the static application an
 3. Connect, grant camera access, and start pose tracking.
 4. See the default single detection rendered as an identity-independent mirrored skeleton on the television.
 5. Leave space above the head, raise one hand to claim control, and move the coarse-hand cursor clear once to arm Main Menu.
-6. Open **Games**, select **Draw**, then dwell-engage the selected hand as a brush or the other hand as an eraser inside the white camera-aligned board.
+6. Open **Games**, select **Draw**, bring both hands together to activate Pencil or Eraser immediately, draw with the selected controller hand, and spread both hands wide to stop.
 
 ## Product invariants
 

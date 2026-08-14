@@ -97,26 +97,26 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Per-frame colors use one fixed teal/rose palette to distinguish simultaneous detections but never imply stable identity.
 - A packet older than one second in television receive time is stale and must not remain presented as live.
 - The Draw game consumes the same validated pose-domain boundary and owns its Canvas 2D session/renderer without coupling the application shell to a universal game engine.
-- Temporal processing remains consumer-specific: Draw path smoothing, stationary evidence, and skeleton presentation do not mutate or replace the canonical packet.
+- Temporal processing remains consumer-specific: Draw path smoothing, two-hand grip evidence, button controls, and skeleton presentation do not mutate or replace the canonical packet.
 
 ## Body-control contract
 
-- A control claim is available only when the complete three-button row can fit above the highest usable face landmark inside the projected camera viewport. Otherwise, the television asks the user to step back and leave clear overhead space; no alternate placement is used.
+- A Main Menu or Games control claim is available only when the complete reserved menu row can fit above the highest usable face landmark inside the projected camera viewport. Draw instead requires its complete compact left column to fit inside the projected frame. Each view has exactly one placement and no fallback.
 - Buttons appear only after a temporary controller claim. Before that, an eligible single person is prompted to raise either hand with the whole hand visible; with multiple visible people, one person is prompted to raise both hands and keep one whole hand visible.
 - A single-person claim requires one wrist above its elbow for 300 ms. A multiperson claim requires both wrists above the shoulders for 500 ms.
 - The claim selects a controlling side. Raising and below-hips release use that side's wrist, while the direct mirrored pointer is the arithmetic center of its wrist, pinky, index, and thumb landmarks.
 - All four coarse-hand landmarks must be usable. A missing point hides the pointer and resets dwell instead of falling back to the wrist; a sustained loss releases the lease through the one-second loss bound.
 - The television uses short-lived nearest-torso continuity only to survive pose-array reordering. It creates no stable skeleton or player identifier.
-- The three-button row is centered on the shoulder midpoint, placed with a small gap above the visibly drawn head, constrained wholly within the projected camera viewport, and frozen until release.
+- Main Menu and Games use a row centered on the shoulder midpoint, placed with a small gap above the visibly drawn head, constrained wholly within the projected camera viewport, and frozen until release. Draw uses a separate compact four-button column inside the projected frame's left edge, centered around the leased torso and frozen for the same lease.
 - A new lease is body-unarmed. The coarse hand must be observed outside every target and its hover margin once before reaching into a button can begin dwell; semantic remote and accessibility activation remain available throughout.
 - A button activates after a 900 ms dwell, activates only once until the pointer leaves, and shows progress while dwelling.
 - Control releases after 600 ms with the selected wrist below the hips, one second without the controlling pose/hand, 600 ms materially displaced from the frozen layout, 15 seconds without coarse-hand activity, or a viewport change.
-- Main Menu buttons toggle a fixed background theme, request the opposite one-/two-player limit, or open Games. Games contains Draw and Return; Draw contains Color, Clear, and Exit.
+- Main Menu buttons toggle a fixed background theme, request the opposite one-/two-player limit, or open Games. Games contains Draw and Return; Draw contains Pencil/Eraser, Color, Clear, and Exit.
 - While a player-limit request is pending, all three actions are disabled. Failure keeps the last acknowledged mode; success updates the dynamic **Players: 1** or **Players: 2** label.
 - Buttons remain semantic and remotely clickable. Body interactions are the canonical in-session path; the semantic path preserves television-remote and accessibility operation.
-- Draw's 500 ms tool hold uses raw coarse-hand evidence on the phone capture timeline. A bounded short excursion is tolerated, while sustained movement, frequent excursions, stale gaps, and the existing hard path-breaking boundaries prevent activation.
+- Draw receives both complete coarse hands plus aspect-corrected shoulder span from the leased pose. Separation at or below `0.75 ×` shoulder span immediately activates the selected main-hand tool; it remains active until separation reaches at least `1.25 ×` shoulder span or an existing safety boundary resets the interaction.
 
-Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and Draw are governed by [ADR-0010](../decisions/0010-menu-and-draw-game.md) and the [Draw contract](draw-game.md). Consumer-specific stability and measurement are governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).
+Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head menu placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and the game boundary originate in [ADR-0010](../decisions/0010-menu-and-draw-game.md); current Draw grip, tool, and toolbar behavior is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md) and the [Draw contract](draw-game.md). Consumer-specific stability and measurement remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).
 
 ## Capability baseline
 
@@ -148,7 +148,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 8. All camera, worker, room, and animation resources are released on stop or unmount.
 9. Canonical formatting, linting, type analysis, unit/component tests, end-to-end smoke tests, dependency audit, and production build checks pass.
 10. A real phone-and-television run confirms pairing, camera framing, multiperson behavior where detectable, and acceptable perceived latency.
-11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, requires reachable space above the visible head, points with complete coarse hands without wrist fallback, neutral-arms each view, and supports the Main Menu/Games/Draw hierarchy.
+11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, requires reachable space above the visible head for menu rows, places the Draw column inside the reachable left edge, points with complete coarse hands without wrist fallback, neutral-arms each view, and supports the Main Menu/Games/Draw hierarchy.
 12. Camera-paced single-flight inference, Draw presentation, two-hand tool engagement, path breaking, color, clearing, navigation, and ephemeral retention satisfy [Draw game](draw-game.md).
 
 ## Implementation plan
@@ -164,7 +164,8 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Move the frozen row above the visible head, require overhead framing, replace direct wrist pointing with the coarse-hand center, and add neutral post-claim arming.
 - [x] Remove the fixed 15 Hz gate while retaining a 30 FPS camera ceiling and single-flight/latest-only backpressure.
 - [x] Replace Circles with Main Menu/Games navigation and implement the transient normalized two-hand Draw game.
-- [x] Add capture-timestamp, outlier-tolerant Draw stationarity and bounded phone-local pose diagnostics without globally smoothing pose data.
+- [x] Add bounded phone-local pose diagnostics without globally smoothing pose data.
+- [x] Replace stationary Draw engagement with immediate body-relative two-hand grip hysteresis, one selected main-hand tool, and the compact left toolbar.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the original skeleton-viewer artifact from the remote repository; current publication state remains in [Project status](../project/status.md).

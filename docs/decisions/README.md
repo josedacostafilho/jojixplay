@@ -23,6 +23,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0009](0009-camera-paced-inference.md) | Accepted | Remove the arbitrary 15 Hz gate and run serial inference at the camera's bounded cadence |
 | [0010](0010-menu-and-draw-game.md) | Accepted | Add body-controlled navigation and the normalized two-hand Draw game |
 | [0011](0011-consumer-specific-pose-stability.md) | Accepted | Keep raw pose canonical and use consumer-specific stability evidence and local diagnostics |
+| [0012](0012-two-hand-draw-grip.md) | Accepted | Use an immediate hysteretic two-hand grip, one selected Draw tool, and a compact left toolbar |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

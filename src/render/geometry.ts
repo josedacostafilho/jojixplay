@@ -51,3 +51,11 @@ export function projectedFrameBounds(projection: PoseProjection): Rectangle {
     height: projection.source.height * projection.scale,
   };
 }
+
+export function frameNormalizedDistance(left: Point, right: Point, frame: Size): number {
+  const minimumDimension = Math.min(frame.width, frame.height);
+  return Math.hypot(
+    ((left.x - right.x) * frame.width) / minimumDimension,
+    ((left.y - right.y) * frame.height) / minimumDimension,
+  );
+}

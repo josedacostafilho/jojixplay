@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPoseProjection,
+  frameNormalizedDistance,
   projectedFrameBounds,
   projectNormalizedPoint,
 } from "../../src/render/geometry";
@@ -39,5 +40,28 @@ describe("contain geometry", () => {
     const mirroredRight = projectNormalizedPoint(0.8, 0.65, projection);
     expect(mirroredRight.x).toBeCloseTo(384);
     expect(mirroredRight.y).toBe(702);
+  });
+
+  it("measures normalized body distances with camera-aspect correction", () => {
+    expect(
+      frameNormalizedDistance(
+        { x: 0.25, y: 0.5 },
+        { x: 0.75, y: 0.5 },
+        {
+          width: 1_280,
+          height: 720,
+        },
+      ),
+    ).toBeCloseTo(8 / 9);
+    expect(
+      frameNormalizedDistance(
+        { x: 0.5, y: 0.25 },
+        { x: 0.5, y: 0.75 },
+        {
+          width: 1_280,
+          height: 720,
+        },
+      ),
+    ).toBeCloseTo(0.5);
   });
 });

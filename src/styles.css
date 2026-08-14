@@ -644,6 +644,13 @@ button {
   pointer-events: auto;
 }
 
+.pose-control-targets[data-control-placement="left-column"] .pose-control-button {
+  border-width: clamp(2px, 0.16vw, 3px);
+  border-radius: clamp(0.55rem, 0.85vw, 0.8rem);
+  padding: 0.3rem;
+  font-size: clamp(0.62rem, 0.9vw, 0.86rem);
+}
+
 .pose-control-button:hover:not(:disabled),
 .pose-control-button:focus-visible,
 .pose-control-button--hovered {
@@ -725,17 +732,7 @@ button {
   pointer-events: none;
 }
 
-.draw-tool-cursor::before {
-  position: absolute;
-  z-index: -1;
-  inset: -0.5rem;
-  border-radius: inherit;
-  background: conic-gradient(var(--teal) var(--draw-tool-progress), rgb(248 250 252 / 18%) 0deg);
-  content: "";
-  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
-}
-
-.draw-tool-cursor--brush {
+.draw-tool-cursor--pencil {
   width: clamp(1.7rem, 2.7vw, 2.8rem);
   aspect-ratio: 1;
   border: clamp(3px, 0.25vw, 5px) solid #f8fafc;
@@ -755,12 +752,6 @@ button {
   box-shadow:
     0 0 0 0.45rem rgb(94 234 212 / 22%),
     0 0 2rem rgb(94 234 212 / 48%);
-}
-
-.draw-tool-cursor--lifting {
-  box-shadow:
-    0 0 0 0.45rem rgb(251 191 36 / 24%),
-    0 0 2rem rgb(251 191 36 / 42%);
 }
 
 .pairing-card {
