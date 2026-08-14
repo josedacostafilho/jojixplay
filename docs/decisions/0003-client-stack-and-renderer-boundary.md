@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Client technology stack, inference boundary, and game-renderer independence
 ---
 
@@ -10,7 +10,9 @@ scope: Client technology stack, inference boundary, and game-renderer independen
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** None
+- **Superseded by:** [ADR-0014](0014-procedural-body-avatar.md) for the visible stick-skeleton renderer; the typed client, worker, pose boundary, Canvas 2D baseline, and game-renderer independence remain active
+
+> **Current-scope note:** The original skeleton-renderer passages below are historical. ADR-0014 owns the sole current pose presentation.
 
 ## Context
 
@@ -62,4 +64,3 @@ Rejected. Preact owns menus and lifecycle; a rendering loop must own its canvas 
 - The phone worker is the only module importing MediaPipe.
 - Dependency inspection finds no game engine.
 - Production chunks keep phone inference code separate from the shell and television path.
-

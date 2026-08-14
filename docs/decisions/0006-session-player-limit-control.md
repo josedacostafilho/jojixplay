@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Runtime player-limit selection, bidirectional session control, and MediaPipe reconfiguration
 ---
 
@@ -10,7 +10,7 @@ scope: Runtime player-limit selection, bidirectional session control, and MediaP
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** The Skeleton palette action and television-local-only action constraint in [ADR-0005](0005-mirrored-tv-pose-controls.md)
-- **Superseded by:** [ADR-0010](0010-menu-and-draw-game.md) for retained circle-effect references only
+- **Superseded by:** [ADR-0010](0010-menu-and-draw-game.md) for retained circle-effect references; [ADR-0014](0014-procedural-body-avatar.md) for visible palette presentation
 
 ## Context
 
@@ -24,9 +24,9 @@ The player limit controls inference running on the phone, but the body-operated 
 
 - Every new pairing session starts in **one-player mode**. One-player mode configures MediaPipe with `numPoses: 1`; two-player mode configures it with `numPoses: 2`.
 - The television's middle pose button is **Players: 1** or **Players: 2** and requests the opposite absolute limit. It replaces the former Skeleton palette button and remains a semantic remote- and keyboard-operable button.
-- Player mode limits simultaneous identity-independent detections. It does not create, transmit, persist, or infer player or skeleton identifiers.
+- Player mode limits simultaneous identity-independent detections. It does not create, transmit, persist, or infer player or person identifiers.
 - Stop/start of body tracking within one live pairing session retains the last acknowledged limit. A disconnected or newly created pairing session resets to one player.
-- The skeleton uses one fixed two-color palette. Simultaneous pose-array positions may select different colors for the current frame but never imply stable identity. The former circle-effect sentence was superseded by [ADR-0010](0010-menu-and-draw-game.md).
+- The current avatar uses one fixed two-color palette. Simultaneous pose-array positions may select different colors for the current frame but never imply stable identity. Visible material behavior is governed by [ADR-0014](0014-procedural-body-avatar.md); the former circle-effect sentence was superseded by [ADR-0010](0010-menu-and-draw-game.md).
 
 ### Bidirectional command and acknowledgement
 

@@ -36,7 +36,8 @@ Run each measurement with exactly one player selected.
 5. Hold the left hand still for at least five seconds and record its coarse-hand and worst-landmark spread after the two-second window is fully stationary. Repeat three times.
 6. Repeat for the right hand.
 7. Enter Draw and record perceived cursor delay, immediate close-hand activation, wide-hand release, false activation/release, grip continuity, and visible Pencil/Eraser path quality while making slow curves and fast direction changes.
-8. Keep the exact camera position, lighting, distance, warm-up, and motions for every model comparison.
+8. Observe the phone and television avatars at rest, during slow movement, during fast direction changes, after a brief landmark dropout, and after leaving/re-entering frame. Record visible rest shimmer, overshoot, fast-motion lag, limb-length distortion, missing-part behavior, and recovery.
+9. Keep the exact camera position, lighting, distance, warm-up, and motions for every model comparison.
 
 Do not interpret a rolling spread captured during movement as model jitter. Do not report a requested 30 FPS ceiling as achieved inference cadence.
 
@@ -53,14 +54,16 @@ The committed production model remains Lite until evidence supports a replacemen
 
 No universal numeric budget is selected before the first target-device baseline. A model name or offline benchmark alone is not acceptance evidence.
 
-## Presentation-filter decision gate
+## Avatar-presentation acceptance
 
-Do not infer that a Draw engagement improvement requires smoothing the skeleton. Consider a television presentation filter only when the live skeleton remains objectionably unstable after the selected model and camera setup are measured. Any proposal must state:
+The procedural avatar now owns one isolated presentation filter per canvas under [ADR-0014](../decisions/0014-procedural-body-avatar.md). It adaptively smooths continuous one-pose display copies with a `22–72 ms` time constant, applies bounded limb-length stabilization, and uses near-side depth hysteresis. It resets on missing input, frame/sequence/time discontinuity, or zero/multiple poses; multi-pose presentation has no temporal association. Exact behavior lives in [Avatar renderer](../product/avatar-renderer.md).
 
-- which landmarks are filtered;
-- maximum added visual lag and reset behavior;
-- whether filtering is television-only;
-- how presentation remains separate from controls and games; and
-- how one-player real-device motion demonstrates improvement.
+Evaluate that display path separately from raw interaction:
 
-The raw `PosePacket` remains unchanged under every outcome.
+- compare a stationary avatar with the phone's coarse-hand spread, but do not treat the avatar as a diagnostic measurement source;
+- compare slow motion and fast reversals for a meaningful reduction in shimmer without objectionable lag, overshoot, or rubber-limb behavior;
+- verify that landmark loss omits affected anatomy instead of holding stale geometry and that reappearance starts from the current observation;
+- verify that one-to-two, two-to-one, pose loss, frame changes, and re-entry do not carry one person's display history onto another; and
+- repeat the Draw and Bubbles checks to confirm that avatar smoothness cannot change grip, paths, buttons, hand rings, collisions, or scores.
+
+Do not add an alternate filter, style selector, raw-render fallback, or different game-specific avatar. Replacing a constant or algorithm requires recorded target-device evidence, one updated canonical contract, proportional regression tests, and a hard cutover. The raw `PosePacket` remains unchanged under every outcome.

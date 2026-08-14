@@ -8,9 +8,9 @@ scope: Current system shape, boundaries, and architectural constraints
 
 ## Current state
 
-The runtime architecture is a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, body-controlled navigation, and separate television-local Canvas renderers for the skeleton, Draw, and Bubbles. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
+The runtime architecture is a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, body-controlled navigation, one shared procedural avatar renderer, and separate television-local Canvas renderers for Draw and Bubbles. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
 
-See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), [ADR-0006](../decisions/0006-session-player-limit-control.md), [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md), [ADR-0009](../decisions/0009-camera-paced-inference.md), [ADR-0010](../decisions/0010-menu-and-draw-game.md), [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md), [ADR-0012](../decisions/0012-two-hand-draw-grip.md), [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md), and the current product contracts in [`../product/`](../product/).
+See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), [ADR-0006](../decisions/0006-session-player-limit-control.md), [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md), [ADR-0009](../decisions/0009-camera-paced-inference.md), [ADR-0010](../decisions/0010-menu-and-draw-game.md), [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md), [ADR-0012](../decisions/0012-two-hand-draw-grip.md), [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md), [ADR-0014](../decisions/0014-procedural-body-avatar.md), and the current product contracts in [`../product/`](../product/).
 
 ## System flow
 
@@ -50,8 +50,8 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Concern | Current state | Canonical detail |
 | --- | --- | --- |
 | System context | Implemented | One phone controller, one television display, public rendezvous relays, static host |
-| Runtime components | Implemented | Preact shell, phone camera controller, MediaPipe worker, player-limit contract, peer room, packet validator, pose controls, and separate Canvas renderers |
-| Data flow | Implemented | Camera → worker → strict PosePacket → WebRTC → validator → Canvas; TV → strict player-limit request → phone reconfiguration → matching acknowledgement |
+| Runtime components | Implemented | Preact shell, phone camera controller, MediaPipe worker, player-limit contract, peer room, packet validator, pose controls, isolated avatar presentation sessions, and separate Canvas renderers |
+| Data flow | Implemented | Camera → worker → strict raw PosePacket → WebRTC → validator → raw interaction consumers plus isolated avatar display copy → Canvas; TV → strict player-limit request → phone reconfiguration → matching acknowledgement |
 | Persistence | None | Sessions and pose data are memory-only and ephemeral |
 | External integrations | Active | GitHub Pages workflow, Nostr relays through Trystero, browser WebRTC, MediaPipe runtime |
 | Authentication/authorization | Possession-based session | One 100-bit key delivered by QR or manual entry derives domain-separated room credentials; exactly opposite phone/TV roles handshake |
@@ -70,7 +70,8 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Pose diagnostics | Aggregate two-second camera/inference rates, processing age, and one-player coarse-hand spread | Phone memory only; no coordinates leave the monitor |
 | Player-limit contract | Define and strictly parse the only reverse session command | Reject values other than exact one- or two-pose objects |
 | Peer room | Authenticate opposite roles, discover peers, coalesce pose sends, and coordinate acknowledged player-limit requests | Trystero/Nostr and WebRTC |
-| Skeleton renderer | Draw validated current detections without identity assumptions | Canvas 2D only |
+| Avatar presentation | Produce one immutable display copy per canvas; adaptively stabilize only continuous one-pose input and reset on zero/multiple poses or discontinuity | Presentation-local state; never an interaction or identity source |
+| Avatar renderer | Synthesize the sole faceless body view from bounded procedural head, torso, limb, joint, complete-hand, and complete-foot primitives | Canvas 2D only; no assets, engine, or stick-skeleton fallback |
 | Pose controls | Claim through wrist gestures, expose both coarse hands plus aspect-corrected shoulder span, freeze overhead rows or compact left columns, neutral-arm, emit action-specific dwell events, and suspend activation during active games | Validated television-local pose input only |
 | TV playfield | Own Main Menu/Games/Draw/Bubbles navigation and phase-specific action surfaces, align the shared projection, and preserve or reset each game's explicitly scoped ephemeral state | Preact lifecycle and semantic-control boundary |
 | Draw session | Own the Pencil/Eraser selection, immediate two-hand grip hysteresis, responsive main-hand path smoothing, and path-breaking rules in normalized camera coordinates | Pure television-local game domain |

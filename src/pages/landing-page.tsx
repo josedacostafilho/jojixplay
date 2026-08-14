@@ -10,7 +10,7 @@ export function LandingPage() {
           </span>
           <span>jojixplay</span>
         </a>
-        <span class="prototype-label">Skeleton prototype</span>
+        <span class="prototype-label">Body-control prototype</span>
       </header>
 
       <section class="hero" aria-labelledby="hero-title">
@@ -36,7 +36,7 @@ export function LandingPage() {
             </span>
             <span class="role-card__title">Open on the TV</span>
             <span class="role-card__description">
-              Show the pairing QR and manual key, then render the live skeleton.
+              Show the pairing QR and manual key, then render the live body avatar.
             </span>
             <span class="role-card__action">
               Set up display <span aria-hidden="true">→</span>

@@ -8,7 +8,7 @@ scope: User-visible contract and acceptance criteria for the first JojixPlay gam
 
 ## Outcome
 
-Draw is the first playable JojixPlay content. One temporarily claimed controller brings both hands together to activate a selected Pencil or Eraser, then draws with the lease's main hand until deliberately spreading both hands wide. Camera pixels remain on the phone; Draw consumes only the same validated `PosePacket` landmarks as the skeleton viewer.
+Draw is the first playable JojixPlay content. One temporarily claimed controller brings both hands together to activate a selected Pencil or Eraser, then draws with the lease's main hand until deliberately spreading both hands wide. Camera pixels remain on the phone; Draw consumes only the raw validated `PosePacket` landmarks from the phone-to-television prototype, never the avatar's display copy.
 
 ## Navigation contract
 
@@ -30,14 +30,14 @@ Draw
 
 - Replacing a view replaces every body-control target in one operation. No hidden prior action remains active.
 - The controller lease survives navigation, while target hover, dwell, latch, and neutral arming restart for each new view.
-- Main Menu and Games show the normal skeleton-viewer stage. Draw changes only the game presentation inside the television playfield.
+- Main Menu and Games show the normal body-avatar stage. Draw changes only the game presentation inside the television playfield.
 - Draw state is ephemeral. Artwork, selected tool, and active color survive navigation within the same mounted television session but not page reload, disconnect, or a new session. The grip never survives view exit.
 
 ## Draw presentation
 
 - The exact contained camera projection is the white drawable board with a clear dark border.
 - Letterbox or pillarbox space outside the projected camera frame remains the selected dark stage theme and rejects marks.
-- Existing drawing is opaque. The live mirrored skeleton is rendered above it at 28% opacity.
+- Existing drawing is opaque. The live mirrored procedural avatar is rendered above it with the `draw` profile at 24% opacity.
 - Four compact buttons form one vertical column just inside the projected camera frame's left edge. The column is centered around the leased torso, clamped inside the reachable frame, and frozen for the lease.
 - The main-hand cursor shows the selected Pencil color or the Eraser footprint. A highlighted cursor means the two-hand grip is active. The supporting hand has no drawing cursor.
 
@@ -100,7 +100,7 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 7. The opposite hand never produces an independent path or cursor, and switching tools retains main-hand ownership.
 8. Toolbar entry, bounds exit, main-hand dropout, stale input, frame change, and large jumps create no bridge segments; supporting-hand loss alone does not interrupt a latched grip.
 9. Tool and Color selections and artwork survive Draw exit/re-entry within the same television session; Clear remains a 1,500 ms body action.
-10. The skeleton remains useful but visually subordinate at 28% opacity.
+10. The procedural avatar remains useful but visually subordinate at 24% opacity, and its display-only stabilization never changes Draw input.
 11. Automated gates prove the threshold boundaries, hysteresis, main-hand ownership, one-cursor UI, and vertical layout; real-device acceptance records comfort, continuity, false activation/release, button reach, and perceived latency.
 
-The current Draw interaction is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md). The game boundary originates in [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md), while raw-pose ownership and diagnostics remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).
+The current Draw interaction is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md). The game boundary originates in [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md), raw-pose ownership and diagnostics remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md), and avatar presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md).

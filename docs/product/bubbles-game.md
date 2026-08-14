@@ -40,7 +40,7 @@ Bubbles — Finished
 ## Scores and results
 
 - One-player score appears at the top-right.
-- Two-player scores appear at the top-left and top-right and belong to mirrored screen-side slots, not skeleton identities.
+- Two-player scores appear at the top-left and top-right and belong to mirrored screen-side slots, not person identities.
 - With two usable poses, the current leftmost torso owns the left slot and the rightmost owns the right slot. With one temporarily usable pose, the torso's current screen half selects its slot.
 - Players should remain on their screen sides. Crossing sides transfers subsequent attribution to the newly occupied side.
 - Every bubble is worth one point regardless of size. A bubble can score once.
@@ -78,7 +78,7 @@ Bubbles — Finished
 - Each bubble combines a translucent radial fill, thin cyan/pink/violet rim, upper-left white crescent, lower-right reflection, and slowly rotating shimmer.
 - On contact, score updates immediately and the bubble becomes non-collidable. For 240 ms its rim expands and fades, six to ten bounded droplets move outward, and a small `+1` rises from the hit.
 - The associated score counter pulses. A replacement bubble fades/scales into its scheduled position.
-- The live skeleton remains above the arena at reduced opacity; brighter hand rings remain the clearest gameplay input feedback.
+- The live procedural avatar remains above the arena with the `bubbles` profile at 16% opacity; brighter raw-input hand rings remain the clearest gameplay feedback.
 - No image, audio, font, or game-engine asset is added.
 
 ## Failure and boundary behavior
@@ -98,7 +98,7 @@ Bubbles — Finished
 - [x] Add aspect-corrected current-point and fresh swept-segment collision with one-winner deterministic attribution.
 - [x] Add a procedural Canvas renderer for bubbles, shimmer, bounded pop particles, floating `+1`, and visible hand hit rings.
 - [x] Add Bubbles to Games and integrate Ready, control suspension, Starting, Playing, Finished, Play Again, and Exit into the existing shell without coupling Draw and Bubbles renderers.
-- [x] Add semantic score/timer/result surfaces, projected arena styling, accessible status updates, and reduced-opacity skeleton presentation.
+- [x] Add semantic score/timer/result surfaces, projected arena styling, accessible status updates, and reduced-opacity avatar presentation.
 - [x] Add deterministic domain, input, renderer, and component regression tests.
 - [x] Update canonical architecture, product, status, backlog, milestone, testing, and agent documentation and run the full canonical validation suite.
 
@@ -113,7 +113,7 @@ Bubbles — Finished
 7. One-player scoring uses the top-right counter. Two-player screen-side scoring uses both top corners and remains independent of pose-array ordering.
 8. The finished state declares the sole score, the left/right winner, or a tie and exposes neutrally re-armed Play Again and Exit actions.
 9. Radius-aware clamp-and-reflect keeps the complete bubble visible through edge contact, corners, frame stalls, and aspect changes.
-10. No external asset, backend, persistence, stable player identity, game engine, audio path, or packet change is introduced.
+10. No external asset, backend, persistence, stable player identity, game engine, audio path, packet change, or dependency on the avatar's stabilized display copy is introduced.
 11. Automated gates prove deterministic behavior; real-device acceptance measures hit tolerance, side attribution, readability, sustained rendering, and perceived responsiveness.
 
-The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md).
+The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md), while visible body presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md).

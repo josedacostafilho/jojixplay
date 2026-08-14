@@ -25,6 +25,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0011](0011-consumer-specific-pose-stability.md) | Accepted | Keep raw pose canonical and use consumer-specific stability evidence and local diagnostics |
 | [0012](0012-two-hand-draw-grip.md) | Accepted | Use an immediate hysteretic two-hand grip, one selected Draw tool, and a compact left toolbar |
 | [0013](0013-identity-independent-bubbles-game.md) | Accepted | Add a deterministic Bubbles game with screen-side scoring and radius-safe procedural motion |
+| [0014](0014-procedural-body-avatar.md) | Accepted | Replace the visible stick skeleton with an isolated, presentation-smoothed procedural body avatar |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

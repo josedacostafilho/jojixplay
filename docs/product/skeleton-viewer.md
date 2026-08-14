@@ -4,11 +4,11 @@ last_verified: 2026-08-14
 scope: First vertical slice contract, acceptance criteria, and implementation plan
 ---
 
-# Skeleton-viewer prototype
+# Phone-to-television body-control prototype
 
 ## Implementation state
 
-The skeleton viewer is implemented. Publication state, automated verification evidence, and the outstanding real phone/television acceptance are tracked in [Project status](../project/status.md).
+The phone-to-television vertical slice is implemented. Its original stick-skeleton proof has been hard-cut to the procedural body avatar in [Avatar renderer](avatar-renderer.md). Publication state, automated verification evidence, and outstanding real phone/television acceptance are tracked in [Project status](../project/status.md).
 
 ## Implementation map
 
@@ -24,7 +24,7 @@ The skeleton viewer is implemented. Publication state, automated verification ev
 | Player-limit domain contract | [`src/domain/pose-limit.ts`](../../src/domain/pose-limit.ts) |
 | Peer authentication and WebRTC actions | [`src/transport/peer-room.ts`](../../src/transport/peer-room.ts) |
 | Backpressure policy | [`src/transport/latest-sender.ts`](../../src/transport/latest-sender.ts) |
-| Renderer geometry and drawing | [`src/render/`](../../src/render/) and [`src/components/skeleton-canvas.tsx`](../../src/components/skeleton-canvas.tsx) |
+| Avatar presentation and drawing | [`src/render/avatar-presentation.ts`](../../src/render/avatar-presentation.ts), [`src/render/avatar.ts`](../../src/render/avatar.ts), and [`src/components/avatar-canvas.tsx`](../../src/components/avatar-canvas.tsx) |
 | Television pose controls | [`src/interaction/pose-controls.ts`](../../src/interaction/pose-controls.ts) and [`src/components/tv-playfield.tsx`](../../src/components/tv-playfield.tsx) |
 | Game navigation and action phases | [`src/components/tv-playfield.tsx`](../../src/components/tv-playfield.tsx) |
 | Draw game | [`src/games/draw/`](../../src/games/draw/) |
@@ -52,7 +52,7 @@ The skeleton viewer is implemented. Publication state, automated verification ev
 - Camera capture prefers the user-facing (selfie) camera.
 - MediaPipe Pose Landmarker Lite runs in a module worker. Every pairing session starts with a one-pose limit; the acknowledged television control can reconfigure the existing landmarker to one or two poses without restarting the camera.
 - The camera requests an ideal and maximum 30 FPS. Every eligible presented frame starts inference when no estimate or reconfiguration is active; there is no lower elapsed-time sampling gate.
-- The phone previews its camera and latest local skeleton, reports the active pose limit, and sends pose packets only while a peer is connected.
+- The phone previews its camera and latest local body avatar, reports the active pose limit, and sends pose packets only while a peer is connected.
 - While tracking, the phone offers a collapsed diagnostics panel with bounded local camera/submission/completion rates, processing-age median/p95, and motion-inclusive one-player coarse-hand spread. No diagnostic coordinates or aggregates leave the phone.
 - Stopping and restarting tracking within one connected pairing session retains the last acknowledged limit. Disconnecting or creating a new pairing session resets it to one.
 - Stopping or leaving closes the worker, camera tracks, room, and peer connection.
@@ -91,15 +91,16 @@ The sender retains at most one pending packet while an earlier send is in progre
 
 ## Rendering contract
 
-- Canvas 2D is the intentional renderer for this prototype.
-- The renderer consumes only validated `PosePacket` values and has no dependency on MediaPipe or Trystero.
+- Canvas 2D is the intentional renderer for the procedural body avatar and current games.
+- Each avatar canvas owns an isolated presentation session that consumes only validated `PosePacket` values and has no dependency on MediaPipe or Trystero.
 - Source aspect ratio is preserved with contain-style letterboxing.
-- The television applies one shared horizontal mirror projection to its skeleton, Draw board/input, Bubbles arena/input, cursors, adaptive button layout, and hit testing. The phone preview is not changed by this television-only rule.
-- Landmarks below the visibility threshold are not connected or drawn.
-- Per-frame colors use one fixed teal/rose palette to distinguish simultaneous detections but never imply stable identity.
+- The television applies one shared horizontal mirror projection to its avatar, Draw board/input, Bubbles arena/input, cursors, adaptive button layout, and hit testing. The phone preview remains unmirrored.
+- The avatar synthesizes a faceless oval head, curved torso, tapered rounded limbs/joints, complete coarse hands, and complete feet. Missing required geometry is omitted; a pose without all shoulders and hips is not drawn.
+- Per-frame materials use one fixed teal/rose palette to distinguish simultaneous detections but never imply stable identity.
+- Continuous one-pose display copies use the bounded presentation-only landmark, segment-length, and near-side stabilization in [Avatar renderer](avatar-renderer.md). Zero or multiple poses reset that history; multi-pose presentation uses only current-packet geometry.
 - A packet older than one second in television receive time is stale and must not remain presented as live.
 - Draw and Bubbles consume the same validated pose-domain boundary and own separate Canvas 2D sessions/renderers without coupling the application shell to a universal game engine.
-- Temporal processing remains consumer-specific: Draw path smoothing, two-hand grip evidence, Bubbles swept collision, button controls, and skeleton presentation do not mutate or replace the canonical packet.
+- Temporal processing remains consumer-specific: Draw path smoothing, two-hand grip evidence, Bubbles swept collision, button controls, and avatar presentation do not mutate or replace the canonical packet or consume one another's derived values.
 
 ## Body-control contract
 
@@ -108,8 +109,8 @@ The sender retains at most one pending packet while an earlier send is in progre
 - A single-person claim requires one wrist above its elbow for 300 ms. A multiperson claim requires both wrists above the shoulders for 500 ms.
 - The claim selects a controlling side. Raising and below-hips release use that side's wrist, while the direct mirrored pointer is the arithmetic center of its wrist, pinky, index, and thumb landmarks.
 - All four coarse-hand landmarks must be usable. A missing point hides the pointer and resets dwell instead of falling back to the wrist; a sustained loss releases the lease through the one-second loss bound.
-- The television uses short-lived nearest-torso continuity only to survive pose-array reordering. It creates no stable skeleton or player identifier.
-- Main Menu and Games use a row centered on the shoulder midpoint, placed with a small gap above the visibly drawn head, constrained wholly within the projected camera viewport, and frozen until release. Draw uses a compact four-button column; Bubbles Ready and Finished use compact two-button columns. Each column sits inside the projected frame's left edge, centers around the leased torso, and freezes for the lease.
+- The television uses short-lived nearest-torso continuity only to survive pose-array reordering. It creates no stable person or player identifier.
+- Main Menu and Games use a row centered on the shoulder midpoint, placed with a small gap above the highest usable face landmark, constrained wholly within the projected camera viewport, and frozen until release. Draw uses a compact four-button column; Bubbles Ready and Finished use compact two-button columns. Each column sits inside the projected frame's left edge, centers around the leased torso, and freezes for the lease.
 - A new lease is body-unarmed. The coarse hand must be observed outside every target and its hover margin once before reaching into a button can begin dwell; semantic remote and accessibility activation remain available throughout.
 - A button activates after a 900 ms dwell, activates only once until the pointer leaves, and shows progress while dwelling.
 - Control releases after 600 ms with the selected wrist below the hips, one second without the controlling pose/hand, 600 ms materially displaced from the frozen layout, 15 seconds without coarse-hand activity, or a viewport change.
@@ -119,11 +120,11 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Draw receives both complete coarse hands plus aspect-corrected shoulder span from the leased pose. Separation at or below `0.75 ×` shoulder span immediately activates the selected main-hand tool; it remains active until separation reaches at least `1.25 ×` shoulder span or an existing safety boundary resets the interaction.
 - Starting Bubbles suspends control activation and uses both complete coarse hands from every currently usable pose independently of the lease. Finished controls are restored in a neutral-unarmed state.
 
-Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head menu placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and the game boundary originate in [ADR-0010](../decisions/0010-menu-and-draw-game.md); current Draw behavior is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md) and the [Draw contract](draw-game.md), while Bubbles is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md) and the [Bubbles contract](bubbles-game.md). Consumer-specific stability and measurement remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).
+Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head menu placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and the game boundary originate in [ADR-0010](../decisions/0010-menu-and-draw-game.md); current Draw behavior is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md) and the [Draw contract](draw-game.md), while Bubbles is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md) and the [Bubbles contract](bubbles-game.md). Raw-pose ownership remains governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md), while current visible presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), the [Avatar renderer contract](avatar-renderer.md), and [Pose quality](../engineering/pose-quality.md).
 
 ## Capability baseline
 
-The phone must support secure-context camera capture, WebAssembly, WebGL 2, module workers, `createImageBitmap`, `requestVideoFrameCallback`, Web Crypto, WebSockets, and WebRTC DataChannels. The television must support ES modules, Web Crypto, WebSockets, WebRTC DataChannels, ResizeObserver, and Canvas 2D. WebGL 2 is part of the phone's MediaPipe baseline; the television skeleton viewer intentionally requires only Canvas 2D.
+The phone must support secure-context camera capture, WebAssembly, WebGL 2, module workers, `createImageBitmap`, `requestVideoFrameCallback`, Web Crypto, WebSockets, WebRTC DataChannels, ResizeObserver, and Canvas 2D. The television must support ES modules, Web Crypto, WebSockets, WebRTC DataChannels, ResizeObserver, and Canvas 2D. WebGL 2 is part of the phone's MediaPipe baseline; avatar and game presentation intentionally require only Canvas 2D.
 
 Unsupported capabilities produce a specific blocking message. The prototype does not add polyfills or alternate execution paths.
 
@@ -154,6 +155,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, requires reachable space above the visible head for menu rows, places Draw/Bubbles columns inside the reachable left edge, points with complete coarse hands without wrist fallback, neutral-arms each actionable view, and supports the Main Menu/Games/Draw/Bubbles hierarchy.
 12. Camera-paced single-flight inference, Draw presentation, two-hand tool engagement, path breaking, color, clearing, navigation, and ephemeral retention satisfy [Draw game](draw-game.md).
 13. Bubbles readiness, exact countdown/round timing, both-hand collision, identity-independent one-/two-player scoring, in-bounds procedural movement, results, and transient cleanup satisfy [Bubbles game](bubbles-game.md).
+14. Phone and television render only the procedural body avatar, apply the exact per-surface appearance profiles, keep its stabilization isolated from interaction, and satisfy [Avatar renderer](avatar-renderer.md).
 
 ## Implementation plan
 
@@ -162,7 +164,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement strict session-link and pose-packet domain contracts.
 - [x] Implement the MediaPipe worker and bounded phone inference loop.
 - [x] Implement decentralized rendezvous and latest-only WebRTC pose delivery.
-- [x] Implement the accessible role selection, phone controller, QR/manual-key pairing, status surfaces, and Canvas 2D skeleton renderer.
+- [x] Implement the accessible role selection, phone controller, QR/manual-key pairing, status surfaces, and initial Canvas pose renderer.
 - [x] Implement trusted TV-mode entry, the shared mirrored projection, adaptive temporary pose controls, and the three prototype actions.
 - [x] Default to one-player inference and implement an acknowledged in-place one-/two-player switch from the television control row.
 - [x] Move the frozen row above the visible head, require overhead framing, replace direct wrist pointing with the coarse-hand center, and add neutral post-claim arming.
@@ -171,6 +173,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Add bounded phone-local pose diagnostics without globally smoothing pose data.
 - [x] Replace stationary Draw engagement with immediate body-relative two-hand grip hysteresis, one selected main-hand tool, and the compact left toolbar.
 - [x] Add identity-independent one-/two-player Bubbles with exact timed rounds, procedural radius-safe motion, swept both-hand collision, scores, results, and control suspension.
+- [x] Hard-cut the stick renderer to one faceless procedural body avatar with isolated one-player presentation stabilization and explicit menu/Draw/Bubbles/phone profiles.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the original skeleton-viewer artifact from the remote repository; current publication state remains in [Project status](../project/status.md).

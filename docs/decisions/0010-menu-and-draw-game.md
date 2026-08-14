@@ -10,7 +10,7 @@ scope: Television navigation, first game lifecycle, Draw interaction, coordinate
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The Circles prototype action and circle-effect layer in [ADR-0005](0005-mirrored-tv-pose-controls.md), including the retained circle references in [ADR-0006](0006-session-player-limit-control.md)
-- **Superseded by:** [ADR-0011](0011-consumer-specific-pose-stability.md) for temporal-signal ownership, then [ADR-0012](0012-two-hand-draw-grip.md) for Draw engagement, tool ownership, and toolbar placement
+- **Superseded by:** [ADR-0011](0011-consumer-specific-pose-stability.md) for temporal-signal ownership; [ADR-0012](0012-two-hand-draw-grip.md) for Draw engagement, tool ownership, and toolbar placement; [ADR-0014](0014-procedural-body-avatar.md) for the reduced-opacity body layer
 
 ## Context
 
@@ -35,7 +35,7 @@ Continuous drawing also needs an explicit pen-up/pen-down contract. Treating eve
 - The drawable surface is exactly the current contained phone-camera projection. It is white with a visible boundary; letterboxed television space remains dark and is never drawable.
 - Store brush and eraser paths as normalized, unmirrored camera coordinates. Apply the existing television mirror only while rendering.
 - Television viewport changes reproject the normalized drawing. A camera frame-dimension change immediately lifts both tools and requires deliberate re-engagement before new marks are accepted.
-- Render in this order: dark television stage, white drawable surface, accumulated drawing, skeleton at reduced opacity, semantic controls, then tool cursors and status guidance.
+- Render in this order: dark television stage, white drawable surface, accumulated drawing, live body presentation at reduced opacity, semantic controls, then tool cursors and status guidance.
 - Draw uses Canvas 2D directly and introduces no game engine or persistence dependency.
 
 ### Hands and tool engagement
@@ -50,7 +50,7 @@ Continuous drawing also needs an explicit pen-up/pen-down contract. Treating eve
 ### Tools and destructive behavior
 
 - The brush cycles through a fixed opaque palette: near-black, blue, red, and green. **Color** shows the active swatch and advances exactly one color.
-- The eraser removes drawing through a fixed circular path and never alters the white surface or skeleton layer.
+- The eraser removes drawing through a fixed circular path and never alters the white surface or live body layer.
 - **Clear** uses a 1,500 ms dwell, longer than the normal 900 ms menu dwell, and atomically removes all accumulated drawing.
 - Tool cursors distinguish brush color, eraser radius, engagement state, and 500 ms dwell progress.
 
@@ -97,6 +97,6 @@ Rejected because resize would lose or blur the drawing, erasing would be harder 
 ## Verification
 
 - Unit tests prove variable menu layouts, view-transition neutral arming, action-specific dwell, both-hand extraction, tool engagement/lifting, one-active-tool arbitration, smoothing boundaries, jump/dropout behavior, color cycling, clearing, and normalized path retention.
-- Component tests prove semantic navigation, dynamic labels, white projected bounds, reduced-opacity skeleton mode, persistent in-session art, and accessible Draw actions.
+- Component tests prove semantic navigation, dynamic labels, white projected bounds, reduced-opacity body presentation, persistent in-session art, and accessible Draw actions.
 - Renderer tests prove mirrored normalized brush/eraser paths and correct clear/composite behavior.
 - Real-device acceptance must record Draw latency, path quality, dwell ergonomics, eraser control, camera-bump behavior, thermal behavior, and long-session rendering.

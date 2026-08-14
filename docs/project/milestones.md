@@ -8,6 +8,13 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-14 — Procedural body avatar implemented
+
+- Hard-cut the landmark-dot and bone-line renderer to one faceless procedural Canvas body shared by the phone preview and television, with curved torso, tapered rounded limbs, blended joints, complete coarse hands/feet, and teal/rose materials.
+- Added isolated immutable display sessions: continuous one-pose presentation uses bounded adaptive coordinate and limb-length stabilization plus depth-order hysteresis, while zero/multiple poses reset history and multi-pose rendering remains current-packet-only and identity-independent.
+- Added explicit menu, Draw, Bubbles, and phone appearance profiles without changing `PosePacket`, controls, Draw, Bubbles, transport, dependencies, assets, hosting, or the game-renderer boundary.
+- Deleted the former renderer/component/CSS path and added direct solver, renderer, canvas, and playfield regression coverage. Real-device proportions, rest stability, fast-motion lag, partial-landmark behavior, and sustained television rendering acceptance remain outstanding.
+
 ## 2026-08-14 — Identity-independent Bubbles implemented
 
 - Added the second game behind the existing renderer-independent shell: Ready/Starting/Playing/Finished phases, a three-second countdown, an exact 60-second round, one-/two-player HUDs, results, Play Again, and Exit.

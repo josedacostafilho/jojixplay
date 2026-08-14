@@ -28,7 +28,7 @@ The previous overhead horizontal toolbar also occupied the central drawing area.
 - Once active, the grip remains active throughout the hysteresis band. It releases only when both complete hands are observed at least `1.25 × shoulder span` apart, or when a safety boundary makes the current interaction invalid.
 - The wide `0.75`/`1.25` hysteresis intentionally accepts a book-holding pose to start and requires an exaggerated shoulder-width-or-greater spread to stop. It must not be replaced by one threshold.
 - Supporting-hand landmark loss alone cannot prove wide separation, so it neither releases the grip nor breaks an otherwise valid main-hand path. Main-hand loss, board exit, toolbar entry, or an implausible main-hand jump breaks the current path but does not by itself cancel the grip. Stale pose input, controller loss, camera-dimension change, view exit, or session cleanup cancels it.
-- Capture-timestamp speed-adaptive smoothing remains scoped to the main-hand drawing cursor and retained path. It does not affect the grip decision, skeleton presentation, button hit testing, or `PosePacket`.
+- Capture-timestamp speed-adaptive smoothing remains scoped to the main-hand drawing cursor and retained path. It does not affect the grip decision, avatar presentation, button hit testing, or `PosePacket`.
 
 ### One selected tool
 

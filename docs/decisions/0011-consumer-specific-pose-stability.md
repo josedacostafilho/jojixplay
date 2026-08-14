@@ -10,9 +10,9 @@ scope: Raw-pose ownership, consumer-specific filtering, diagnostics, model selec
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The single-anchor, every-outlier-resets stationary test in [ADR-0010](0010-menu-and-draw-game.md)
-- **Superseded by:** [ADR-0012](0012-two-hand-draw-grip.md) for Draw's stationary engagement/lifting classifier; the raw-pose, consumer-specific filtering, diagnostics, and model-selection decisions remain active
+- **Superseded by:** [ADR-0012](0012-two-hand-draw-grip.md) for Draw's stationary engagement/lifting classifier; [ADR-0014](0014-procedural-body-avatar.md) for the visible display signal; raw-pose ownership, consumer separation, diagnostics, and model-selection decisions remain active
 
-> **Current-scope note:** ADR-0012 supersedes every Draw stationarity rule and test expectation below. Those passages remain only as historical rationale. Raw-pose ownership, consumer-specific filtering, local diagnostics, and the model-selection boundary remain operative.
+> **Current-scope note:** ADR-0012 supersedes every Draw stationarity rule and test expectation below, and ADR-0014 supersedes the unfiltered stick-skeleton display row. Those passages remain only as historical rationale. Raw-pose ownership, consumer-specific filtering, local diagnostics, and the model-selection boundary remain operative.
 
 ## Context
 
@@ -39,7 +39,7 @@ Adding one application-wide low-pass filter would stack latency on top of MediaP
 | Coarse hand | Shared pose-feature derivation | Arithmetic mean of the usable wrist, pinky, index, and thumb; no fallback |
 | Continuous Draw point | Draw session | Existing timestamp-aware speed-adaptive smoothing; optimized for responsive paths |
 | Stationarity evidence | Draw session | Raw coarse-hand positions evaluated over time; no coordinate filter or delayed cursor |
-| Display pose | Skeleton renderer | Current MediaPipe output; no additional application filter until measured evidence justifies one |
+| Display pose | Avatar presentation session | Immutable consumer-local copy with the bounded one-pose-only filter in ADR-0014; never consumed by interaction |
 
 ### Robust 500 ms stationary hold
 
@@ -68,7 +68,7 @@ Adding one application-wide low-pass filter would stack latency on top of MediaP
 - Continuous drawing retains its low-latency adaptive path instead of inheriting a presentation-oriented filter.
 - Diagnostics reveal whether a future change improves noise at the cost of cadence, processing age, or thermals.
 - Raw packets, privacy, mirroring, and renderer independence remain unchanged.
-- A future presentation filter can be evaluated independently instead of silently changing game input.
+- The accepted avatar presentation filter is evaluated independently and cannot silently change game input.
 
 ### Costs and risks
 
@@ -105,5 +105,5 @@ Rejected because it adds model weight, lifecycle and control protocol without pr
 
 ## Follow-up
 
-- Record the target-phone Lite baseline before selecting another model or adding presentation smoothing.
+- Record the target-phone Lite and current avatar-presentation baseline before selecting another model or replacing presentation smoothing.
 - If Full is evaluated, perform a branch-local model hard cutover, run the same protocol, and accept or reject it through a new decision that leaves only one production model.

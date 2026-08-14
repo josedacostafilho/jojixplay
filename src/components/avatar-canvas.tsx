@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { PosePacket } from "../domain/pose";
-import { drawSkeleton, SKELETON_PALETTE, type SkeletonPalette } from "../render/skeleton";
+import { type AvatarAppearance, drawAvatar } from "../render/avatar";
+import { AvatarPresentationSession } from "../render/avatar-presentation";
 
-interface SkeletonCanvasProps {
+interface AvatarCanvasProps {
   packet: PosePacket | null;
   label: string;
+  appearance: AvatarAppearance;
   className?: string;
   mirrored?: boolean;
-  palette?: SkeletonPalette;
-  opacity?: number;
 }
 
 interface CanvasSize {
@@ -16,15 +16,15 @@ interface CanvasSize {
   height: number;
 }
 
-export function SkeletonCanvas({
+export function AvatarCanvas({
   packet,
   label,
+  appearance,
   className,
   mirrored = false,
-  palette = SKELETON_PALETTE,
-  opacity = 1,
-}: SkeletonCanvasProps) {
+}: AvatarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [presentationSession] = useState(() => new AvatarPresentationSession());
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -60,21 +60,15 @@ export function SkeletonCanvas({
       return;
     }
 
-    let animationFrameId: number | null = null;
-    const render = () => {
-      drawSkeleton(context, packet, size.width, size.height, {
+    const presentation = presentationSession.update(packet);
+    const animationFrameId = window.requestAnimationFrame(() => {
+      drawAvatar(context, presentation, size.width, size.height, {
         mirrored,
-        palette,
-        opacity,
+        appearance,
       });
-    };
-    animationFrameId = window.requestAnimationFrame(render);
-    return () => {
-      if (animationFrameId !== null) {
-        window.cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [packet, size, mirrored, palette, opacity]);
+    });
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [packet, size, mirrored, appearance, presentationSession]);
 
   return (
     <canvas ref={canvasRef} class={className} role="img" aria-label={label}>

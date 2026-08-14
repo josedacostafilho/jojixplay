@@ -46,7 +46,7 @@ Moving controls above the head introduces two correctness requirements. The row 
 
 ### Benefits
 
-- Controls no longer obscure the controlling skeleton's torso or face.
+- Controls no longer obscure the controlling avatar's torso or face.
 - The cursor aligns with the hand shape already drawn by the renderer while averaging coarse distal-landmark noise.
 - Framing and neutral-state failures are explicit instead of producing unreachable or accidentally activated controls.
 - Claim/release behavior keeps the more stable wrist semantics without conflating them with the pointing location.

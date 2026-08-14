@@ -15,7 +15,7 @@ Repository-wide agent instructions live in [`../AGENTS.md`](../AGENTS.md). That 
 | Goal | Read |
 | --- | --- |
 | Orient to the repository | [Project status](project/status.md), then [Stack](architecture/stack.md) |
-| Understand the product and current content | [Product brief](product/brief.md), [Skeleton-viewer specification](product/skeleton-viewer.md), [Draw game](product/draw-game.md), then [Bubbles game](product/bubbles-game.md) |
+| Understand the product and current content | [Product brief](product/brief.md), [Phone-to-television specification](product/skeleton-viewer.md), [Avatar renderer](product/avatar-renderer.md), [Draw game](product/draw-game.md), then [Bubbles game](product/bubbles-game.md) |
 | Implement or modify behavior | [Engineering standards](engineering/standards.md), [Testing strategy](engineering/testing.md), [Workflow](engineering/workflow.md) |
 | Measure pose stability or evaluate a pose model | [Pose quality](engineering/pose-quality.md), then [ADR-0011](decisions/0011-consumer-specific-pose-stability.md) |
 | Make an architectural choice | [Architecture overview](architecture/overview.md), [ADR index](decisions/README.md) |
@@ -31,6 +31,7 @@ docs/
 ├── product/
 │   ├── brief.md                      # Users, purpose, constraints, and non-goals
 │   ├── skeleton-viewer.md            # First vertical slice contract and implementation map
+│   ├── avatar-renderer.md             # Live procedural body and presentation-smoothing contract
 │   ├── draw-game.md                  # Draw behavior and acceptance contract
 │   └── bubbles-game.md               # Bubbles behavior and implementation contract
 ├── architecture/
@@ -51,7 +52,8 @@ docs/
 │   ├── 0010-menu-and-draw-game.md
 │   ├── 0011-consumer-specific-pose-stability.md
 │   ├── 0012-two-hand-draw-grip.md
-│   └── 0013-identity-independent-bubbles-game.md
+│   ├── 0013-identity-independent-bubbles-game.md
+│   └── 0014-procedural-body-avatar.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

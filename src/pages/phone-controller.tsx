@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { SkeletonCanvas } from "../components/skeleton-canvas";
+import { AvatarCanvas } from "../components/avatar-canvas";
 import { PoseDiagnosticsPanel } from "../components/pose-diagnostics-panel";
 import { StatusPill } from "../components/status-pill";
 import { roleUrl } from "../components/unsupported-panel";
@@ -209,10 +209,11 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
 
         <div class={`camera-stage camera-stage--${camera}`}>
           <video ref={videoRef} muted playsInline aria-label="Live camera preview" />
-          <SkeletonCanvas
+          <AvatarCanvas
             packet={camera === "tracking" ? packet : null}
-            label="Your locally detected body skeleton"
-            className="skeleton-canvas skeleton-canvas--camera"
+            label="Your locally detected body avatar"
+            className="avatar-canvas avatar-canvas--camera"
+            appearance="camera"
           />
           {camera !== "tracking" ? (
             <div class="camera-placeholder" aria-hidden="true">

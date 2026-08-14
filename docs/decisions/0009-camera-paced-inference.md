@@ -39,7 +39,7 @@ These rates are different and must not be reported interchangeably:
 | Inference completion | Valid pose estimates returned by the worker | Never exceeds submission; bitmap creation, worker transfer, MediaPipe runtime, device load, and thermals add time |
 | Pose send | Completed packets offered to the peer sender while connected | Never exceeds completion; the sender keeps the active send plus only the newest pending packet |
 | TV acceptance | Strictly valid, increasing, fresh packets accepted by the television | Never exceeds send; transport delay, disconnects, validation, ordering, and freshness can reject packets |
-| TV drawing update | Accepted packets consumed by skeleton controls and games | Packet-driven and therefore never a promise of display-refresh-rate input |
+| TV drawing update | Accepted packets consumed by pose controls, avatar presentation, and games | Packet-driven and therefore never a promise of display-refresh-rate input |
 
 The practical inference ceiling is approximately the lower of camera delivery cadence and the reciprocal of end-to-end serialized processing time. For example, a sustained 50 ms estimate path can accept at most roughly 20 camera frames per second even when the camera presents 30. This is natural backpressure, not a configured 20 FPS mode.
 

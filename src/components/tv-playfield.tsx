@@ -25,8 +25,8 @@ import {
   type Rectangle,
   type Size,
 } from "../render/geometry";
-import { SKELETON_PALETTE } from "../render/skeleton";
-import { SkeletonCanvas } from "./skeleton-canvas";
+import { AVATAR_ACCENT_PALETTE } from "../render/avatar";
+import { AvatarCanvas } from "./avatar-canvas";
 
 interface TvPlayfieldProps {
   packet: PosePacket | null;
@@ -319,7 +319,7 @@ export function TvPlayfield({
   );
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>("navy");
   const [announcement, setAnnouncement] = useState("");
-  const palette = SKELETON_PALETTE;
+  const palette = AVATAR_ACCENT_PALETTE;
 
   latestPacketRef.current = packet;
   if (packet !== null) {
@@ -623,13 +623,12 @@ export function TvPlayfield({
         </div>
       ) : null}
 
-      <SkeletonCanvas
+      <AvatarCanvas
         packet={packet}
-        label="Mirrored live body skeleton from the paired phone"
-        className="skeleton-canvas skeleton-canvas--tv"
+        label="Mirrored live body avatar from the paired phone"
+        className="avatar-canvas avatar-canvas--tv"
         mirrored
-        palette={palette}
-        opacity={view === "draw" ? 0.28 : view === "bubbles" ? 0.22 : 1}
+        appearance={view === "draw" ? "draw" : view === "bubbles" ? "bubbles" : "stage"}
       />
 
       {view === "bubbles" ? null : (

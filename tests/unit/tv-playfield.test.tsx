@@ -108,12 +108,15 @@ beforeEach(() => {
     arc: vi.fn(),
     beginPath: vi.fn(),
     clearRect: vi.fn(),
+    closePath: vi.fn(),
     createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+    ellipse: vi.fn(),
     fill: vi.fn(),
     fillText: vi.fn(),
     lineTo: vi.fn(),
     moveTo: vi.fn(),
+    quadraticCurveTo: vi.fn(),
     restore: vi.fn(),
     save: vi.fn(),
     stroke: vi.fn(),
@@ -259,7 +262,7 @@ describe("TV playfield", () => {
     expect(view.container.querySelectorAll(".draw-tool-cursor")).toHaveLength(1);
     expect(view.container.querySelector(".draw-tool-cursor--pencil")).toBeInTheDocument();
     animationCallbacks.at(-1)?.(0);
-    expect(canvasContext.globalAlpha).toBe(0.28);
+    expect(canvasContext.globalAlpha).toBe(0.24);
 
     fireEvent.click(toolButton);
     expect(screen.getByText("Eraser selected.")).toBeInTheDocument();

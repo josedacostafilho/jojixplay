@@ -694,14 +694,14 @@ button {
   }
 }
 
-.skeleton-canvas {
+.avatar-canvas {
   display: block;
   width: 100%;
   height: 100%;
   pointer-events: none;
 }
 
-.skeleton-canvas--tv {
+.avatar-canvas--tv {
   position: absolute;
   z-index: 2;
   inset: 0;
@@ -1163,7 +1163,7 @@ button {
   background: #05070c;
 }
 
-.skeleton-canvas--camera {
+.avatar-canvas--camera {
   position: absolute;
   inset: 0;
 }

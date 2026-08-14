@@ -10,7 +10,7 @@ scope: Bubbles game lifecycle, simulation, input, scoring, presentation, and run
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** None
+- **Superseded by:** [ADR-0014](0014-procedural-body-avatar.md) for the visible reduced-opacity body layer; all Bubbles lifecycle, input, simulation, and scoring decisions remain active
 
 ## Context
 
@@ -51,7 +51,7 @@ Two-player score ownership is the consequential constraint. MediaPipe pose-array
 - The exact contained phone-camera projection is the reachable Bubbles arena. Informational score and timer overlays use television corners and never become collision targets.
 - Procedural Canvas drawing creates translucent radial fills, iridescent rims, highlights, shimmer, and bounded pop particles; no image asset or license obligation is introduced.
 - A pop scores immediately, becomes non-collidable, expands and fades for 240 ms, emits a bounded droplet burst and `+1`, then is removed. The corresponding score counter pulses.
-- The mirrored live skeleton remains visible at reduced opacity. Brighter left/right hand rings expose the actual collision inputs.
+- The mirrored live procedural avatar remains visible at 16% opacity. Brighter left/right hand rings expose the actual raw collision inputs.
 
 ## Consequences
 
@@ -67,7 +67,7 @@ Two-player score ownership is the consequential constraint. MediaPipe pose-array
 
 - Two-player score continuity assumes players remain on their sides; crossing intentionally changes slot attribution.
 - Full-body coarse hands have less precision than a dedicated hand model, so the initial hit radius and visual hand rings require real-device acceptance.
-- Canvas gradients, particles, a live skeleton, and animation-frame state updates still need performance testing on the owner's television.
+- Canvas gradients, particles, a live avatar, and animation-frame state updates still need performance testing on the owner's television.
 - A player dropout consumes round time rather than pausing, which keeps timing simple and deterministic but can affect a competitive result.
 
 ## Alternatives considered

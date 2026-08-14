@@ -10,7 +10,7 @@ scope: Television projection, fullscreen entry, temporary controller claiming, a
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint; [ADR-0008](0008-above-head-coarse-hand-controls.md) for the torso-relative row, direct wrist pointer, and immediately armed lease; [ADR-0010](0010-menu-and-draw-game.md) for the Circles action and effect layer
+- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint; [ADR-0008](0008-above-head-coarse-hand-controls.md) for the torso-relative row, direct wrist pointer, and immediately armed lease; [ADR-0010](0010-menu-and-draw-game.md) for the Circles action and effect layer; [ADR-0014](0014-procedural-body-avatar.md) for visible body presentation
 
 ## Context
 
@@ -24,7 +24,7 @@ Browser fullscreen entry is privileged and normally requires a trusted remote-co
 
 - Keep every `PosePacket` in raw phone-camera coordinates. Do not mutate transport data and do not swap anatomical left/right landmark indices.
 - The television owns one shared contained-and-mirrored projection. It maps `screenX = 1 - cameraX` before applying the contain transform.
-- The television skeleton, temporary effects, body cursor, button placement, and button hit testing must use that same projection and camera viewport.
+- The television body presentation, temporary effects, body cursor, button placement, and button hit testing must use that same projection and camera viewport.
 - The phone preview remains in camera coordinates; mirroring is a television presentation and interaction decision only.
 
 ### Fullscreen entry
@@ -48,7 +48,7 @@ Browser fullscreen entry is privileged and normally requires a trusted remote-co
 
 [ADR-0008](0008-above-head-coarse-hand-controls.md) supersedes the torso-relative anchor and immediate post-claim activation below. The original rules remain here as historical context.
 
-- Show instructions whenever a live skeleton exists but no controller is claimed. Show actionable buttons only for the active control lease.
+- Show instructions whenever a live pose exists but no controller is claimed. Show actionable buttons only for the active control lease.
 - Derive the button-row anchor from the controlling torso, never from either arm:
 
   ```text
@@ -105,7 +105,7 @@ Rejected because arm motion and pose jitter would cause false presses. Dwell sup
 
 Rejected because camera framing and a person's reach do not necessarily cover television corners. Body-relative placement keeps targets inside the pose-controlled region.
 
-### Persistent skeleton identifiers
+### Persistent person identifiers
 
 Rejected for the identity-independent prototype. They add tracking complexity and failure semantics that the current actions do not consume.
 
