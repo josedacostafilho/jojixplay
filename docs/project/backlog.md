@@ -10,12 +10,12 @@ This is a compact queue, not a wish list. Keep entries actionable and ordered. O
 
 ## P0 — release the current prototype
 
-- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, achieved inference cadence, acknowledged switching without camera restart, mirrored rendering, overhead framing guidance, Main Menu/Games/Draw navigation, neutral re-arming, close-hand grip activation, wide-hand release, false activation/release, compact left-toolbar reach, Pencil/Eraser continuity, camera-bump behavior, long-session drawing, thermal behavior, stale/disconnect states, cleanup, and perceived latency. Record the one-player Lite baseline through [Pose quality](../engineering/pose-quality.md); two-player stability is not part of the current pose-quality decision.
+- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, achieved inference cadence, acknowledged switching without camera restart, mirrored rendering, overhead framing guidance, Main Menu/Games/Draw/Bubbles navigation, neutral re-arming, Draw close/wide grip ergonomics and Pencil/Eraser continuity, Bubbles Start/Play Again/Exit reach, three-second/60-second timing, either-hand hit tolerance, fast-sweep popping, complete edge containment, score/timer/result readability, two-player screen-side attribution and crossing behavior, camera-bump behavior, long-session drawing, sustained Bubbles rendering, thermal behavior, stale/disconnect states, cleanup, and perceived latency. Record the one-player Lite baseline through [Pose quality](../engineering/pose-quality.md); two-player stability is not part of the current pose-quality decision.
 - [ ] Inspect the real peer connection and confirm that the application sends pose packets only, never a camera media track or pixel payload.
 
 ## P1 — establish measured product budgets
 
-- [ ] Record a performance baseline from target hardware, including the local pose diagnostics, then define budgets for startup time, sustained inference rate, processing-age p95, stationary hand spread, pose-packet freshness, and renderer frame stability.
+- [ ] Record a performance baseline from target hardware, including the local pose diagnostics, then define budgets for startup time, sustained inference rate, processing-age p95, stationary hand spread, pose-packet freshness, Draw replay cost, and Bubbles/skeleton renderer frame stability.
 - [ ] Run a focused accessibility review on the deployed phone and television flows and record any target-browser limitations.
 
 ## Entry format

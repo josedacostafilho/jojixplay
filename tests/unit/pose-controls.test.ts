@@ -293,6 +293,33 @@ describe("television pose controls", () => {
     expect(session.updatePacket(packet([pose]), 370, VIEWPORT).snapshot.controlsArmed).toBe(true);
   });
 
+  it("suspends every control surface while retaining and neutrally re-arming the lease", () => {
+    const session = createSession();
+    const pose = createPose();
+    const claimed = claimSinglePerson(session, pose);
+    expect(session.updatePacket(packet([pose]), 350, VIEWPORT).snapshot.controlsArmed).toBe(true);
+    const target = claimed.snapshot.targets[0];
+    if (target === undefined) {
+      throw new Error("Expected a control target.");
+    }
+    const hoveringPose = moveLeftHandToScreen(pose, targetCenter(target));
+
+    expect(session.setControlsEnabled(false, 360).snapshot).toMatchObject({
+      phase: "active",
+      targets: [],
+      pointer: null,
+      hands: null,
+      controlsArmed: false,
+    });
+    expect(session.updatePacket(packet([hoveringPose]), 1_500, VIEWPORT).activated).toBeNull();
+
+    const resumed = session.setControlsEnabled(true, 1_510);
+    expect(resumed.snapshot.phase).toBe("active");
+    expect(resumed.snapshot.targets).toHaveLength(3);
+    expect(resumed.snapshot.controlsArmed).toBe(false);
+    expect(session.updatePacket(packet([pose]), 1_520, VIEWPORT).snapshot.controlsArmed).toBe(true);
+  });
+
   it("honors an action-specific dwell duration", () => {
     const session = createSession();
     const pose = createPose();

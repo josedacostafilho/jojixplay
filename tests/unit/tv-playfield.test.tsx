@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TvPlayfield } from "../../src/components/tv-playfield";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
@@ -57,6 +57,21 @@ function createCloseHandsPacket(sequence: number): PosePacket {
   return posePacket;
 }
 
+function createTwoPlayerPacket(sequence: number): PosePacket {
+  const source = createCloseHandsPacket(sequence);
+  const basePose = source.poses[0];
+  if (basePose === undefined) {
+    throw new Error("Expected a source pose.");
+  }
+  const shiftedPose = (offset: number): DetectedPose => ({
+    landmarks: basePose.landmarks.map((landmark) => ({
+      ...landmark,
+      x: landmark.visibility > 0 ? landmark.x + offset : landmark.x,
+    })),
+  });
+  return { ...source, poses: [shiftedPose(-0.2), shiftedPose(0.2)] };
+}
+
 class ImmediateResizeObserver {
   public constructor(private readonly callback: ResizeObserverCallback) {}
 
@@ -93,7 +108,10 @@ beforeEach(() => {
     arc: vi.fn(),
     beginPath: vi.fn(),
     clearRect: vi.fn(),
+    createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+    createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     fill: vi.fn(),
+    fillText: vi.fn(),
     lineTo: vi.fn(),
     moveTo: vi.fn(),
     restore: vi.fn(),
@@ -117,6 +135,16 @@ function claimControls(
     nowMs = sequence * 100;
     view.rerender(renderPlayfield(packetFactory(sequence)));
   }
+}
+
+function runAnimationFrame(timestamp: number): void {
+  const callbacks = animationCallbacks;
+  animationCallbacks = [];
+  act(() => {
+    for (const callback of callbacks) {
+      callback(timestamp);
+    }
+  });
 }
 
 describe("TV playfield", () => {
@@ -158,6 +186,7 @@ describe("TV playfield", () => {
     fireEvent.click(screen.getByRole("button", { name: "Games" }));
     expect(playfield).toHaveAttribute("data-playfield-view", "games");
     expect(screen.getByRole("button", { name: "Draw" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bubbles" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Return to Main Menu" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Background" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Return to Main Menu" }));
@@ -253,6 +282,86 @@ describe("TV playfield", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear drawing" }));
     expect(screen.getByText("Drawing cleared.")).toBeInTheDocument();
+  });
+
+  it("runs the Bubbles countdown, suspends controls, and exposes results", () => {
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+      />
+    );
+    const view = render(renderPlayfield(createRaisedHandPacket(0)));
+    claimControls(view, renderPlayfield);
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bubbles" }));
+
+    const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
+    expect(playfield).toHaveAttribute("data-playfield-view", "bubbles");
+    expect(screen.getByTestId("bubbles-board")).toHaveStyle({
+      left: "0px",
+      top: "0px",
+      width: "1280px",
+      height: "720px",
+    });
+    expect(screen.getByRole("img", { name: "Bubbles game arena" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Score")).toHaveTextContent("0");
+    expect(screen.queryByLabelText("Left player score")).not.toBeInTheDocument();
+    expect(view.container.querySelector(".bubbles-timer")).toHaveTextContent("1:00");
+    expect(screen.getByRole("button", { name: "Start Bubbles" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Exit Bubbles" })).toBeInTheDocument();
+
+    animationCallbacks = [];
+    nowMs = 400;
+    fireEvent.click(screen.getByRole("button", { name: "Start Bubbles" }));
+    expect(screen.getByTestId("bubbles-board")).toHaveAttribute("data-bubbles-phase", "starting");
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Exit Bubbles" })).not.toBeInTheDocument();
+
+    nowMs = 3_400;
+    runAnimationFrame(nowMs);
+    expect(screen.getByTestId("bubbles-board")).toHaveAttribute("data-bubbles-phase", "playing");
+    expect(screen.getByText("Go!")).toBeInTheDocument();
+    expect(view.container.querySelector(".bubbles-timer")).toHaveTextContent("1:00");
+
+    nowMs = 4_400;
+    runAnimationFrame(nowMs);
+    expect(view.container.querySelector(".bubbles-timer")).toHaveTextContent("0:59");
+
+    nowMs = 63_400;
+    runAnimationFrame(nowMs);
+    expect(screen.getByTestId("bubbles-board")).toHaveAttribute("data-bubbles-phase", "finished");
+    expect(screen.getByText("Final score: 0.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play Bubbles again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit Bubbles" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit Bubbles" }));
+    expect(playfield).toHaveAttribute("data-playfield-view", "games");
+  });
+
+  it("shows identity-independent left and right Bubbles score slots in two-player mode", () => {
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={2}
+        poseLimitPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+      />
+    );
+    const view = render(renderPlayfield(createTwoPlayerPacket(0)));
+    for (const sequence of [1, 2, 3, 4, 5]) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createTwoPlayerPacket(sequence)));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bubbles" }));
+
+    expect(screen.getByLabelText("Left player score")).toHaveTextContent("Left0");
+    expect(screen.getByLabelText("Right player score")).toHaveTextContent("Right0");
+    expect(screen.getByText("Both players ready")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Bubbles" })).toBeEnabled();
   });
 
   it("asks for overhead framing and withholds controls when the head is too high", () => {

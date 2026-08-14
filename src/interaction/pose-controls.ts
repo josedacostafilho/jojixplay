@@ -469,6 +469,7 @@ function containsPoint(rect: Rectangle, point: Point, padding: number): boolean 
 export class PoseControlSession<TAction extends string> {
   private actions: readonly PoseControlActionDefinition<TAction>[];
   private placement: PoseControlPlacement;
+  private controlsEnabled = true;
   private viewport: Size | null = null;
   private visiblePeople = 0;
   private multiplePeople = false;
@@ -509,6 +510,18 @@ export class PoseControlSession<TAction extends string> {
       }
       this.lease.layout = nextLayout;
       this.lease.targets = createControlTargets(this.lease.layout, this.actions);
+      this.lease.controlsArmed = false;
+      this.lease.hoveredAction = null;
+      this.lease.hoverStartedAtMs = null;
+      this.lease.latchedAction = null;
+    }
+    return this.result(nowMs, null);
+  }
+
+  public setControlsEnabled(enabled: boolean, nowMs: number): PoseControlUpdate<TAction> {
+    this.controlsEnabled = enabled;
+    this.candidate = null;
+    if (this.lease !== null) {
       this.lease.controlsArmed = false;
       this.lease.hoveredAction = null;
       this.lease.hoverStartedAtMs = null;
@@ -563,6 +576,11 @@ export class PoseControlSession<TAction extends string> {
         return this.result(nowMs, null);
       }
       return this.updateLease(poses, packet.frame, nowMs);
+    }
+
+    if (!this.controlsEnabled) {
+      this.candidate = null;
+      return this.result(nowMs, null);
     }
 
     return this.updateClaim(posesWithHeadroom, packet.frame, nowMs, viewport);
@@ -759,6 +777,13 @@ export class PoseControlSession<TAction extends string> {
     if (lease === null || lease.pointer === null) {
       return null;
     }
+    if (!this.controlsEnabled) {
+      lease.controlsArmed = false;
+      lease.hoveredAction = null;
+      lease.hoverStartedAtMs = null;
+      lease.latchedAction = null;
+      return null;
+    }
     const pointer = lease.pointer;
 
     if (!lease.controlsArmed) {
@@ -818,6 +843,7 @@ export class PoseControlSession<TAction extends string> {
   private result(nowMs: number, activated: TAction | null): PoseControlUpdate<TAction> {
     const lease = this.lease;
     if (lease !== null) {
+      const controlsVisible = this.controlsEnabled;
       const hoveredTarget = lease.targets.find((target) => target.action === lease.hoveredAction);
       const dwellProgress =
         lease.hoverStartedAtMs === null || hoveredTarget === undefined
@@ -830,12 +856,12 @@ export class PoseControlSession<TAction extends string> {
           visiblePeople: this.visiblePeople,
           requiresBothHands: this.multiplePeople,
           claimProgress: 1,
-          targets: lease.targets,
-          pointer: lease.pointer,
-          hands: lease.hands,
-          controlsArmed: lease.controlsArmed,
-          hoveredAction: lease.hoveredAction,
-          dwellProgress,
+          targets: controlsVisible ? lease.targets : [],
+          pointer: controlsVisible ? lease.pointer : null,
+          hands: controlsVisible ? lease.hands : null,
+          controlsArmed: controlsVisible && lease.controlsArmed,
+          hoveredAction: controlsVisible ? lease.hoveredAction : null,
+          dwellProgress: controlsVisible ? dwellProgress : 0,
           controllerPoseIndex: lease.poseIndex,
         },
       };

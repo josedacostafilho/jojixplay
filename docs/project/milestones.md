@@ -8,6 +8,13 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-14 — Identity-independent Bubbles implemented
+
+- Added the second game behind the existing renderer-independent shell: Ready/Starting/Playing/Finished phases, a three-second countdown, an exact 60-second round, one-/two-player HUDs, results, Play Again, and Exit.
+- Added procedural soap bubbles with size-varied smooth drift, bounded random direction changes, radius-aware clamp-and-reflect edge behavior, one-pop scoring, bounded particle feedback, and delayed replacements entirely inside the projected camera arena.
+- Added both-hand current/swept collision independent of the menu controller lease and identity-independent two-player attribution through mirrored Left/Right screen slots.
+- Added control suspension and neutral result re-arming plus direct domain, input-adapter, renderer, pose-control, and component regression coverage. Real-device hit tolerance, side discipline, readability, and sustained rendering acceptance remain outstanding.
+
 ## 2026-08-14 — Two-hand Draw grip implemented
 
 - Replaced Draw's stationary engagement/lifting classifier with one immediate, body-relative two-hand grip: close hands activate at `0.75 ×` shoulder span and only a deliberate wide spread releases at `1.25 ×`.

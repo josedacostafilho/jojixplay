@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { PosePacket } from "../domain/pose";
 import { type PoseLimit, MAX_POSE_LIMIT } from "../domain/pose-limit";
+import { BubblesCanvas } from "../games/bubbles/bubbles-canvas";
+import {
+  bubblesPlayersFromPosePacket,
+  type BubblesResult,
+  BubblesSession,
+  type BubblesSnapshot,
+} from "../games/bubbles/bubbles-session";
 import { DrawCanvas } from "../games/draw/draw-canvas";
 import { DRAW_ERASER_WIDTH, DrawSession, type DrawSnapshot } from "../games/draw/draw-session";
 import {
@@ -29,17 +36,21 @@ interface TvPlayfieldProps {
 }
 
 type BackgroundTheme = "navy" | "plum";
-type PlayfieldView = "main" | "games" | "draw";
+type PlayfieldView = "main" | "games" | "draw" | "bubbles";
 type PlayfieldAction =
   | "background"
   | "players"
   | "open-games"
   | "open-draw"
+  | "open-bubbles"
   | "return-main"
   | "draw-tool"
   | "draw-color"
   | "draw-clear"
-  | "draw-exit";
+  | "draw-exit"
+  | "bubbles-start"
+  | "bubbles-restart"
+  | "bubbles-exit";
 
 const MAIN_ACTIONS = [
   { action: "background", label: "Background" },
@@ -49,6 +60,7 @@ const MAIN_ACTIONS = [
 
 const GAMES_ACTIONS = [
   { action: "open-draw", label: "Draw" },
+  { action: "open-bubbles", label: "Bubbles" },
   { action: "return-main", label: "Return" },
 ] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
 
@@ -57,6 +69,16 @@ const DRAW_ACTIONS = [
   { action: "draw-color", label: "Color" },
   { action: "draw-clear", label: "Clear", dwellMs: 1_500 },
   { action: "draw-exit", label: "Exit" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const BUBBLES_READY_ACTIONS = [
+  { action: "bubbles-start", label: "Start" },
+  { action: "bubbles-exit", label: "Exit" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const BUBBLES_RESULT_ACTIONS = [
+  { action: "bubbles-restart", label: "Play Again" },
+  { action: "bubbles-exit", label: "Exit" },
 ] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
 
 const EMPTY_SNAPSHOT: PoseControlSnapshot<PlayfieldAction> = {
@@ -86,6 +108,8 @@ function controlsForView(view: PlayfieldView): ViewControls {
       return { actions: GAMES_ACTIONS, placement: "overhead-row" };
     case "draw":
       return { actions: DRAW_ACTIONS, placement: "left-column" };
+    case "bubbles":
+      return { actions: BUBBLES_READY_ACTIONS, placement: "left-column" };
   }
 }
 
@@ -97,7 +121,29 @@ function viewLabel(view: PlayfieldView): string {
       return "Games";
     case "draw":
       return "Draw";
+    case "bubbles":
+      return "Bubbles";
   }
+}
+
+function formatBubblesTime(remainingMs: number): string {
+  const totalSeconds = Math.ceil(Math.max(0, remainingMs) / 1_000);
+  const minutes = Math.floor(totalSeconds / 60);
+  return `${minutes}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
+function bubblesResultMessage(result: BubblesResult | null): string {
+  if (result === null) {
+    return "Round complete.";
+  }
+  if (result.type === "score") {
+    return `Final score: ${result.score}.`;
+  }
+  if (result.winner === "tie") {
+    return `Tie game: ${result.leftScore} to ${result.rightScore}.`;
+  }
+  const winner = result.winner === "left" ? "Left" : "Right";
+  return `${winner} player wins — Left ${result.leftScore}, Right ${result.rightScore}.`;
 }
 
 function samePoint(left: Point | null, right: Point | null): boolean {
@@ -149,6 +195,7 @@ function drawInstruction(drawing: DrawSnapshot): string {
 function controlInstruction(
   snapshot: PoseControlSnapshot<PlayfieldAction>,
   drawing: DrawSnapshot,
+  bubbles: BubblesSnapshot,
   view: PlayfieldView,
 ): string {
   switch (snapshot.phase) {
@@ -171,7 +218,15 @@ function controlInstruction(
           ? "Move your drawing hand clear of the toolbar to arm it"
           : "Move your hand clear of the buttons to arm them";
       }
-      return view === "draw" ? drawInstruction(drawing) : "Move your hand onto a button and hold";
+      if (view === "draw") {
+        return drawInstruction(drawing);
+      }
+      if (view === "bubbles" && !bubbles.readyToStart) {
+        return bubbles.playerCount === 1
+          ? "Waiting for one visible player"
+          : `Waiting for two visible players — ${bubbles.visiblePlayers} visible`;
+      }
+      return "Move your hand onto a button and hold";
   }
 }
 
@@ -193,12 +248,20 @@ function accessibleActionLabel(
       return "Games";
     case "open-draw":
       return "Draw";
+    case "open-bubbles":
+      return "Bubbles";
     case "return-main":
       return "Return to Main Menu";
     case "draw-clear":
       return "Clear drawing";
     case "draw-exit":
       return "Exit Draw";
+    case "bubbles-start":
+      return "Start Bubbles";
+    case "bubbles-restart":
+      return "Play Bubbles again";
+    case "bubbles-exit":
+      return "Exit Bubbles";
   }
 }
 
@@ -239,19 +302,26 @@ export function TvPlayfield({
     () => new PoseControlSession<PlayfieldAction>(MAIN_ACTIONS, "overhead-row"),
   );
   const [drawSession] = useState(() => new DrawSession());
+  const [bubblesSession] = useState(() => new BubblesSession());
   const latestFrameRef = useRef<Size | null>(null);
+  const latestPacketRef = useRef<PosePacket | null>(packet);
   const viewportRef = useRef<Size>({ width: 0, height: 0 });
   const viewRef = useRef<PlayfieldView>("main");
+  const bubblesPlayerCountRef = useRef<PoseLimit>(poseLimit);
   const playerModeRequestActiveRef = useRef(false);
   const activateActionRef = useRef<(action: PlayfieldAction) => void>(() => undefined);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [view, setView] = useState<PlayfieldView>("main");
   const [snapshot, setSnapshot] = useState<PoseControlSnapshot<PlayfieldAction>>(EMPTY_SNAPSHOT);
   const [drawing, setDrawing] = useState<DrawSnapshot>(() => drawSession.tick(0));
+  const [bubbles, setBubbles] = useState<BubblesSnapshot>(() =>
+    bubblesSession.setEnabled(false, poseLimit, 0),
+  );
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>("navy");
   const [announcement, setAnnouncement] = useState("");
   const palette = SKELETON_PALETTE;
 
+  latestPacketRef.current = packet;
   if (packet !== null) {
     latestFrameRef.current = packet.frame;
   }
@@ -265,12 +335,30 @@ export function TvPlayfield({
       const nowMs = performance.now();
       viewRef.current = nextView;
       setView(nextView);
+      controlSession.setControlsEnabled(true, nowMs);
       const controls = controlsForView(nextView);
       const controlUpdate = controlSession.setActions(controls.actions, controls.placement, nowMs);
       setSnapshot(controlUpdate.snapshot);
       applyDrawing(drawSession.setEnabled(nextView === "draw"));
+      if (nextView === "bubbles") {
+        bubblesPlayerCountRef.current = poseLimit;
+        let nextBubbles = bubblesSession.setEnabled(true, bubblesPlayerCountRef.current, nowMs);
+        const currentPacket = latestPacketRef.current;
+        if (currentPacket !== null) {
+          nextBubbles = bubblesSession.updatePlayers(
+            bubblesPlayersFromPosePacket(currentPacket, bubblesPlayerCountRef.current),
+            currentPacket.frame,
+            currentPacket.capturedAtMs,
+            nowMs,
+          );
+        }
+        setBubbles(nextBubbles);
+      } else {
+        setBubbles(bubblesSession.setEnabled(false, poseLimit, nowMs));
+      }
+      setAnnouncement("");
     },
-    [applyDrawing, controlSession, drawSession],
+    [applyDrawing, bubblesSession, controlSession, drawSession, poseLimit],
   );
 
   const activateAction = useCallback(
@@ -305,6 +393,9 @@ export function TvPlayfield({
         case "open-draw":
           transitionTo("draw");
           break;
+        case "open-bubbles":
+          transitionTo("bubbles");
+          break;
         case "return-main":
           transitionTo("main");
           break;
@@ -327,21 +418,61 @@ export function TvPlayfield({
         case "draw-exit":
           transitionTo("games");
           break;
+        case "bubbles-start":
+        case "bubbles-restart": {
+          const nowMs = performance.now();
+          const started = bubblesSession.start(nowMs);
+          setBubbles(started.snapshot);
+          if (!started.started) {
+            setAnnouncement(
+              started.reason === "not-ready"
+                ? `Waiting for ${bubblesPlayerCountRef.current === 1 ? "one visible player" : "two visible players"}.`
+                : "Bubbles could not start. Exit and enter the game again.",
+            );
+            break;
+          }
+          const controlUpdate = controlSession.setControlsEnabled(false, nowMs);
+          setSnapshot(controlUpdate.snapshot);
+          setAnnouncement("");
+          break;
+        }
+        case "bubbles-exit":
+          transitionTo("games");
+          break;
       }
     },
-    [applyDrawing, drawSession, onPoseLimitRequest, poseLimit, poseLimitPending, transitionTo],
+    [
+      applyDrawing,
+      bubblesSession,
+      controlSession,
+      drawSession,
+      onPoseLimitRequest,
+      poseLimit,
+      poseLimitPending,
+      transitionTo,
+    ],
   );
   activateActionRef.current = activateAction;
 
   const applyPoseUpdate = useCallback(
-    (update: PoseControlUpdate<PlayfieldAction>, nowMs: number, freshPacket: PosePacket | null) => {
+    (
+      update: PoseControlUpdate<PlayfieldAction>,
+      nowMs: number,
+      freshPacket: PosePacket | null | undefined,
+    ) => {
       setSnapshot((current) =>
         sameSnapshot(current, update.snapshot) ? current : update.snapshot,
       );
       if (viewRef.current === "draw") {
         const frame = freshPacket?.frame ?? latestFrameRef.current;
         const viewport = viewportRef.current;
-        if (freshPacket !== null && frame !== null && viewport.width > 0 && viewport.height > 0) {
+        if (
+          freshPacket !== null &&
+          freshPacket !== undefined &&
+          frame !== null &&
+          viewport.width > 0 &&
+          viewport.height > 0
+        ) {
           applyDrawing(
             drawSession.update({
               hands: update.snapshot.hands,
@@ -355,12 +486,23 @@ export function TvPlayfield({
         } else {
           applyDrawing(drawSession.tick(nowMs));
         }
+      } else if (viewRef.current === "bubbles" && freshPacket !== undefined) {
+        setBubbles(
+          freshPacket === null
+            ? bubblesSession.clearPlayers(nowMs)
+            : bubblesSession.updatePlayers(
+                bubblesPlayersFromPosePacket(freshPacket, bubblesPlayerCountRef.current),
+                freshPacket.frame,
+                freshPacket.capturedAtMs,
+                nowMs,
+              ),
+        );
       }
       if (update.activated !== null && !poseLimitPending) {
         activateActionRef.current(update.activated);
       }
     },
-    [applyDrawing, drawSession, poseLimitPending],
+    [applyDrawing, bubblesSession, drawSession, poseLimitPending],
   );
 
   useEffect(() => {
@@ -394,10 +536,35 @@ export function TvPlayfield({
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       const nowMs = performance.now();
-      applyPoseUpdate(controlSession.tick(nowMs), nowMs, null);
+      applyPoseUpdate(controlSession.tick(nowMs), nowMs, undefined);
     }, 50);
     return () => window.clearInterval(intervalId);
   }, [applyPoseUpdate, controlSession]);
+
+  useEffect(() => {
+    if (view !== "bubbles" || (bubbles.phase !== "starting" && bubbles.phase !== "playing")) {
+      return;
+    }
+    let animationFrameId: number | null = null;
+    const animate = (nowMs: number) => {
+      const nextBubbles = bubblesSession.tick(nowMs);
+      setBubbles(nextBubbles);
+      if (nextBubbles.phase === "finished") {
+        controlSession.setActions(BUBBLES_RESULT_ACTIONS, "left-column", nowMs);
+        const controlUpdate = controlSession.setControlsEnabled(true, nowMs);
+        setSnapshot(controlUpdate.snapshot);
+        setAnnouncement("");
+        return;
+      }
+      animationFrameId = window.requestAnimationFrame(animate);
+    };
+    animationFrameId = window.requestAnimationFrame(animate);
+    return () => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [bubbles.phase, bubblesSession, controlSession, view]);
 
   useEffect(() => {
     if (announcement === "" || announcement.startsWith("Switching")) {
@@ -408,32 +575,51 @@ export function TvPlayfield({
   }, [announcement]);
 
   const pointerColor = palette[snapshot.controllerPoseIndex ?? 0] ?? palette[0];
-  const instruction = controlInstruction(snapshot, drawing, view);
+  const instruction = controlInstruction(snapshot, drawing, bubbles, view);
+  const bubblesControlsVisible =
+    view !== "bubbles" || bubbles.phase === "ready" || bubbles.phase === "finished";
   const frame = latestFrameRef.current;
   const projection =
     frame === null || size.width === 0 || size.height === 0
       ? null
       : createPoseProjection(frame.width, frame.height, size.width, size.height, true);
-  const drawBounds: Rectangle | null =
+  const projectedBounds: Rectangle | null =
     projection === null ? null : projectedFrameBounds(projection);
   const toolPoint = toolScreenPoint(drawing.cursor.point, frame, size);
   const toolDiameter =
-    drawBounds === null ? 0 : Math.min(drawBounds.width, drawBounds.height) * DRAW_ERASER_WIDTH;
+    projectedBounds === null
+      ? 0
+      : Math.min(projectedBounds.width, projectedBounds.height) * DRAW_ERASER_WIDTH;
+  const rightScorePulsing =
+    bubbles.lastPopAtMs.right !== null && bubbles.nowMs - bubbles.lastPopAtMs.right <= 320;
+  const leftScorePulsing =
+    bubbles.lastPopAtMs.left !== null && bubbles.nowMs - bubbles.lastPopAtMs.left <= 320;
 
   return (
     <div
       ref={containerRef}
-      class={`tv-playfield tv-playfield--${backgroundTheme}${view === "draw" ? " tv-playfield--draw" : ""}`}
+      class={`tv-playfield tv-playfield--${backgroundTheme}${view === "draw" ? " tv-playfield--draw" : ""}${view === "bubbles" ? " tv-playfield--bubbles" : ""}`}
       data-background-theme={backgroundTheme}
       data-playfield-view={view}
     >
-      {view === "draw" && drawBounds !== null ? (
+      {view === "draw" && projectedBounds !== null ? (
         <div
           class="draw-board"
           data-testid="draw-board"
-          style={`left: ${drawBounds.x}px; top: ${drawBounds.y}px; width: ${drawBounds.width}px; height: ${drawBounds.height}px`}
+          style={`left: ${projectedBounds.x}px; top: ${projectedBounds.y}px; width: ${projectedBounds.width}px; height: ${projectedBounds.height}px`}
         >
           <DrawCanvas drawing={drawing} />
+        </div>
+      ) : null}
+
+      {view === "bubbles" && projectedBounds !== null ? (
+        <div
+          class="bubbles-board"
+          data-testid="bubbles-board"
+          data-bubbles-phase={bubbles.phase}
+          style={`left: ${projectedBounds.x}px; top: ${projectedBounds.y}px; width: ${projectedBounds.width}px; height: ${projectedBounds.height}px`}
+        >
+          <BubblesCanvas snapshot={bubbles} />
         </div>
       ) : null}
 
@@ -443,25 +629,84 @@ export function TvPlayfield({
         className="skeleton-canvas skeleton-canvas--tv"
         mirrored
         palette={palette}
-        opacity={view === "draw" ? 0.28 : 1}
+        opacity={view === "draw" ? 0.28 : view === "bubbles" ? 0.22 : 1}
       />
 
-      <div class="playfield-view-label" aria-live="polite">
-        <span>{viewLabel(view)}</span>
-        {view === "draw" ? (
-          <>
-            <span>{drawing.selectedTool === "pencil" ? "Pencil" : "Eraser"}</span>
-            <span
-              class="playfield-view-label__swatch"
-              style={`--draw-color: ${drawing.color}`}
-              aria-hidden="true"
-            />
-            <span class="visually-hidden">Current drawing color {drawing.color}</span>
-          </>
-        ) : null}
-      </div>
+      {view === "bubbles" ? null : (
+        <div class="playfield-view-label" aria-live="polite">
+          <span>{viewLabel(view)}</span>
+          {view === "draw" ? (
+            <>
+              <span>{drawing.selectedTool === "pencil" ? "Pencil" : "Eraser"}</span>
+              <span
+                class="playfield-view-label__swatch"
+                style={`--draw-color: ${drawing.color}`}
+                aria-hidden="true"
+              />
+              <span class="visually-hidden">Current drawing color {drawing.color}</span>
+            </>
+          ) : null}
+        </div>
+      )}
 
-      {packet !== null && announcement === "" ? (
+      {view === "bubbles" ? (
+        <div class="bubbles-hud">
+          {bubbles.playerCount === 2 ? (
+            <output
+              key={`left-score-${bubbles.lastPopAtMs.left ?? "idle"}`}
+              class={`bubbles-score bubbles-score--left${leftScorePulsing ? " bubbles-score--popped" : ""}`}
+              aria-label="Left player score"
+            >
+              <span>Left</span>
+              <strong>{bubbles.scores.left}</strong>
+            </output>
+          ) : null}
+          <output
+            key={`right-score-${bubbles.lastPopAtMs.right ?? "idle"}`}
+            class={`bubbles-score bubbles-score--right${bubbles.playerCount === 1 ? " bubbles-score--single" : ""}${rightScorePulsing ? " bubbles-score--popped" : ""}`}
+            aria-label={bubbles.playerCount === 1 ? "Score" : "Right player score"}
+          >
+            <span>{bubbles.playerCount === 1 ? "Score" : "Right"}</span>
+            <strong>{bubbles.scores.right}</strong>
+          </output>
+          <time
+            class="bubbles-timer"
+            dateTime={`PT${Math.ceil(bubbles.roundRemainingMs / 1_000)}S`}
+          >
+            <span class="visually-hidden">Bubbles time remaining: </span>
+            {formatBubblesTime(bubbles.roundRemainingMs)}
+          </time>
+        </div>
+      ) : null}
+
+      {view === "bubbles" && bubbles.phase === "ready" ? (
+        <section class="bubbles-round-message" aria-live="polite">
+          <h2>Bubbles</h2>
+          <p>
+            {bubbles.readyToStart
+              ? `${bubbles.playerCount === 1 ? "Player" : "Both players"} ready`
+              : `Waiting for ${bubbles.playerCount === 1 ? "one player" : `two players — ${bubbles.visiblePlayers} visible`}`}
+          </p>
+        </section>
+      ) : null}
+      {view === "bubbles" && bubbles.phase === "starting" ? (
+        <div class="bubbles-countdown" role="status" aria-live="assertive">
+          {Math.max(1, Math.ceil(bubbles.startingRemainingMs / 1_000))}
+        </div>
+      ) : null}
+      {view === "bubbles" && bubbles.phase === "playing" && bubbles.roundElapsedMs < 600 ? (
+        <div class="bubbles-countdown bubbles-countdown--go" role="status">
+          Go!
+        </div>
+      ) : null}
+      {view === "bubbles" && bubbles.phase === "finished" ? (
+        <section class="bubbles-round-message bubbles-round-message--result" role="status">
+          <h2>Time!</h2>
+          <p>{bubblesResultMessage(bubbles.result)}</p>
+        </section>
+      ) : null}
+
+      {packet !== null && announcement === "" && bubblesControlsVisible ? (
         <p class={`pose-control-hint pose-control-hint--${snapshot.phase}`} aria-live="polite">
           {instruction}
           {snapshot.phase === "claiming" ? (
@@ -472,15 +717,20 @@ export function TvPlayfield({
         </p>
       ) : null}
 
-      {packet !== null && snapshot.phase === "active" ? (
+      {packet !== null && snapshot.phase === "active" && bubblesControlsVisible ? (
         <fieldset
           class="pose-control-targets"
-          data-control-placement={view === "draw" ? "left-column" : "overhead-row"}
+          data-control-placement={
+            view === "draw" || view === "bubbles" ? "left-column" : "overhead-row"
+          }
         >
           <legend class="visually-hidden">{viewLabel(view)} body-controlled actions</legend>
           {snapshot.targets.map((target) => {
             const hovered = snapshot.hoveredAction === target.action;
             const dwellProgress = hovered ? snapshot.dwellProgress : 0;
+            const awaitingBubblesPlayers =
+              (target.action === "bubbles-start" || target.action === "bubbles-restart") &&
+              !bubbles.readyToStart;
             return (
               <button
                 key={target.action}
@@ -488,7 +738,7 @@ export function TvPlayfield({
                 type="button"
                 aria-label={accessibleActionLabel(target.action, poseLimit, drawing)}
                 onClick={() => activateAction(target.action)}
-                disabled={poseLimitPending}
+                disabled={poseLimitPending || awaitingBubblesPlayers}
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
                 <span class="pose-control-button__label">
@@ -512,7 +762,7 @@ export function TvPlayfield({
         </fieldset>
       ) : null}
 
-      {view !== "draw" && packet !== null && snapshot.pointer !== null ? (
+      {view !== "draw" && bubblesControlsVisible && packet !== null && snapshot.pointer !== null ? (
         <span
           class="pose-cursor"
           aria-hidden="true"

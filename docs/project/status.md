@@ -10,15 +10,15 @@ scope: Current repository state, risks, and immediate decisions
 
 | Field | Current truth |
 | --- | --- |
-| Lifecycle | Greenfield / deployed current prototype / pre-release |
-| Product purpose | Free phone-as-body-controller experiences; current proof is a skeleton viewer plus Draw |
-| Application code | Skeleton-viewer vertical slice and first game implemented |
-| Runtime architecture | Implemented under ADR-0002 through ADR-0012 |
+| Lifecycle | Greenfield / two-game prototype implemented / pre-release |
+| Product purpose | Free phone-as-body-controller experiences; current proof is a skeleton viewer plus Draw and Bubbles |
+| Application code | Skeleton-viewer vertical slice and two games implemented |
+| Runtime architecture | Implemented under ADR-0002 through ADR-0013 |
 | Language and framework | TypeScript and Preact |
 | Package/build tooling | Node 24.19.0, npm 11.17.0, and Vite |
 | Test tooling | Vitest, Testing Library, and Playwright |
 | CI/CD | Full validation on pull requests and `main`; only validated `main` artifacts deploy to GitHub Pages |
-| Deployment target | Live static site at `https://josedacostafilho.github.io/jojixplay/` |
+| Deployment target | Validated `main` artifacts publish to `https://josedacostafilho.github.io/jojixplay/` through GitHub Pages |
 | Persistence model | None by decision |
 | Version control | Public GitHub repository on `main` with `origin` configured |
 | Compatibility commitment | None; backwards compatibility is forbidden by default |
@@ -33,25 +33,26 @@ This snapshot describes observed repository state, not a proposed architecture.
 - A collapsed phone-local diagnostics panel reports bounded two-second camera, inference, processing-age, and one-player coarse-hand-spread aggregates at most twice per second. It neither transmits nor persists diagnostics or coordinates.
 - The Trystero room authenticates exactly one opposite-role peer and carries latest-only, strictly validated pose packets plus one strict acknowledged player-limit command over WebRTC DataChannels.
 - The television ignores malformed and non-increasing packets, clears stale or disconnected output, and renders up to two identity-independent skeletons through a shared mirrored Canvas projection.
-- A single person claims a temporary controller with one raised hand; in a multiperson frame, one person must raise both. Main Menu and Games freeze their semantic button row above the controlling head, while Draw freezes a smaller vertical column inside the projected camera frame's left edge. Every view requires the coarse hand to leave its targets once before deliberate dwell activation arms.
-- Main Menu toggles the background, requests acknowledged one-/two-player inference, or opens Games. Games exposes Draw and Return; Draw exposes Pencil/Eraser, Color, a longer-dwell Clear, and Exit through atomically replaced, neutral-rearmed body controls.
+- A single person claims a temporary controller with one raised hand; in a multiperson frame, one person must raise both. Main Menu and Games freeze their semantic button row above the controlling head, while Draw and actionable Bubbles phases freeze smaller vertical columns inside the projected camera frame's left edge. Every action surface requires the coarse hand to leave its targets once before deliberate dwell activation arms.
+- Main Menu toggles the background, requests acknowledged one-/two-player inference, or opens Games. Games exposes Draw, Bubbles, and Return. Draw exposes Pencil/Eraser, Color, a longer-dwell Clear, and Exit. Bubbles exposes Start/Exit while Ready, suspends all action activation through its countdown and round, then exposes Play Again/Exit through neutrally re-armed controls.
 - Draw owns an ephemeral normalized camera-coordinate artwork model, an exact white projected-camera board, one selected main-hand Pencil/Eraser cursor, immediate engagement at `≤ 0.75 ×` shoulder span, release at `≥ 1.25 ×` shoulder span, speed-aware path smoothing, fail-closed path breaks, and a 28%-opacity live skeleton overlay. The canonical pose packet and live skeleton receive no additional application-wide smoothing.
+- Bubbles owns an ephemeral normalized projected-camera arena, six one-player or eight two-player procedurally rendered targets, a three-second countdown, an exact 60-second monotonic round, radius-safe smooth drift/reflection, both-hand point and fresh swept collision, bounded pop/respawn effects, corner HUD counters/timer, and final score/winner/tie results. Two-player points belong to current mirrored left/right screen slots rather than pose-array positions or stable identities.
 - Unit/component tests and production-browser smoke tests cover the deterministic boundaries, including fake-camera MediaPipe initialization.
 - The repository is cut over to Node 24, jsdom 30, immutable GitHub Action SHAs, grouped Dependabot updates, pull-request validation, and least-privilege publication jobs. GitHub reports Dependabot vulnerability alerts and automatic security-update pull requests enabled.
 - GitHub Actions validates and publishes the static artifact to the live GitHub Pages project site.
 
 ## Immediate work
 
-Run the one-player Lite baseline in [Pose quality](../engineering/pose-quality.md), then validate the complete journey on the project owner's real phone and television, including achieved camera-paced inference cadence, menu transitions, close/wide grip ergonomics, toolbar reach, Pencil/Eraser continuity, path response, and thermals. This external acceptance step must drive any threshold, model, or presentation-filter replacement; it does not justify retaining alternate runtime paths.
+Run the one-player Lite baseline in [Pose quality](../engineering/pose-quality.md), then validate the complete journey on the project owner's real phone and television, including achieved camera-paced inference cadence, menu transitions, Draw close/wide grip ergonomics and path response, Bubbles both-hand hit tolerance and edge containment, score/timer readability, two-player side attribution, sustained renderer cadence, and thermals. This external acceptance step must drive any threshold, model, collision, or presentation-filter replacement; it does not justify retaining alternate runtime paths.
 
 ## Pre-release exit criteria
 
-- A real phone and television complete TV-mode/fullscreen entry, QR and manual-key pairing, camera startup, pose delivery, Main Menu/Games/Draw navigation, stale/disconnect behavior, and cleanup.
-- Default one-person detection, acknowledged one-/two-player switching, achieved inference cadence, processing-age p95, mirrored presentation, overhead framing, stationary coarse-hand spread, temporary controller claiming, transition re-arming, close/wide grip thresholds, toolbar reach, Pencil/Eraser path continuity, false activation/release, thermal behavior, and perceived latency are recorded from the target hardware.
+- A real phone and television complete TV-mode/fullscreen entry, QR and manual-key pairing, camera startup, pose delivery, Main Menu/Games/Draw/Bubbles navigation, stale/disconnect behavior, and cleanup.
+- Default one-person detection, acknowledged one-/two-player switching, achieved inference cadence, processing-age p95, mirrored presentation, overhead framing, stationary coarse-hand spread, temporary controller claiming, transition re-arming, Draw close/wide grip and path continuity, Bubbles timing/hit tolerance/edge containment/side attribution, renderer stability, thermal behavior, and perceived latency are recorded from the target hardware.
 
 ## Verification evidence
 
-On 2026-08-14, `npm run validate` passed under Node 24.19.0/npm 11.17.0 after the two-hand Draw-grip and compact-toolbar cutover: exact toolchain verification, formatting, linting, 89 unit/component tests, vendored-model integrity, two production builds, five Chromium end-to-end journeys, and the high-severity dependency audit all passed; npm reported zero vulnerabilities.
+On 2026-08-14, `npm run validate` passed under Node 24.19.0/npm 11.17.0 after Bubbles implementation: exact toolchain verification, formatting, linting, 102 unit/component tests, vendored-model integrity, two production builds, five Chromium end-to-end journeys, and the high-severity dependency audit all passed; npm reported zero vulnerabilities.
 
 ## Known risks
 
@@ -64,10 +65,13 @@ On 2026-08-14, `npm run validate` passed under Node 24.19.0/npm 11.17.0 after th
 | Camera-paced inference can increase sustained phone load | Power use, heat, and two-player throttling may rise even though work cannot backlog | Record achieved cadence and thermals on target phones before changing the explicit 30 FPS ceiling |
 | Pose accuracy, jitter, and model cost are target-device dependent | A model or filter that looks smoother may reduce cadence or add control latency | Record the one-player Lite baseline with local diagnostics; evaluate Full only through the isolated hard-cutover protocol in [Pose quality](../engineering/pose-quality.md) |
 | Draw grip ratios are initial body-relative defaults | Hands may be awkward to bring close enough, release unintentionally, or be difficult to spread far enough | Measure close activation, wide release, and continuity on the target setup before replacing either side of the hysteresis contract |
-| Pose-control geometry and timing are human factors | Overhead rows or the compact Draw column may be tiring to reach, the coarse hand may disappear, or button dwell may misfire | Measure the accepted layouts on real people and replace them only from recorded evidence |
+| Pose-control geometry and timing are human factors | Overhead rows or compact Draw/Bubbles columns may be tiring to reach, the coarse hand may disappear, or button dwell may misfire | Measure the accepted layouts on real people and replace them only from recorded evidence |
 | Draw state grows with retained path segments | Very long sessions or resize replays may tax a television browser | Measure long-session behavior and choose an explicit bound only from evidence |
+| Bubbles collision defaults are unmeasured on real bodies | Coarse-hand jitter may cause near misses or unintended pops, especially on small bubbles | Measure either-hand point/sweep hits on the target setup before changing radii or sweep freshness |
+| Bubbles uses screen sides instead of player identities | Crossing players transfers later points, and a dropout can affect competitive fairness | Keep explicit Left/Right labeling, test two-player behavior, and add no identity tracker without a replacement decision |
+| Layered Canvas gradients and effects may tax a weak television | Animation or skeleton feedback may stutter during a round | Measure sustained renderer cadence with eight bubbles; simplify the one canonical effect only if evidence requires it |
 | Runtime player-limit replacement is device-dependent | `setOptions()` may pause or fail on a target phone | Keep acknowledgement fail-closed, terminate an uncertain tracking run, and measure switching on real hardware |
-| Future game rendering can attract speculative abstractions | Complexity can precede evidence | Keep the shell independent, but install no game engine until a real game consumes it |
+| Richer game rendering can attract speculative abstractions | Complexity can precede evidence | Keep each current renderer independent, and install no game engine until an approved game demonstrates the need |
 | Compatibility habits can introduce permanent clutter | Multiple paths become de facto contracts | Enforce ADR-0001 and delete displaced paths in the same change |
 
 ## Status maintenance
