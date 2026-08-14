@@ -19,9 +19,9 @@ These rules are architectural constraints, not preferences. See [ADR-0001](docs/
 
 ## Repository reality
 
-As last verified on **2026-08-14**, JojixPlay is a greenfield static web application with its first vertical slice deployed to GitHub Pages. The product is a phone-to-television skeleton viewer and body-control prototype: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. The television mirrors presentation, grants a temporary gesture-claimed control lease, and exposes neutral-gated dwell buttons above the controlling head through a coarse-hand pointer. New sessions use one-player inference by default; an acknowledged television-to-phone command can select two-player inference without restarting the camera. Complete real-device acceptance remains outstanding.
+As last verified on **2026-08-14**, JojixPlay is a greenfield static web application with its first vertical slice and first game deployed to GitHub Pages. The product is a phone-to-television body-control playground: pose estimation remains on the phone, public decentralized rendezvous establishes a direct WebRTC connection, and only validated pose landmarks reach the television. The television mirrors presentation, grants a temporary gesture-claimed control lease, exposes body-operated Main Menu/Games navigation, and hosts the ephemeral two-hand Draw game. New sessions use one-player inference by default; an acknowledged television-to-phone command can select two-player inference without restarting the camera. Complete real-device acceptance remains outstanding.
 
-The canonical product contract is [Skeleton-viewer prototype](docs/product/skeleton-viewer.md). The live implementation state is maintained in [Project status](docs/project/status.md), and exact tools and commands live in [Stack](docs/architecture/stack.md). Never infer capabilities beyond those sources.
+The canonical product contracts are [Skeleton-viewer prototype](docs/product/skeleton-viewer.md) and [Draw game](docs/product/draw-game.md). The live implementation state is maintained in [Project status](docs/project/status.md), and exact tools and commands live in [Stack](docs/architecture/stack.md). Never infer capabilities beyond those sources.
 
 ## Required reading order
 
@@ -54,7 +54,7 @@ If sources disagree, stop and reconcile them in the same change. Do not choose w
 
 ## Stack policy
 
-The selected client stack is TypeScript, Vite, Preact, MediaPipe Tasks Vision, Trystero, Canvas 2D, Node 24, and npm. GitHub Actions validates pull requests and deploys validated `main` artifacts to GitHub Pages. [ADR-0002](docs/decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](docs/decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0006](docs/decisions/0006-session-player-limit-control.md), [ADR-0007](docs/decisions/0007-node-24-and-dependency-maintenance.md), and [ADR-0008](docs/decisions/0008-above-head-coarse-hand-controls.md) govern these boundaries.
+The selected client stack is TypeScript, Vite, Preact, MediaPipe Tasks Vision, Trystero, Canvas 2D, Node 24, and npm. GitHub Actions validates pull requests and deploys validated `main` artifacts to GitHub Pages. [ADR-0002](docs/decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](docs/decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0006](docs/decisions/0006-session-player-limit-control.md), [ADR-0007](docs/decisions/0007-node-24-and-dependency-maintenance.md), [ADR-0008](docs/decisions/0008-above-head-coarse-hand-controls.md), [ADR-0009](docs/decisions/0009-camera-paced-inference.md), and [ADR-0010](docs/decisions/0010-menu-and-draw-game.md) govern these boundaries.
 
 - Use only the versions and canonical commands in `docs/architecture/stack.md` and the committed lockfile.
 - Prefer current, supported stable releases and one canonical tool per concern.
@@ -80,6 +80,9 @@ Every implementation must preserve these invariants:
 13. Every pairing session starts with a one-pose inference limit. A switch to one or two poses is an absolute, strictly validated TV-to-phone request; the TV changes its displayed mode only after the phone has reconfigured the existing landmarker and returned the matching acknowledgement.
 14. Body-control targets have one placement: entirely above the controlling pose's highest visible face landmark and inside the projected camera viewport. Insufficient space blocks claiming with an explicit framing instruction; no torso or screen-edge fallback exists.
 15. Wrist landmarks own control claim and release. The selected wrist/pinky/index/thumb centroid exclusively owns cursor projection and dwell; an incomplete hand hides the pointer, and every new lease must observe that pointer clear of all targets before body activation arms.
+16. Phone inference follows eligible camera callbacks up to the requested 30 FPS camera ceiling with exactly one estimate in flight. There is no independent lower sampling timer, queued frame, parallel landmarker, or stale-work fallback.
+17. Main Menu, Games, and Draw each replace the complete typed action set atomically. A transition retains the short-lived controller lease but clears target hover/dwell/latching and requires neutral re-arming; the deleted Circles action and effect must not return.
+18. Draw paths remain ephemeral television-local normalized raw-camera coordinates. Mirroring is presentation-only; only the leased pose's complete selected coarse hand may brush and its complete opposite hand may erase, with fail-closed dwell engagement and path breaks across loss, stale input, bounds, toolbar entry, frame changes, or implausible jumps.
 
 If the chosen architecture legitimately changes an invariant, update this file and create or amend an ADR before relying on the new rule.
 

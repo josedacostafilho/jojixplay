@@ -1,14 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { PosePacket } from "../domain/pose";
 import { type PoseLimit, MAX_POSE_LIMIT } from "../domain/pose-limit";
+import { DrawCanvas } from "../games/draw/draw-canvas";
 import {
-  type PoseControlAction,
+  DRAW_ERASER_WIDTH,
+  DrawSession,
+  type DrawSnapshot,
+  type DrawTool,
+  type DrawToolSnapshot,
+} from "../games/draw/draw-session";
+import {
+  type PoseControlActionDefinition,
   PoseControlSession,
   type PoseControlSnapshot,
   type PoseControlUpdate,
 } from "../interaction/pose-controls";
-import type { Size } from "../render/geometry";
-import { type CircleBurst, SKELETON_PALETTE } from "../render/skeleton";
+import {
+  createPoseProjection,
+  type Point,
+  projectedFrameBounds,
+  projectNormalizedPoint,
+  type Rectangle,
+  type Size,
+} from "../render/geometry";
+import { SKELETON_PALETTE } from "../render/skeleton";
 import { SkeletonCanvas } from "./skeleton-canvas";
 
 interface TvPlayfieldProps {
@@ -19,29 +34,90 @@ interface TvPlayfieldProps {
 }
 
 type BackgroundTheme = "navy" | "plum";
+type PlayfieldView = "main" | "games" | "draw";
+type PlayfieldAction =
+  | "background"
+  | "players"
+  | "open-games"
+  | "open-draw"
+  | "return-main"
+  | "draw-color"
+  | "draw-clear"
+  | "draw-exit";
 
-const EMPTY_SNAPSHOT: PoseControlSnapshot = {
+const MAIN_ACTIONS = [
+  { action: "background", label: "Background" },
+  { action: "players", label: "Players" },
+  { action: "open-games", label: "Games" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const GAMES_ACTIONS = [
+  { action: "open-draw", label: "Draw" },
+  { action: "return-main", label: "Return" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const DRAW_ACTIONS = [
+  { action: "draw-color", label: "Color" },
+  { action: "draw-clear", label: "Clear", dwellMs: 1_500 },
+  { action: "draw-exit", label: "Exit" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const EMPTY_SNAPSHOT: PoseControlSnapshot<PlayfieldAction> = {
   phase: "no-pose",
   visiblePeople: 0,
   requiresBothHands: false,
   claimProgress: 0,
   targets: [],
   pointer: null,
+  hands: null,
   controlsArmed: false,
   hoveredAction: null,
   dwellProgress: 0,
   controllerPoseIndex: null,
 };
 
-function sameSnapshot(left: PoseControlSnapshot, right: PoseControlSnapshot): boolean {
+function actionsForView(
+  view: PlayfieldView,
+): readonly PoseControlActionDefinition<PlayfieldAction>[] {
+  switch (view) {
+    case "main":
+      return MAIN_ACTIONS;
+    case "games":
+      return GAMES_ACTIONS;
+    case "draw":
+      return DRAW_ACTIONS;
+  }
+}
+
+function viewLabel(view: PlayfieldView): string {
+  switch (view) {
+    case "main":
+      return "Main Menu";
+    case "games":
+      return "Games";
+    case "draw":
+      return "Draw";
+  }
+}
+
+function samePoint(left: Point | null, right: Point | null): boolean {
+  return left?.x === right?.x && left?.y === right?.y;
+}
+
+function sameSnapshot(
+  left: PoseControlSnapshot<PlayfieldAction>,
+  right: PoseControlSnapshot<PlayfieldAction>,
+): boolean {
   return (
     left.phase === right.phase &&
     left.visiblePeople === right.visiblePeople &&
     left.requiresBothHands === right.requiresBothHands &&
     Math.abs(left.claimProgress - right.claimProgress) < 0.01 &&
     (left.targets === right.targets || (left.targets.length === 0 && right.targets.length === 0)) &&
-    left.pointer?.x === right.pointer?.x &&
-    left.pointer?.y === right.pointer?.y &&
+    samePoint(left.pointer, right.pointer) &&
+    left.hands?.selected === right.hands?.selected &&
+    samePoint(left.hands?.left ?? null, right.hands?.left ?? null) &&
+    samePoint(left.hands?.right ?? null, right.hands?.right ?? null) &&
     left.controlsArmed === right.controlsArmed &&
     left.hoveredAction === right.hoveredAction &&
     Math.abs(left.dwellProgress - right.dwellProgress) < 0.01 &&
@@ -49,7 +125,49 @@ function sameSnapshot(left: PoseControlSnapshot, right: PoseControlSnapshot): bo
   );
 }
 
-function controlInstruction(snapshot: PoseControlSnapshot): string {
+function sameDrawTool(left: DrawToolSnapshot, right: DrawToolSnapshot): boolean {
+  return (
+    left.phase === right.phase &&
+    samePoint(left.point, right.point) &&
+    Math.abs(left.dwellProgress - right.dwellProgress) < 0.01
+  );
+}
+
+function sameDrawing(left: DrawSnapshot, right: DrawSnapshot): boolean {
+  return (
+    left.colorIndex === right.colorIndex &&
+    left.generation === right.generation &&
+    left.revision === right.revision &&
+    left.activeTool === right.activeTool &&
+    sameDrawTool(left.brush, right.brush) &&
+    sameDrawTool(left.eraser, right.eraser)
+  );
+}
+
+function drawInstruction(drawing: DrawSnapshot): string {
+  const progressingTool: DrawTool | null =
+    drawing.brush.phase === "arming" || drawing.brush.phase === "lifting"
+      ? "brush"
+      : drawing.eraser.phase === "arming" || drawing.eraser.phase === "lifting"
+        ? "eraser"
+        : null;
+  if (progressingTool !== null) {
+    const phase = progressingTool === "brush" ? drawing.brush.phase : drawing.eraser.phase;
+    return phase === "lifting"
+      ? `Keep your ${progressingTool} hand still to lift`
+      : `Keep your ${progressingTool} hand still to engage`;
+  }
+  if (drawing.activeTool !== null) {
+    return `Move to ${drawing.activeTool === "brush" ? "draw" : "erase"}, then hold still to lift`;
+  }
+  return "Hold either hand still on the white board to draw or erase";
+}
+
+function controlInstruction(
+  snapshot: PoseControlSnapshot<PlayfieldAction>,
+  drawing: DrawSnapshot,
+  view: PlayfieldView,
+): string {
   switch (snapshot.phase) {
     case "no-pose":
       return "Step back until your full body is visible";
@@ -65,29 +183,53 @@ function controlInstruction(snapshot: PoseControlSnapshot): string {
       if (snapshot.pointer === null) {
         return "Keep your whole controlling hand visible";
       }
-      return snapshot.controlsArmed
-        ? "Move your hand onto a button and hold"
-        : "Move your hand clear of the buttons to arm them";
+      if (!snapshot.controlsArmed) {
+        return view === "draw"
+          ? "Move your brush hand clear of the toolbar to arm it"
+          : "Move your hand clear of the buttons to arm them";
+      }
+      return view === "draw" ? drawInstruction(drawing) : "Move your hand onto a button and hold";
   }
 }
 
-function createCircleBurst(nowMs: number, frame: Size): CircleBurst {
-  const minimumFrameDimension = Math.min(frame.width, frame.height);
-  return {
-    createdAtMs: nowMs,
-    frame: { ...frame },
-    circles: Array.from({ length: 12 }, (_, index) => {
-      const radius = 0.025 + Math.random() * 0.055;
-      const horizontalRadius = (radius * minimumFrameDimension) / frame.width;
-      const verticalRadius = (radius * minimumFrameDimension) / frame.height;
-      return {
-        x: horizontalRadius + Math.random() * (1 - horizontalRadius * 2),
-        y: verticalRadius + Math.random() * (1 - verticalRadius * 2),
-        radius,
-        colorIndex: (index % 2) as 0 | 1,
-      };
-    }),
-  };
+function accessibleActionLabel(
+  action: PlayfieldAction,
+  poseLimit: PoseLimit,
+  drawing: DrawSnapshot,
+): string {
+  switch (action) {
+    case "players":
+      return `Switch to ${poseLimit === 1 ? 2 : 1}-player mode`;
+    case "draw-color":
+      return `Change drawing color; current color ${drawing.color}`;
+    case "background":
+      return "Background";
+    case "open-games":
+      return "Games";
+    case "open-draw":
+      return "Draw";
+    case "return-main":
+      return "Return to Main Menu";
+    case "draw-clear":
+      return "Clear drawing";
+    case "draw-exit":
+      return "Exit Draw";
+  }
+}
+
+function actionLabel(action: PlayfieldAction, fallback: string, poseLimit: PoseLimit): string {
+  return action === "players" ? `Players: ${poseLimit}` : fallback;
+}
+
+function toolScreenPoint(point: Point | null, frame: Size | null, viewport: Size): Point | null {
+  if (point === null || frame === null || viewport.width === 0 || viewport.height === 0) {
+    return null;
+  }
+  return projectNormalizedPoint(
+    point.x,
+    point.y,
+    createPoseProjection(frame.width, frame.height, viewport.width, viewport.height, true),
+  );
 }
 
 export function TvPlayfield({
@@ -97,22 +239,43 @@ export function TvPlayfield({
   onPoseLimitRequest,
 }: TvPlayfieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const controlSessionRef = useRef<PoseControlSession | null>(null);
+  const [controlSession] = useState(() => new PoseControlSession<PlayfieldAction>(MAIN_ACTIONS));
+  const [drawSession] = useState(() => new DrawSession());
   const latestFrameRef = useRef<Size | null>(null);
+  const viewportRef = useRef<Size>({ width: 0, height: 0 });
+  const viewRef = useRef<PlayfieldView>("main");
   const playerModeRequestActiveRef = useRef(false);
-  controlSessionRef.current ??= new PoseControlSession();
-  if (packet !== null) {
-    latestFrameRef.current = packet.frame;
-  }
+  const activateActionRef = useRef<(action: PlayfieldAction) => void>(() => undefined);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-  const [snapshot, setSnapshot] = useState<PoseControlSnapshot>(EMPTY_SNAPSHOT);
+  const [view, setView] = useState<PlayfieldView>("main");
+  const [snapshot, setSnapshot] = useState<PoseControlSnapshot<PlayfieldAction>>(EMPTY_SNAPSHOT);
+  const [drawing, setDrawing] = useState<DrawSnapshot>(() => drawSession.tick(0));
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>("navy");
-  const [circleBurst, setCircleBurst] = useState<CircleBurst | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const palette = SKELETON_PALETTE;
 
+  if (packet !== null) {
+    latestFrameRef.current = packet.frame;
+  }
+
+  const applyDrawing = useCallback((next: DrawSnapshot) => {
+    setDrawing((current) => (sameDrawing(current, next) ? current : next));
+  }, []);
+
+  const transitionTo = useCallback(
+    (nextView: PlayfieldView) => {
+      const nowMs = performance.now();
+      viewRef.current = nextView;
+      setView(nextView);
+      const controlUpdate = controlSession.setActions(actionsForView(nextView), nowMs);
+      setSnapshot(controlUpdate.snapshot);
+      applyDrawing(drawSession.setEnabled(nextView === "draw", nowMs));
+    },
+    [applyDrawing, controlSession, drawSession],
+  );
+
   const activateAction = useCallback(
-    (action: PoseControlAction) => {
+    (action: PlayfieldAction) => {
       if (poseLimitPending || playerModeRequestActiveRef.current) {
         return;
       }
@@ -137,27 +300,59 @@ export function TvPlayfield({
             });
           break;
         }
-        case "circles":
-          if (latestFrameRef.current !== null) {
-            setCircleBurst(createCircleBurst(performance.now(), latestFrameRef.current));
-            setAnnouncement("Circle burst created.");
-          }
+        case "open-games":
+          transitionTo("games");
+          break;
+        case "open-draw":
+          transitionTo("draw");
+          break;
+        case "return-main":
+          transitionTo("main");
+          break;
+        case "draw-color":
+          applyDrawing(drawSession.cycleColor(performance.now()));
+          setAnnouncement("Drawing color changed.");
+          break;
+        case "draw-clear":
+          applyDrawing(drawSession.clear(performance.now()));
+          setAnnouncement("Drawing cleared.");
+          break;
+        case "draw-exit":
+          transitionTo("games");
           break;
       }
     },
-    [onPoseLimitRequest, poseLimit, poseLimitPending],
+    [applyDrawing, drawSession, onPoseLimitRequest, poseLimit, poseLimitPending, transitionTo],
   );
+  activateActionRef.current = activateAction;
 
-  const applyUpdate = useCallback(
-    (update: PoseControlUpdate) => {
+  const applyPoseUpdate = useCallback(
+    (update: PoseControlUpdate<PlayfieldAction>, nowMs: number, freshFrame: Size | null) => {
       setSnapshot((current) =>
         sameSnapshot(current, update.snapshot) ? current : update.snapshot,
       );
+      if (viewRef.current === "draw") {
+        const frame = freshFrame ?? latestFrameRef.current;
+        const viewport = viewportRef.current;
+        if (freshFrame !== null && frame !== null && viewport.width > 0 && viewport.height > 0) {
+          applyDrawing(
+            drawSession.update({
+              hands: update.snapshot.hands,
+              frame,
+              viewport,
+              targets: update.snapshot.targets,
+              nowMs,
+            }),
+          );
+        } else {
+          applyDrawing(drawSession.tick(nowMs));
+        }
+      }
       if (update.activated !== null && !poseLimitPending) {
-        activateAction(update.activated);
+        activateActionRef.current(update.activated);
       }
     },
-    [activateAction, poseLimitPending],
+    [applyDrawing, drawSession, poseLimitPending],
   );
 
   useEffect(() => {
@@ -169,10 +364,12 @@ export function TvPlayfield({
       if (entry === undefined) {
         return;
       }
-      setSize({
+      const nextSize = {
         width: Math.max(1, Math.round(entry.contentRect.width)),
         height: Math.max(1, Math.round(entry.contentRect.height)),
-      });
+      };
+      viewportRef.current = nextSize;
+      setSize(nextSize);
     });
     observer.observe(container);
     return () => observer.disconnect();
@@ -182,21 +379,17 @@ export function TvPlayfield({
     if (size.width === 0 || size.height === 0) {
       return;
     }
-    const session = controlSessionRef.current;
-    if (session !== null) {
-      applyUpdate(session.updatePacket(packet, performance.now(), size));
-    }
-  }, [packet, size, applyUpdate]);
+    const nowMs = performance.now();
+    applyPoseUpdate(controlSession.updatePacket(packet, nowMs, size), nowMs, packet?.frame ?? null);
+  }, [packet, size, applyPoseUpdate, controlSession]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      const session = controlSessionRef.current;
-      if (session !== null) {
-        applyUpdate(session.tick(performance.now()));
-      }
+      const nowMs = performance.now();
+      applyPoseUpdate(controlSession.tick(nowMs), nowMs, null);
     }, 50);
     return () => window.clearInterval(intervalId);
-  }, [applyUpdate]);
+  }, [applyPoseUpdate, controlSession]);
 
   useEffect(() => {
     if (announcement === "" || announcement.startsWith("Switching")) {
@@ -207,22 +400,58 @@ export function TvPlayfield({
   }, [announcement]);
 
   const pointerColor = palette[snapshot.controllerPoseIndex ?? 0] ?? palette[0];
-  const instruction = controlInstruction(snapshot);
+  const instruction = controlInstruction(snapshot, drawing, view);
+  const frame = latestFrameRef.current;
+  const projection =
+    frame === null || size.width === 0 || size.height === 0
+      ? null
+      : createPoseProjection(frame.width, frame.height, size.width, size.height, true);
+  const drawBounds: Rectangle | null =
+    projection === null ? null : projectedFrameBounds(projection);
+  const brushPoint = toolScreenPoint(drawing.brush.point, frame, size);
+  const eraserPoint = toolScreenPoint(drawing.eraser.point, frame, size);
+  const eraserDiameter =
+    drawBounds === null ? 0 : Math.min(drawBounds.width, drawBounds.height) * DRAW_ERASER_WIDTH;
 
   return (
     <div
       ref={containerRef}
-      class={`tv-playfield tv-playfield--${backgroundTheme}`}
+      class={`tv-playfield tv-playfield--${backgroundTheme}${view === "draw" ? " tv-playfield--draw" : ""}`}
       data-background-theme={backgroundTheme}
+      data-playfield-view={view}
     >
+      {view === "draw" && drawBounds !== null ? (
+        <div
+          class="draw-board"
+          data-testid="draw-board"
+          style={`left: ${drawBounds.x}px; top: ${drawBounds.y}px; width: ${drawBounds.width}px; height: ${drawBounds.height}px`}
+        >
+          <DrawCanvas drawing={drawing} />
+        </div>
+      ) : null}
+
       <SkeletonCanvas
         packet={packet}
         label="Mirrored live body skeleton from the paired phone"
         className="skeleton-canvas skeleton-canvas--tv"
         mirrored
         palette={palette}
-        circleBurst={circleBurst}
+        opacity={view === "draw" ? 0.28 : 1}
       />
+
+      <div class="playfield-view-label" aria-live="polite">
+        <span>{viewLabel(view)}</span>
+        {view === "draw" ? (
+          <>
+            <span
+              class="playfield-view-label__swatch"
+              style={`--draw-color: ${drawing.color}`}
+              aria-hidden="true"
+            />
+            <span class="visually-hidden">Current drawing color {drawing.color}</span>
+          </>
+        ) : null}
+      </div>
 
       {packet !== null && announcement === "" ? (
         <p class={`pose-control-hint pose-control-hint--${snapshot.phase}`} aria-live="polite">
@@ -237,26 +466,30 @@ export function TvPlayfield({
 
       {packet !== null && snapshot.phase === "active" ? (
         <fieldset class="pose-control-targets">
-          <legend class="visually-hidden">Body-controlled actions</legend>
+          <legend class="visually-hidden">{viewLabel(view)} body-controlled actions</legend>
           {snapshot.targets.map((target) => {
             const hovered = snapshot.hoveredAction === target.action;
             const dwellProgress = hovered ? snapshot.dwellProgress : 0;
-            const label = target.action === "players" ? `Players: ${poseLimit}` : target.label;
-            const accessibleLabel =
-              target.action === "players"
-                ? `Switch to ${poseLimit === 1 ? 2 : 1}-player mode`
-                : target.label;
             return (
               <button
                 key={target.action}
                 class={`pose-control-button${hovered ? " pose-control-button--hovered" : ""}`}
                 type="button"
-                aria-label={accessibleLabel}
+                aria-label={accessibleActionLabel(target.action, poseLimit, drawing)}
                 onClick={() => activateAction(target.action)}
                 disabled={poseLimitPending}
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
-                <span>{label}</span>
+                <span class="pose-control-button__label">
+                  {actionLabel(target.action, target.label, poseLimit)}
+                  {target.action === "draw-color" ? (
+                    <span
+                      class="pose-control-button__swatch"
+                      style={`--draw-color: ${drawing.color}`}
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                </span>
                 <span
                   class="pose-control-button__progress"
                   aria-hidden="true"
@@ -268,11 +501,26 @@ export function TvPlayfield({
         </fieldset>
       ) : null}
 
-      {packet !== null && snapshot.pointer !== null ? (
+      {view !== "draw" && packet !== null && snapshot.pointer !== null ? (
         <span
           class="pose-cursor"
           aria-hidden="true"
           style={`left: ${snapshot.pointer.x}px; top: ${snapshot.pointer.y}px; --pose-cursor-color: ${pointerColor}`}
+        />
+      ) : null}
+
+      {view === "draw" && brushPoint !== null ? (
+        <span
+          class={`draw-tool-cursor draw-tool-cursor--brush draw-tool-cursor--${drawing.brush.phase}`}
+          aria-hidden="true"
+          style={`left: ${brushPoint.x}px; top: ${brushPoint.y}px; --draw-tool-color: ${drawing.color}; --draw-tool-progress: ${Math.round(drawing.brush.dwellProgress * 360)}deg`}
+        />
+      ) : null}
+      {view === "draw" && eraserPoint !== null ? (
+        <span
+          class={`draw-tool-cursor draw-tool-cursor--eraser draw-tool-cursor--${drawing.eraser.phase}`}
+          aria-hidden="true"
+          style={`left: ${eraserPoint.x}px; top: ${eraserPoint.y}px; width: ${eraserDiameter}px; height: ${eraserDiameter}px; --draw-tool-progress: ${Math.round(drawing.eraser.dwellProgress * 360)}deg`}
         />
       ) : null}
 

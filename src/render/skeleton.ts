@@ -1,28 +1,14 @@
 import { type PosePacket, USABLE_LANDMARK_VISIBILITY } from "../domain/pose";
-import { createPoseProjection, projectNormalizedPoint, type Size } from "./geometry";
+import { createPoseProjection, projectNormalizedPoint } from "./geometry";
 
 export const SKELETON_PALETTE = ["#5eead4", "#fb7185"] as const;
 
 export type SkeletonPalette = typeof SKELETON_PALETTE;
 
-export interface CircleBurst {
-  createdAtMs: number;
-  frame: Size;
-  circles: ReadonlyArray<{
-    x: number;
-    y: number;
-    radius: number;
-    colorIndex: 0 | 1;
-  }>;
-}
-
-export const CIRCLE_BURST_DURATION_MS = 3_000;
-
 export interface SkeletonRenderOptions {
   mirrored: boolean;
   palette: SkeletonPalette;
-  circleBurst: CircleBurst | null;
-  nowMs: number;
+  opacity: number;
 }
 
 const CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
@@ -72,41 +58,6 @@ export function drawSkeleton(
 ): void {
   context.clearRect(0, 0, width, height);
 
-  if (options.circleBurst !== null) {
-    const ageMs = options.nowMs - options.circleBurst.createdAtMs;
-    if (ageMs >= 0 && ageMs < CIRCLE_BURST_DURATION_MS) {
-      const opacity = 1 - ageMs / CIRCLE_BURST_DURATION_MS;
-      const minimumDimension = Math.min(width, height);
-      context.save();
-      context.globalAlpha = opacity;
-      context.lineWidth = Math.max(3, minimumDimension * 0.006);
-      const projection = createPoseProjection(
-        options.circleBurst.frame.width,
-        options.circleBurst.frame.height,
-        width,
-        height,
-        options.mirrored,
-      );
-      const projectedMinimumFrameDimension =
-        Math.min(options.circleBurst.frame.width, options.circleBurst.frame.height) *
-        projection.scale;
-      for (const circle of options.circleBurst.circles) {
-        const center = projectNormalizedPoint(circle.x, circle.y, projection);
-        context.strokeStyle = options.palette[circle.colorIndex];
-        context.beginPath();
-        context.arc(
-          center.x,
-          center.y,
-          circle.radius * projectedMinimumFrameDimension,
-          0,
-          Math.PI * 2,
-        );
-        context.stroke();
-      }
-      context.restore();
-    }
-  }
-
   if (packet === null) {
     return;
   }
@@ -120,6 +71,8 @@ export function drawSkeleton(
   );
   const lineWidth = Math.max(3, Math.min(width, height) * 0.006);
   const landmarkRadius = lineWidth * 0.82;
+  context.save();
+  context.globalAlpha = options.opacity;
 
   for (const [poseIndex, pose] of packet.poses.entries()) {
     const color = options.palette[poseIndex] ?? options.palette[0];
@@ -158,4 +111,5 @@ export function drawSkeleton(
       context.fill();
     }
   }
+  context.restore();
 }

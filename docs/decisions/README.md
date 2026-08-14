@@ -20,6 +20,8 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0006](0006-session-player-limit-control.md) | Accepted | Default to one-player inference and use an acknowledged television-to-phone command to select one or two players |
 | [0007](0007-node-24-and-dependency-maintenance.md) | Accepted | Hard-cut over to Node 24 LTS and validate grouped, immutable dependency updates before deployment |
 | [0008](0008-above-head-coarse-hand-controls.md) | Accepted | Place controls above the visible head and use a neutral-gated coarse-hand pointer |
+| [0009](0009-camera-paced-inference.md) | Accepted | Remove the arbitrary 15 Hz gate and run serial inference at the camera's bounded cadence |
+| [0010](0010-menu-and-draw-game.md) | Accepted | Add body-controlled navigation and the normalized two-hand Draw game |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

@@ -8,9 +8,9 @@ scope: Current system shape, boundaries, and architectural constraints
 
 ## Current state
 
-The first runtime architecture is deployed as a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, and television-local Canvas rendering. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
+The deployed runtime architecture is a static two-role client with phone-local inference, decentralized rendezvous, direct WebRTC pose delivery, body-controlled navigation, and television-local Canvas rendering. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
 
-See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), [ADR-0006](../decisions/0006-session-player-limit-control.md), [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md), and the [prototype contract](../product/skeleton-viewer.md).
+See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), [ADR-0006](../decisions/0006-session-player-limit-control.md), [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md), [ADR-0009](../decisions/0009-camera-paced-inference.md), [ADR-0010](../decisions/0010-menu-and-draw-game.md), and the current product contracts in [`../product/`](../product/).
 
 ## System flow
 
@@ -63,14 +63,16 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Component | Responsibility | Boundary |
 | --- | --- | --- |
 | Application shell | Select role and own page lifecycle | Browser location and capability checks |
-| Phone controller | Acquire camera after consent, schedule bounded inference, and own the current pairing-session pose limit | Browser media APIs |
+| Phone controller | Acquire camera after consent, schedule camera-paced single-flight inference, and own the current pairing-session pose limit | Browser media APIs |
 | Pose worker | Load vendored MediaPipe assets, produce landmark detections, and reconfigure the one-/two-pose graph in place | Worker message protocol |
 | Pose contract | Validate the only network-domain representation | Reject malformed or obsolete-shaped packets |
 | Player-limit contract | Define and strictly parse the only reverse session command | Reject values other than exact one- or two-pose objects |
 | Peer room | Authenticate opposite roles, discover peers, coalesce pose sends, and coordinate acknowledged player-limit requests | Trystero/Nostr and WebRTC |
 | Skeleton renderer | Draw validated current detections without identity assumptions | Canvas 2D only |
-| Pose controls | Claim through wrist gestures, gate overhead framing, project one mirrored coarse hand, freeze above-head targets, neutral-arm, and emit dwell actions | Validated television-local pose input only |
-| TV playfield | Align stage effects, mirrored skeleton, semantic controls, and cursor in one projection | Canvas/DOM presentation boundary |
+| Pose controls | Claim through wrist gestures, gate overhead framing, expose both coarse hands from the leased pose, freeze variable above-head targets, neutral-arm, and emit action-specific dwell events | Validated television-local pose input only |
+| TV playfield | Own Main Menu/Games/Draw navigation, align the shared projection, and preserve ephemeral game state for one mounted session | Preact lifecycle and semantic-control boundary |
+| Draw session | Own palette, path/tool state, smoothing, dwell engagement, and path-breaking rules in normalized camera coordinates | Pure television-local game domain |
+| Draw renderer | Incrementally render mirrored brush/eraser paths inside the projected white camera board | Canvas 2D only |
 | TV display | Enter TV mode, create QR/manual-key session, receive packets, own acknowledged TV mode, and present connection freshness | User-visible session lifecycle |
 
 ## Required component documentation

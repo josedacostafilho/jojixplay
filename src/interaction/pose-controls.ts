@@ -24,40 +24,47 @@ export const POSE_CONTROL_TIMING = {
   freshPoseMs: 250,
 } as const;
 
-export const POSE_CONTROL_ACTIONS = [
-  { action: "background", label: "Background" },
-  { action: "players", label: "Players" },
-  { action: "circles", label: "Circles" },
-] as const;
-
-export type PoseControlAction = (typeof POSE_CONTROL_ACTIONS)[number]["action"];
+export const MAX_POSE_CONTROL_TARGETS = 3;
 export type PoseControlPhase = "no-pose" | "needs-headroom" | "ready" | "claiming" | "active";
+export type ControlHand = "left" | "right";
 
-export interface PoseControlTarget {
-  action: PoseControlAction;
+export interface PoseControlActionDefinition<TAction extends string> {
+  action: TAction;
   label: string;
+  dwellMs?: number;
+}
+
+export interface PoseControlTarget<TAction extends string = string> {
+  action: TAction;
+  label: string;
+  dwellMs: number;
   rect: Rectangle;
 }
 
-export interface PoseControlSnapshot {
+export interface PoseControlHands {
+  selected: ControlHand;
+  left: Point | null;
+  right: Point | null;
+}
+
+export interface PoseControlSnapshot<TAction extends string = string> {
   phase: PoseControlPhase;
   visiblePeople: number;
   requiresBothHands: boolean;
   claimProgress: number;
-  targets: readonly PoseControlTarget[];
+  targets: readonly PoseControlTarget<TAction>[];
   pointer: Point | null;
+  hands: PoseControlHands | null;
   controlsArmed: boolean;
-  hoveredAction: PoseControlAction | null;
+  hoveredAction: TAction | null;
   dwellProgress: number;
   controllerPoseIndex: number | null;
 }
 
-export interface PoseControlUpdate {
-  snapshot: PoseControlSnapshot;
-  activated: PoseControlAction | null;
+export interface PoseControlUpdate<TAction extends string = string> {
+  snapshot: PoseControlSnapshot<TAction>;
+  activated: TAction | null;
 }
-
-type ControlHand = "left" | "right";
 
 interface PoseDescriptor {
   poseIndex: number;
@@ -83,7 +90,15 @@ interface ClaimCandidate {
   lastSeenAtMs: number;
 }
 
-interface ControlLease {
+interface ControlLayout {
+  centerX: number;
+  rowTop: number;
+  targetWidth: number;
+  targetHeight: number;
+  gap: number;
+}
+
+interface ControlLease<TAction extends string> {
   hand: ControlHand;
   torsoCenter: Point;
   homeTorsoCenter: Point;
@@ -91,13 +106,15 @@ interface ControlLease {
   lastMotionAtMs: number;
   lastMotionPoint: Point;
   frame: Size;
-  targets: readonly PoseControlTarget[];
+  layout: ControlLayout;
+  targets: readonly PoseControlTarget<TAction>[];
   pointer: Point | null;
+  hands: PoseControlHands | null;
   controlsArmed: boolean;
   poseIndex: number;
-  hoveredAction: PoseControlAction | null;
+  hoveredAction: TAction | null;
   hoverStartedAtMs: number | null;
-  latchedAction: PoseControlAction | null;
+  latchedAction: TAction | null;
   belowHipsSinceMs: number | null;
   displacedSinceMs: number | null;
 }
@@ -126,6 +143,29 @@ const LAYOUT_DISPLACEMENT_DISTANCE = 0.24;
 const MEANINGFUL_POINTER_MOVEMENT = 0.0125;
 const CLAIM_PACKET_GAP_MS = POSE_CONTROL_TIMING.freshPoseMs;
 const HOVER_HYSTERESIS_PX = 10;
+
+function validateActions<TAction extends string>(
+  actions: readonly PoseControlActionDefinition<TAction>[],
+): readonly PoseControlActionDefinition<TAction>[] {
+  if (actions.length === 0 || actions.length > MAX_POSE_CONTROL_TARGETS) {
+    throw new Error(`Pose controls require 1 to ${MAX_POSE_CONTROL_TARGETS} actions.`);
+  }
+  const seen = new Set<string>();
+  return actions.map((definition) => {
+    if (definition.action.length === 0 || definition.label.trim().length === 0) {
+      throw new Error("Pose-control actions require non-empty action and label values.");
+    }
+    if (seen.has(definition.action)) {
+      throw new Error(`Duplicate pose-control action: ${definition.action}.`);
+    }
+    seen.add(definition.action);
+    const dwellMs = definition.dwellMs ?? POSE_CONTROL_TIMING.dwellMs;
+    if (!Number.isFinite(dwellMs) || dwellMs <= 0) {
+      throw new Error(`Pose-control action ${definition.action} has an invalid dwell time.`);
+    }
+    return { ...definition, dwellMs };
+  });
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -294,11 +334,11 @@ function nearestPose(
   return nearest;
 }
 
-function createControlTargets(
+function createControlLayout(
   pose: PoseDescriptor,
   frame: Size,
   viewport: Size,
-): readonly PoseControlTarget[] | null {
+): ControlLayout | null {
   if (pose.headTopY === null) {
     return null;
   }
@@ -316,12 +356,18 @@ function createControlTargets(
   const availableWidth = Math.max(1, frameBounds.width - safeMargin * 2);
   const availableHeight = Math.max(1, frameBounds.height - safeMargin * 2);
   const gap = Math.min(clamp(viewport.width * 0.012, 8, 24), availableWidth * 0.04);
-  const targetWidth = Math.max(1, Math.min(220, (availableWidth - gap * 2) / 3));
+  const targetWidth = Math.max(
+    1,
+    Math.min(
+      220,
+      (availableWidth - gap * (MAX_POSE_CONTROL_TARGETS - 1)) / MAX_POSE_CONTROL_TARGETS,
+    ),
+  );
   const targetHeight = Math.max(
     1,
     Math.min(clamp(viewport.height * 0.09, 68, 112), availableHeight, targetWidth * 0.58),
   );
-  const rowWidth = targetWidth * 3 + gap * 2;
+  const rowWidth = targetWidth * MAX_POSE_CONTROL_TARGETS + gap * (MAX_POSE_CONTROL_TARGETS - 1);
   const minimumCenterX = frameBounds.x + safeMargin + rowWidth / 2;
   const maximumCenterX = frameBounds.x + frameBounds.width - safeMargin - rowWidth / 2;
   const centerX = clamp(headTop.x, minimumCenterX, maximumCenterX);
@@ -332,16 +378,25 @@ function createControlTargets(
   if (rowTop < minimumTop || rowTop + targetHeight > maximumBottom) {
     return null;
   }
-  const rowLeft = centerX - rowWidth / 2;
+  return { centerX, rowTop, targetWidth, targetHeight, gap };
+}
 
-  return POSE_CONTROL_ACTIONS.map(({ action, label }, index) => ({
+function createControlTargets<TAction extends string>(
+  layout: ControlLayout,
+  actions: readonly PoseControlActionDefinition<TAction>[],
+): readonly PoseControlTarget<TAction>[] {
+  const rowWidth =
+    layout.targetWidth * actions.length + layout.gap * Math.max(0, actions.length - 1);
+  const rowLeft = layout.centerX - rowWidth / 2;
+  return actions.map(({ action, label, dwellMs }, index) => ({
     action,
     label,
+    dwellMs: dwellMs ?? POSE_CONTROL_TIMING.dwellMs,
     rect: {
-      x: rowLeft + index * (targetWidth + gap),
-      y: rowTop,
-      width: targetWidth,
-      height: targetHeight,
+      x: rowLeft + index * (layout.targetWidth + layout.gap),
+      y: layout.rowTop,
+      width: layout.targetWidth,
+      height: layout.targetHeight,
     },
   }));
 }
@@ -355,15 +410,39 @@ function containsPoint(rect: Rectangle, point: Point, padding: number): boolean 
   );
 }
 
-export class PoseControlSession {
+export class PoseControlSession<TAction extends string> {
+  private actions: readonly PoseControlActionDefinition<TAction>[];
   private viewport: Size | null = null;
   private visiblePeople = 0;
   private multiplePeople = false;
   private headroomAvailable = false;
   private candidate: ClaimCandidate | null = null;
-  private lease: ControlLease | null = null;
+  private lease: ControlLease<TAction> | null = null;
 
-  updatePacket(packet: PosePacket | null, nowMs: number, viewport: Size): PoseControlUpdate {
+  public constructor(actions: readonly PoseControlActionDefinition<TAction>[]) {
+    this.actions = validateActions(actions);
+  }
+
+  public setActions(
+    actions: readonly PoseControlActionDefinition<TAction>[],
+    nowMs: number,
+  ): PoseControlUpdate<TAction> {
+    this.actions = validateActions(actions);
+    if (this.lease !== null) {
+      this.lease.targets = createControlTargets(this.lease.layout, this.actions);
+      this.lease.controlsArmed = false;
+      this.lease.hoveredAction = null;
+      this.lease.hoverStartedAtMs = null;
+      this.lease.latchedAction = null;
+    }
+    return this.result(nowMs, null);
+  }
+
+  updatePacket(
+    packet: PosePacket | null,
+    nowMs: number,
+    viewport: Size,
+  ): PoseControlUpdate<TAction> {
     if (
       this.viewport === null ||
       this.viewport.width !== viewport.width ||
@@ -389,7 +468,7 @@ export class PoseControlSession {
     this.visiblePeople = poses.length;
     this.multiplePeople = poses.length > 1;
     const posesWithHeadroom = poses.filter(
-      (pose) => createControlTargets(pose, packet.frame, viewport) !== null,
+      (pose) => createControlLayout(pose, packet.frame, viewport) !== null,
     );
     this.headroomAvailable = posesWithHeadroom.length > 0;
 
@@ -408,7 +487,7 @@ export class PoseControlSession {
     return this.updateClaim(posesWithHeadroom, packet.frame, nowMs, viewport);
   }
 
-  tick(nowMs: number): PoseControlUpdate {
+  tick(nowMs: number): PoseControlUpdate<TAction> {
     if (this.lease === null) {
       return this.result(nowMs, null);
     }
@@ -426,7 +505,7 @@ export class PoseControlSession {
       return this.result(nowMs, null);
     }
 
-    const activated = this.updateHover(nowMs);
+    const activated = this.updateHover(nowMs, false);
     return this.result(nowMs, activated);
   }
 
@@ -435,7 +514,7 @@ export class PoseControlSession {
     frame: Size,
     nowMs: number,
     viewport: Size,
-  ): PoseControlUpdate {
+  ): PoseControlUpdate<TAction> {
     if (poses.length === 0) {
       this.candidate = null;
       return this.result(nowMs, null);
@@ -482,8 +561,8 @@ export class PoseControlSession {
   ): void {
     const wrist = wristForHand(pose, hand);
     const handCenter = handCenterForHand(pose, hand);
-    const targets = createControlTargets(pose, frame, viewport);
-    if (wrist === null || handCenter === null || targets === null) {
+    const layout = createControlLayout(pose, frame, viewport);
+    if (wrist === null || handCenter === null || layout === null) {
       this.candidate = null;
       return;
     }
@@ -502,8 +581,14 @@ export class PoseControlSession {
       lastMotionAtMs: nowMs,
       lastMotionPoint: handCenter,
       frame: { ...frame },
-      targets,
+      layout,
+      targets: createControlTargets(layout, this.actions),
       pointer: projectNormalizedPoint(handCenter.x, handCenter.y, projection),
+      hands: {
+        selected: hand,
+        left: pose.leftHandCenter,
+        right: pose.rightHandCenter,
+      },
       controlsArmed: false,
       poseIndex: pose.poseIndex,
       hoveredAction: null,
@@ -519,7 +604,7 @@ export class PoseControlSession {
     poses: readonly PoseDescriptor[],
     frame: Size,
     nowMs: number,
-  ): PoseControlUpdate {
+  ): PoseControlUpdate<TAction> {
     const lease = this.lease;
     const viewport = this.viewport;
     if (lease === null || viewport === null) {
@@ -541,6 +626,11 @@ export class PoseControlSession {
     lease.torsoCenter = pose.torsoCenter;
     lease.lastSeenAtMs = nowMs;
     lease.poseIndex = pose.poseIndex;
+    lease.hands = {
+      selected: lease.hand,
+      left: pose.leftHandCenter,
+      right: pose.rightHandCenter,
+    };
     const projection = createPoseProjection(
       frame.width,
       frame.height,
@@ -575,11 +665,11 @@ export class PoseControlSession {
       lease.displacedSinceMs = null;
     }
 
-    const activated = this.updateHover(nowMs);
+    const activated = this.updateHover(nowMs, true);
     return this.result(nowMs, activated);
   }
 
-  private updateHover(nowMs: number): PoseControlAction | null {
+  private updateHover(nowMs: number, allowNeutralArm: boolean): TAction | null {
     const lease = this.lease;
     if (lease === null || lease.pointer === null) {
       return null;
@@ -591,6 +681,7 @@ export class PoseControlSession {
       lease.hoverStartedAtMs = null;
       lease.latchedAction = null;
       if (
+        allowNeutralArm &&
         lease.targets.every((target) => !containsPoint(target.rect, pointer, HOVER_HYSTERESIS_PX))
       ) {
         lease.controlsArmed = true;
@@ -618,7 +709,7 @@ export class PoseControlSession {
       target === null ||
       lease.hoverStartedAtMs === null ||
       lease.latchedAction === target.action ||
-      nowMs - lease.hoverStartedAtMs < POSE_CONTROL_TIMING.dwellMs
+      nowMs - lease.hoverStartedAtMs < target.dwellMs
     ) {
       return null;
     }
@@ -633,17 +724,20 @@ export class PoseControlSession {
       return;
     }
     this.lease.pointer = null;
+    this.lease.hands = null;
     this.lease.hoveredAction = null;
     this.lease.hoverStartedAtMs = null;
     this.lease.latchedAction = null;
   }
 
-  private result(nowMs: number, activated: PoseControlAction | null): PoseControlUpdate {
-    if (this.lease !== null) {
+  private result(nowMs: number, activated: TAction | null): PoseControlUpdate<TAction> {
+    const lease = this.lease;
+    if (lease !== null) {
+      const hoveredTarget = lease.targets.find((target) => target.action === lease.hoveredAction);
       const dwellProgress =
-        this.lease.hoverStartedAtMs === null
+        lease.hoverStartedAtMs === null || hoveredTarget === undefined
           ? 0
-          : clamp((nowMs - this.lease.hoverStartedAtMs) / POSE_CONTROL_TIMING.dwellMs, 0, 1);
+          : clamp((nowMs - lease.hoverStartedAtMs) / hoveredTarget.dwellMs, 0, 1);
       return {
         activated,
         snapshot: {
@@ -651,12 +745,13 @@ export class PoseControlSession {
           visiblePeople: this.visiblePeople,
           requiresBothHands: this.multiplePeople,
           claimProgress: 1,
-          targets: this.lease.targets,
-          pointer: this.lease.pointer,
-          controlsArmed: this.lease.controlsArmed,
-          hoveredAction: this.lease.hoveredAction,
+          targets: lease.targets,
+          pointer: lease.pointer,
+          hands: lease.hands,
+          controlsArmed: lease.controlsArmed,
+          hoveredAction: lease.hoveredAction,
           dwellProgress,
-          controllerPoseIndex: this.lease.poseIndex,
+          controllerPoseIndex: lease.poseIndex,
         },
       };
     }
@@ -683,6 +778,7 @@ export class PoseControlSession {
             : clamp((nowMs - this.candidate.startedAtMs) / requiredHoldMs, 0, 1),
         targets: [],
         pointer: null,
+        hands: null,
         controlsArmed: false,
         hoveredAction: null,
         dwellProgress: 0,

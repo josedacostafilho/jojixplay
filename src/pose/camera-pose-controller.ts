@@ -9,8 +9,6 @@ interface CameraPoseControllerOptions {
   onError: (message: string) => void;
 }
 
-const MIN_FRAME_INTERVAL_MS = 1000 / 15;
-
 function assetUrl(path: string): string {
   return new URL(`${import.meta.env.BASE_URL}${path}`, window.location.origin).toString();
 }
@@ -38,7 +36,6 @@ export class CameraPoseController {
   private stream: MediaStream | null = null;
   private frameCallbackId: number | null = null;
   private sequence = 0;
-  private lastSampleAt = Number.NEGATIVE_INFINITY;
   private processingPromise: Promise<void> | null = null;
   private changingPoseLimit = false;
   private poseLimit: PoseLimit;
@@ -155,12 +152,10 @@ export class CameraPoseController {
         !this.active ||
         this.processingPromise !== null ||
         this.changingPoseLimit ||
-        now - this.lastSampleAt < MIN_FRAME_INTERVAL_MS ||
         this.options.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
         return;
       }
-      this.lastSampleAt = now;
       const processingPromise = this.processFrame(now);
       this.processingPromise = processingPromise;
       void processingPromise.finally(() => {

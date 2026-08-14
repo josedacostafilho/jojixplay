@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
 import {
+  type PoseControlActionDefinition,
   POSE_CONTROL_TIMING,
   PoseControlSession,
   type PoseControlTarget,
@@ -9,6 +10,16 @@ import type { Point, Size } from "../../src/render/geometry";
 
 const VIEWPORT: Size = { width: 1_280, height: 720 };
 const FRAME = { width: 1_280, height: 720 };
+type TestAction = "background" | "players" | "games" | "draw" | "return" | "clear";
+const TEST_ACTIONS = [
+  { action: "background", label: "Background" },
+  { action: "players", label: "Players" },
+  { action: "games", label: "Games" },
+] as const satisfies readonly PoseControlActionDefinition<TestAction>[];
+
+function createSession(): PoseControlSession<TestAction> {
+  return new PoseControlSession<TestAction>(TEST_ACTIONS);
+}
 
 function hiddenLandmark(): PoseLandmark {
   return { x: 0.5, y: 0.5, z: 0, visibility: 0 };
@@ -62,7 +73,11 @@ function packet(poses: DetectedPose[]): PosePacket {
   return { sequence: 0, capturedAtMs: 0, frame: FRAME, poses };
 }
 
-function claimSinglePerson(session: PoseControlSession, pose: DetectedPose, startMs = 0) {
+function claimSinglePerson(
+  session: PoseControlSession<TestAction>,
+  pose: DetectedPose,
+  startMs = 0,
+) {
   session.updatePacket(packet([pose]), startMs, VIEWPORT);
   session.updatePacket(packet([pose]), startMs + 100, VIEWPORT);
   session.updatePacket(packet([pose]), startMs + 200, VIEWPORT);
@@ -73,7 +88,7 @@ function claimSinglePerson(session: PoseControlSession, pose: DetectedPose, star
   );
 }
 
-function targetCenter(target: PoseControlTarget): Point {
+function targetCenter(target: PoseControlTarget<TestAction>): Point {
   return {
     x: target.rect.x + target.rect.width / 2,
     y: target.rect.y + target.rect.height / 2,
@@ -90,7 +105,7 @@ function moveLeftHandToScreen(pose: DetectedPose, point: Point): DetectedPose {
 
 describe("television pose controls", () => {
   it("freezes targets above the visible head and points from the coarse hand center", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
 
     expect(session.updatePacket(packet([pose]), 0, VIEWPORT).snapshot.phase).toBe("claiming");
@@ -108,6 +123,11 @@ describe("television pose controls", () => {
     expect(middleTarget.rect.y + middleTarget.rect.height).toBeLessThan(0.16 * VIEWPORT.height);
     expect(claimed.snapshot.pointer?.x).toBeCloseTo(768);
     expect(claimed.snapshot.pointer?.y).toBeCloseTo(131.4);
+    expect(claimed.snapshot.hands).toMatchObject({
+      selected: "left",
+      left: { x: 0.4, y: 0.1825 },
+      right: { x: 0.6, y: 0.5675 },
+    });
     expect(claimed.snapshot.controlsArmed).toBe(false);
 
     const loweredHand = moveLeftHandToScreen(pose, { x: 768, y: 324 });
@@ -120,7 +140,7 @@ describe("television pose controls", () => {
   });
 
   it("requires visible headroom before a control claim can begin", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     setLandmark(pose, 0, 0.5, 0.04);
 
@@ -137,7 +157,7 @@ describe("television pose controls", () => {
   });
 
   it("uses the selected right coarse hand symmetrically", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     for (const index of [15, 17, 19, 21]) {
       setLandmark(pose, index, 0.4, 0.56);
@@ -154,7 +174,7 @@ describe("television pose controls", () => {
   });
 
   it("requires a deliberate two-hand claim when multiple people are visible", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const first = createPose(-0.2);
     const second = createPose(0.2);
 
@@ -182,7 +202,7 @@ describe("television pose controls", () => {
   });
 
   it("activates a dwell target once and requires leaving before reactivation", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     const claimed = claimSinglePerson(session, pose);
     const target = claimed.snapshot.targets[0];
@@ -217,8 +237,77 @@ describe("television pose controls", () => {
     ).toBe("background");
   });
 
+  it("replaces the complete action set without releasing the lease and requires neutral re-arming", () => {
+    const session = createSession();
+    const pose = createPose();
+    const claimed = claimSinglePerson(session, pose);
+    const originalTargets = claimed.snapshot.targets;
+    expect(session.updatePacket(packet([pose]), 350, VIEWPORT).snapshot.controlsArmed).toBe(true);
+
+    const transitioned = session.setActions(
+      [
+        { action: "draw", label: "Draw" },
+        { action: "return", label: "Return" },
+      ],
+      360,
+    );
+
+    expect(transitioned.snapshot).toMatchObject({
+      phase: "active",
+      controlsArmed: false,
+      hoveredAction: null,
+      controllerPoseIndex: 0,
+    });
+    expect(transitioned.snapshot.targets).not.toBe(originalTargets);
+    expect(transitioned.snapshot.targets.map(({ action }) => action)).toEqual(["draw", "return"]);
+    expect(transitioned.snapshot.targets[0]?.rect.y).toBe(originalTargets[0]?.rect.y);
+    expect(session.tick(365).snapshot.controlsArmed).toBe(false);
+    expect(session.updatePacket(packet([pose]), 370, VIEWPORT).snapshot.controlsArmed).toBe(true);
+  });
+
+  it("honors an action-specific dwell duration", () => {
+    const session = createSession();
+    const pose = createPose();
+    claimSinglePerson(session, pose);
+    session.setActions([{ action: "clear", label: "Clear", dwellMs: 1_500 }], 310);
+    session.updatePacket(packet([pose]), 350, VIEWPORT);
+    const target = session.tick(351).snapshot.targets[0];
+    if (target === undefined) {
+      throw new Error("Expected the Clear target.");
+    }
+    const hoveringPose = moveLeftHandToScreen(pose, targetCenter(target));
+
+    expect(session.updatePacket(packet([hoveringPose]), 400, VIEWPORT).activated).toBeNull();
+    expect(session.updatePacket(packet([hoveringPose]), 1_300, VIEWPORT).activated).toBeNull();
+    expect(session.updatePacket(packet([hoveringPose]), 1_899, VIEWPORT).activated).toBeNull();
+    expect(session.updatePacket(packet([hoveringPose]), 1_900, VIEWPORT).activated).toBe("clear");
+  });
+
+  it("rejects empty, duplicate, oversized, and invalid-duration action sets", () => {
+    expect(() => new PoseControlSession<TestAction>([])).toThrow(/require 1 to 3 actions/);
+    expect(
+      () =>
+        new PoseControlSession<TestAction>([
+          { action: "draw", label: "Draw" },
+          { action: "draw", label: "Again" },
+        ]),
+    ).toThrow(/Duplicate pose-control action/);
+    expect(
+      () =>
+        new PoseControlSession<TestAction>([
+          { action: "background", label: "Background" },
+          { action: "players", label: "Players" },
+          { action: "games", label: "Games" },
+          { action: "draw", label: "Draw" },
+        ]),
+    ).toThrow(/require 1 to 3 actions/);
+    expect(
+      () => new PoseControlSession<TestAction>([{ action: "clear", label: "Clear", dwellMs: 0 }]),
+    ).toThrow(/invalid dwell time/);
+  });
+
   it("will not dwell until the claiming hand has left every spawned target", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     const claimed = claimSinglePerson(session, pose);
     const target = claimed.snapshot.targets[1];
@@ -240,7 +329,7 @@ describe("television pose controls", () => {
   });
 
   it("pauses the pointer and resets dwell instead of falling back when the hand cluster is lost", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     const claimed = claimSinglePerson(session, pose);
     const target = claimed.snapshot.targets[0];
@@ -271,7 +360,7 @@ describe("television pose controls", () => {
   });
 
   it("releases control after a sustained wrist-below-hips gesture", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     expect(claimSinglePerson(session, pose).snapshot.phase).toBe("active");
     const releasePose = clonePose(pose);
@@ -293,7 +382,7 @@ describe("television pose controls", () => {
   });
 
   it("releases a lost pose and resets an active lease when the viewport changes", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     claimSinglePerson(session, pose);
 
@@ -310,7 +399,7 @@ describe("television pose controls", () => {
   });
 
   it("releases a lease when the torso remains far from its frozen layout", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     claimSinglePerson(session, pose);
     const displaced = createPose(0.25);
@@ -327,7 +416,7 @@ describe("television pose controls", () => {
   });
 
   it("releases an otherwise fresh but inactive pointer", () => {
-    const session = new PoseControlSession();
+    const session = createSession();
     const pose = createPose();
     claimSinglePerson(session, pose);
 

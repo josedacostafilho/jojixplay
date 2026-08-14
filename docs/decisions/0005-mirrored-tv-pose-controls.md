@@ -10,7 +10,7 @@ scope: Television projection, fullscreen entry, temporary controller claiming, a
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint; [ADR-0008](0008-above-head-coarse-hand-controls.md) for the torso-relative row, direct wrist pointer, and immediately armed lease
+- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint; [ADR-0008](0008-above-head-coarse-hand-controls.md) for the torso-relative row, direct wrist pointer, and immediately armed lease; [ADR-0010](0010-menu-and-draw-game.md) for the Circles action and effect layer
 
 ## Context
 
@@ -64,6 +64,8 @@ Browser fullscreen entry is privileged and normally requires a trusted remote-co
 ### Prototype actions
 
 The former **Skeleton** palette action and the statement that every prototype action is television-local were superseded by [ADR-0006](0006-session-player-limit-control.md). The coordinate, claim, adaptive-layout, dwell, and semantic-control decisions in this record remain active.
+
+[ADR-0010](0010-menu-and-draw-game.md) supersedes the Circles action and effect layer below. The original list remains historical context only.
 
 The original first control row had three television-local actions:
 

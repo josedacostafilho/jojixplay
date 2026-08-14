@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TvPlayfield } from "../../src/components/tv-playfield";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
 
@@ -41,41 +41,69 @@ function createRaisedHandPacket(sequence: number): PosePacket {
 }
 
 class ImmediateResizeObserver {
-  readonly callback: ResizeObserverCallback;
+  public constructor(private readonly callback: ResizeObserverCallback) {}
 
-  constructor(callback: ResizeObserverCallback) {
-    this.callback = callback;
-  }
-
-  observe(): void {
+  public observe(): void {
     this.callback(
       [{ contentRect: { width: 1_280, height: 720 } } as ResizeObserverEntry],
       this as unknown as ResizeObserver,
     );
   }
 
-  unobserve(): void {}
+  public unobserve(): void {}
 
-  disconnect(): void {}
+  public disconnect(): void {}
 }
+
+let nowMs = 0;
+let animationCallbacks: FrameRequestCallback[] = [];
+let canvasContext: CanvasRenderingContext2D;
+
+beforeEach(() => {
+  nowMs = 0;
+  animationCallbacks = [];
+  vi.spyOn(performance, "now").mockImplementation(() => nowMs);
+  vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      animationCallbacks.push(callback);
+      return animationCallbacks.length;
+    }),
+  );
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  canvasContext = {
+    arc: vi.fn(),
+    beginPath: vi.fn(),
+    clearRect: vi.fn(),
+    fill: vi.fn(),
+    lineTo: vi.fn(),
+    moveTo: vi.fn(),
+    restore: vi.fn(),
+    save: vi.fn(),
+    stroke: vi.fn(),
+  } as unknown as CanvasRenderingContext2D;
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => canvasContext);
+});
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-describe("TV playfield", () => {
-  it("exposes all claimed actions and applies acknowledged player-mode changes", async () => {
-    let nowMs = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
-    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
-    const requestAnimationFrame = vi.fn(() => 1);
-    vi.stubGlobal("requestAnimationFrame", requestAnimationFrame);
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-      () => ({}) as CanvasRenderingContext2D,
-    );
+function claimControls(
+  view: ReturnType<typeof render>,
+  renderPlayfield: (packet: PosePacket) => preact.JSX.Element,
+  packetFactory: (sequence: number) => PosePacket = createRaisedHandPacket,
+): void {
+  for (const sequence of [1, 2, 3]) {
+    nowMs = sequence * 100;
+    view.rerender(renderPlayfield(packetFactory(sequence)));
+  }
+}
 
+describe("TV playfield", () => {
+  it("exposes Main Menu actions, applies player-mode acknowledgement, and navigates Games", async () => {
     const onPoseLimitRequest = vi.fn(async () => undefined);
     const renderPlayfield = (packet: PosePacket, poseLimit: 1 | 2 = 1) => (
       <TvPlayfield
@@ -86,54 +114,88 @@ describe("TV playfield", () => {
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
-    for (const sequence of [1, 2, 3]) {
-      nowMs = sequence * 100;
-      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
-    }
+    claimControls(view, (packet) => renderPlayfield(packet));
 
-    const backgroundButton = screen.getByRole("button", { name: "Background" });
-    const playersButton = screen.getByRole("button", { name: "Switch to 2-player mode" });
-    const circlesButton = screen.getByRole("button", { name: "Circles" });
-    expect(screen.getByText("Move your hand clear of the buttons to arm them")).toBeInTheDocument();
     const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
     const cursor = view.container.querySelector<HTMLElement>(".pose-cursor");
-    expect(playfield).not.toBeNull();
-    expect(cursor).not.toBeNull();
+    expect(playfield).toHaveAttribute("data-playfield-view", "main");
     expect(playfield).toHaveAttribute("data-background-theme", "navy");
     expect(cursor).toHaveStyle("--pose-cursor-color: #5eead4");
+    expect(screen.getByRole("button", { name: "Background" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Switch to 2-player mode" })).toHaveTextContent(
+      "Players: 1",
+    );
+    expect(screen.getByRole("button", { name: "Games" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Circles" })).not.toBeInTheDocument();
 
-    fireEvent.click(backgroundButton);
+    fireEvent.click(screen.getByRole("button", { name: "Background" }));
     expect(playfield).toHaveAttribute("data-background-theme", "plum");
-
-    fireEvent.click(playersButton);
+    fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
     expect(onPoseLimitRequest).toHaveBeenCalledWith(2);
     await screen.findByText("2-player mode is active.");
-
     view.rerender(renderPlayfield(createRaisedHandPacket(4), 2));
     expect(screen.getByRole("button", { name: "Switch to 1-player mode" })).toHaveTextContent(
       "Players: 2",
     );
-    expect(cursor).toHaveStyle("--pose-cursor-color: #5eead4");
 
-    requestAnimationFrame.mockClear();
-    fireEvent.click(circlesButton);
-    expect(screen.getByText("Circle burst created.")).toBeInTheDocument();
-    expect(requestAnimationFrame).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    expect(playfield).toHaveAttribute("data-playfield-view", "games");
+    expect(screen.getByRole("button", { name: "Draw" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Return to Main Menu" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Background" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Return to Main Menu" }));
+    expect(playfield).toHaveAttribute("data-playfield-view", "main");
   });
 
-  it("asks for overhead framing and withholds controls when the head is too close to the frame", () => {
-    let nowMs = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
-    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      vi.fn(() => 1),
+  it("opens Draw on the exact camera projection and retains its color across Exit", () => {
+    const createPortraitPacket = (sequence: number) => ({
+      ...createRaisedHandPacket(sequence),
+      frame: { width: 720, height: 1_280 },
+    });
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+      />
     );
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-      () => ({}) as CanvasRenderingContext2D,
-    );
+    const view = render(renderPlayfield(createPortraitPacket(0)));
+    claimControls(view, renderPlayfield, createPortraitPacket);
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    animationCallbacks = [];
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
 
+    const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
+    expect(playfield).toHaveAttribute("data-playfield-view", "draw");
+    expect(screen.getByTestId("draw-board")).toHaveStyle({
+      left: "437.5px",
+      top: "0px",
+      width: "405px",
+      height: "720px",
+    });
+    expect(screen.getByRole("img", { name: "Your Draw artwork" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Change drawing color/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear drawing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit Draw" })).toBeInTheDocument();
+    animationCallbacks.at(-1)?.(0);
+    expect(canvasContext.globalAlpha).toBe(0.28);
+
+    fireEvent.click(screen.getByRole("button", { name: /Change drawing color/ }));
+    expect(
+      screen.getByRole("button", { name: "Change drawing color; current color #2563eb" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Exit Draw" }));
+    expect(playfield).toHaveAttribute("data-playfield-view", "games");
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(
+      screen.getByRole("button", { name: "Change drawing color; current color #2563eb" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear drawing" }));
+    expect(screen.getByText("Drawing cleared.")).toBeInTheDocument();
+  });
+
+  it("asks for overhead framing and withholds controls when the head is too high", () => {
     const noHeadroomPacket = (sequence: number) => {
       const posePacket = createRaisedHandPacket(sequence);
       const face = posePacket.poses[0]?.landmarks[0];
@@ -161,57 +223,24 @@ describe("TV playfield", () => {
     expect(screen.queryByRole("button", { name: "Background" })).not.toBeInTheDocument();
   });
 
-  it("suspends actions while a player-mode request is pending", () => {
-    let nowMs = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
-    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      vi.fn(() => 1),
-    );
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-      () => ({}) as CanvasRenderingContext2D,
-    );
-
-    const view = render(
+  it("disables every current action while a player-mode request is pending", () => {
+    const renderPlayfield = (packet: PosePacket) => (
       <TvPlayfield
-        packet={createRaisedHandPacket(0)}
+        packet={packet}
         poseLimit={1}
         poseLimitPending
         onPoseLimitRequest={vi.fn(async () => undefined)}
-      />,
+      />
     );
-    for (const sequence of [1, 2, 3]) {
-      nowMs = sequence * 100;
-      view.rerender(
-        <TvPlayfield
-          packet={createRaisedHandPacket(sequence)}
-          poseLimit={1}
-          poseLimitPending
-          onPoseLimitRequest={vi.fn(async () => undefined)}
-        />,
-      );
-    }
+    const view = render(renderPlayfield(createRaisedHandPacket(0)));
+    claimControls(view, renderPlayfield);
 
     expect(screen.getByRole("button", { name: "Background" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Switch to 2-player mode" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Circles" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Games" })).toBeDisabled();
   });
 
   it("suspends repeated semantic actions immediately when a player-mode request starts", () => {
-    let nowMs = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
-    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      vi.fn(() => 1),
-    );
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-      () => ({}) as CanvasRenderingContext2D,
-    );
-
     const onPoseLimitRequest = vi.fn(() => new Promise<void>(() => undefined));
     const renderPlayfield = (packet: PosePacket) => (
       <TvPlayfield
@@ -222,10 +251,7 @@ describe("TV playfield", () => {
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
-    for (const sequence of [1, 2, 3]) {
-      nowMs = sequence * 100;
-      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
-    }
+    claimControls(view, renderPlayfield);
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
     fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
@@ -239,18 +265,6 @@ describe("TV playfield", () => {
   });
 
   it("retains the acknowledged mode and announces a failed player-mode request", async () => {
-    let nowMs = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => nowMs);
-    vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      vi.fn(() => 1),
-    );
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-      () => ({}) as CanvasRenderingContext2D,
-    );
-
     const onPoseLimitRequest = vi.fn(async () => {
       throw new Error("Phone rejected the request.");
     });
@@ -263,11 +277,7 @@ describe("TV playfield", () => {
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
-    for (const sequence of [1, 2, 3]) {
-      nowMs = sequence * 100;
-      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
-    }
-
+    claimControls(view, renderPlayfield);
     fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
 
     await screen.findByText(

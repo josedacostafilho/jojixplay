@@ -10,7 +10,7 @@ scope: Runtime player-limit selection, bidirectional session control, and MediaP
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** The Skeleton palette action and television-local-only action constraint in [ADR-0005](0005-mirrored-tv-pose-controls.md)
-- **Superseded by:** None
+- **Superseded by:** [ADR-0010](0010-menu-and-draw-game.md) for retained circle-effect references only
 
 ## Context
 
@@ -26,7 +26,7 @@ The player limit controls inference running on the phone, but the body-operated 
 - The television's middle pose button is **Players: 1** or **Players: 2** and requests the opposite absolute limit. It replaces the former Skeleton palette button and remains a semantic remote- and keyboard-operable button.
 - Player mode limits simultaneous identity-independent detections. It does not create, transmit, persist, or infer player or skeleton identifiers.
 - Stop/start of body tracking within one live pairing session retains the last acknowledged limit. A disconnected or newly created pairing session resets to one player.
-- The skeleton uses one fixed two-color palette. Simultaneous pose-array positions may select different colors for the current frame but never imply stable identity. Circle effects use the same fixed palette.
+- The skeleton uses one fixed two-color palette. Simultaneous pose-array positions may select different colors for the current frame but never imply stable identity. The former circle-effect sentence was superseded by [ADR-0010](0010-menu-and-draw-game.md).
 
 ### Bidirectional command and acknowledgement
 
@@ -89,7 +89,7 @@ Rejected because a failed or delayed command would display configuration that th
 ## Verification
 
 - Unit tests prove strict messages, request/ack matching, peer authorization, obsolete handshake rejection, worker option messages, and serialized reconfiguration.
-- Component tests prove dynamic accessible labels, disabled/pending behavior, success acknowledgement, failure announcement, and continued background/circle effects.
+- Component tests prove dynamic accessible labels, disabled/pending behavior, success acknowledgement, failure announcement, and continued background behavior. [ADR-0010](0010-menu-and-draw-game.md) governs the replacement menu and game coverage.
 - The production build proves the phone remains the only MediaPipe importer and no alternate transport or landmarker is bundled.
 - Real-device acceptance records mode-switch latency, sustained inference behavior, one-player stability, two-person detection, and controller continuity.
 

@@ -80,7 +80,10 @@ test("phone starts the camera and local pose worker after user activation", asyn
   expect(requestedConstraints).not.toBeNull();
   expect(JSON.parse(requestedConstraints ?? "null")).toMatchObject({
     audio: false,
-    video: { facingMode: { ideal: "user" } },
+    video: {
+      facingMode: { ideal: "user" },
+      frameRate: { ideal: 30, max: 30 },
+    },
   });
   await expect(page.getByText(/visible$/)).toBeVisible();
 });

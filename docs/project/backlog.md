@@ -8,9 +8,9 @@ scope: Prioritized project work until a canonical issue tracker exists
 
 This is a compact queue, not a wish list. Keep entries actionable and ordered. Once an issue tracker is adopted, it becomes the source of truth and this file should be replaced with a link or deleted in a hard cutover.
 
-## P0 — release the skeleton-viewer vertical slice
+## P0 — release the current prototype
 
-- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, default one-person inference, acknowledged switching to two players and back without camera restart, mirrored rendering, overhead framing guidance, coarse-hand pointing and dropout, neutral post-claim arming, adaptive reach and fatigue, all three dwell actions, release behavior, stale/disconnect states, cleanup, and perceived latency.
+- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, achieved one-/two-player inference cadence, acknowledged switching without camera restart, mirrored rendering, overhead framing guidance, Main Menu/Games/Draw navigation, neutral re-arming, brush/eraser dwell ergonomics, path quality, camera-bump behavior, long-session drawing, thermal behavior, stale/disconnect states, cleanup, and perceived latency.
 - [ ] Inspect the real peer connection and confirm that the application sends pose packets only, never a camera media track or pixel payload.
 
 ## P1 — establish measured product budgets

@@ -10,7 +10,7 @@ scope: Product purpose, users, constraints, and first outcome
 
 JojixPlay turns a phone into a private, camera-based body controller for games shown on a nearby television. The phone performs pose estimation locally and sends only pose landmarks to the television; camera pixels never leave the phone.
 
-The first product proof is a live skeleton viewer. It validates camera capture, on-device pose estimation, pairing, peer-to-peer transport, and television rendering without committing the project to a game engine prematurely.
+The first product proof is a live skeleton viewer plus the Draw game. Together they validate camera capture, on-device pose estimation, pairing, peer-to-peer transport, body-operated navigation, continuous two-hand input, and television rendering without committing the project to a game engine prematurely.
 
 ## Primary users and setting
 
@@ -26,7 +26,8 @@ The initial experience assumes internet access to load the static application an
 2. Scan the displayed QR code, or open JojixPlay on the phone and enter the displayed 20-character key.
 3. Connect, grant camera access, and start pose tracking.
 4. See the default single detection rendered as an identity-independent mirrored skeleton on the television.
-5. Leave space above the head, raise one hand to claim control, move the coarse-hand cursor clear once to arm it, then dwell over **Players: 1** to enable two-person detection when wanted; multiperson control claims require both hands.
+5. Leave space above the head, raise one hand to claim control, and move the coarse-hand cursor clear once to arm Main Menu.
+6. Open **Games**, select **Draw**, then dwell-engage the selected hand as a brush or the other hand as an eraser inside the white camera-aligned board.
 
 ## Product invariants
 
@@ -40,7 +41,7 @@ The initial experience assumes internet access to load the static application an
 
 ## Prototype non-goals
 
-- A playable game, scoring, menus for a game catalogue, or a game-engine integration.
+- Scoring, accounts, saved artwork, a broad game catalogue, or a game-engine integration.
 - Stable player identity, persistent/general-purpose cross-frame skeleton tracking, profiles, or accounts; the temporary local control lease is the only bounded continuity exception.
 - Camera-pixel streaming, recording, upload, or persistence.
 - TURN service, relay transport, transport fallbacks, or offline peer discovery.
@@ -48,4 +49,4 @@ The initial experience assumes internet access to load the static application an
 
 ## First-outcome success criteria
 
-The prototype succeeds when the journey in [Skeleton-viewer specification](skeleton-viewer.md) works on a real phone and television, one or two detected bodies render continuously, mirrored adaptive dwell controls operate without unacceptable false activations, failures are actionable, and inspection confirms that no camera pixels cross the peer connection.
+The prototype succeeds when the journeys in [Skeleton-viewer specification](skeleton-viewer.md) and [Draw game](draw-game.md) work on a real phone and television, one or two detected bodies render continuously, menus and continuous tools operate without unacceptable false activations, failures are actionable, and inspection confirms that no camera pixels cross the peer connection.

@@ -91,6 +91,15 @@ describe("camera pose controller player limit", () => {
       1,
     );
     expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: false,
+      video: {
+        facingMode: { ideal: "user" },
+        width: { ideal: 1_280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30, max: 30 },
+      },
+    });
 
     frameCallbacks[0]?.(100, {} as VideoFrameCallbackMetadata);
     await Promise.resolve();
@@ -109,5 +118,56 @@ describe("camera pose controller player limit", () => {
     controller.stop();
     expect(trackStop).toHaveBeenCalledOnce();
     expect(estimator.close).toHaveBeenCalledOnce();
+  });
+
+  it("submits consecutive eligible camera callbacks without an elapsed-time gate", async () => {
+    estimator.estimate.mockResolvedValue(EMPTY_PACKET);
+    const onPacket = vi.fn();
+    const controller = new CameraPoseController({
+      video,
+      initialPoseLimit: 1,
+      onPacket,
+      onError: vi.fn(),
+    });
+    await controller.start();
+
+    frameCallbacks[0]?.(100, {} as VideoFrameCallbackMetadata);
+    await vi.waitFor(() => expect(onPacket).toHaveBeenCalledTimes(1));
+    frameCallbacks[1]?.(110, {} as VideoFrameCallbackMetadata);
+    await vi.waitFor(() => expect(onPacket).toHaveBeenCalledTimes(2));
+
+    expect(estimator.estimate).toHaveBeenNthCalledWith(1, expect.anything(), 100, 0);
+    expect(estimator.estimate).toHaveBeenNthCalledWith(2, expect.anything(), 110, 1);
+    controller.stop();
+  });
+
+  it("drops camera callbacks while the one inference slot is occupied", async () => {
+    let resolveEstimate: ((packet: PosePacket) => void) | undefined;
+    estimator.estimate.mockReturnValue(
+      new Promise<PosePacket>((resolve) => {
+        resolveEstimate = resolve;
+      }),
+    );
+    const onPacket = vi.fn();
+    const controller = new CameraPoseController({
+      video,
+      initialPoseLimit: 1,
+      onPacket,
+      onError: vi.fn(),
+    });
+    await controller.start();
+
+    frameCallbacks[0]?.(100, {} as VideoFrameCallbackMetadata);
+    await vi.waitFor(() => expect(estimator.estimate).toHaveBeenCalledOnce());
+    frameCallbacks[1]?.(110, {} as VideoFrameCallbackMetadata);
+    expect(estimator.estimate).toHaveBeenCalledOnce();
+    expect(createImageBitmap).toHaveBeenCalledOnce();
+
+    resolveEstimate?.(EMPTY_PACKET);
+    await vi.waitFor(() => expect(onPacket).toHaveBeenCalledOnce());
+    frameCallbacks[2]?.(120, {} as VideoFrameCallbackMetadata);
+    await vi.waitFor(() => expect(estimator.estimate).toHaveBeenCalledTimes(2));
+
+    controller.stop();
   });
 });

@@ -8,6 +8,13 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-14 — Camera-paced inference and Draw implemented
+
+- Removed the arbitrary 15 Hz sampling gate while retaining a 30 FPS camera ceiling, one inference in flight, busy-frame dropping, and latest-only transport backpressure.
+- Replaced the Circles placeholder with typed Main Menu/Games/Draw navigation that retains the temporary controller lease but resets and neutral-rearms each action surface.
+- Added a normalized camera-aligned white drawing board, selected-hand brush, opposite-hand eraser, deliberate tool dwell, speed-aware smoothing, path-break safety, color cycling, destructive Clear dwell, and mounted-session-only artwork retention.
+- Added direct domain, component, renderer, and cadence regression coverage. Real-device performance and ergonomics acceptance remain outstanding.
+
 ## 2026-08-14 — Above-head coarse-hand controls implemented
 
 - Replaced the torso-overlay row with one frozen row wholly above the controlling pose's visible head and an explicit framing gate when the projected camera area lacks headroom.

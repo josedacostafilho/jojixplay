@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { PosePacket } from "../domain/pose";
-import {
-  CIRCLE_BURST_DURATION_MS,
-  type CircleBurst,
-  drawSkeleton,
-  SKELETON_PALETTE,
-  type SkeletonPalette,
-} from "../render/skeleton";
+import { drawSkeleton, SKELETON_PALETTE, type SkeletonPalette } from "../render/skeleton";
 
 interface SkeletonCanvasProps {
   packet: PosePacket | null;
@@ -14,7 +8,7 @@ interface SkeletonCanvasProps {
   className?: string;
   mirrored?: boolean;
   palette?: SkeletonPalette;
-  circleBurst?: CircleBurst | null;
+  opacity?: number;
 }
 
 interface CanvasSize {
@@ -28,7 +22,7 @@ export function SkeletonCanvas({
   className,
   mirrored = false,
   palette = SKELETON_PALETTE,
-  circleBurst = null,
+  opacity = 1,
 }: SkeletonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
@@ -67,16 +61,12 @@ export function SkeletonCanvas({
     }
 
     let animationFrameId: number | null = null;
-    const render = (nowMs: number) => {
+    const render = () => {
       drawSkeleton(context, packet, size.width, size.height, {
         mirrored,
         palette,
-        circleBurst,
-        nowMs,
+        opacity,
       });
-      if (circleBurst !== null && nowMs - circleBurst.createdAtMs < CIRCLE_BURST_DURATION_MS) {
-        animationFrameId = window.requestAnimationFrame(render);
-      }
     };
     animationFrameId = window.requestAnimationFrame(render);
     return () => {
@@ -84,7 +74,7 @@ export function SkeletonCanvas({
         window.cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [packet, size, mirrored, palette, circleBurst]);
+  }, [packet, size, mirrored, palette, opacity]);
 
   return (
     <canvas ref={canvasRef} class={className} role="img" aria-label={label}>

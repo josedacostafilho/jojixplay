@@ -15,7 +15,7 @@ Repository-wide agent instructions live in [`../AGENTS.md`](../AGENTS.md). That 
 | Goal | Read |
 | --- | --- |
 | Orient to the repository | [Project status](project/status.md), then [Stack](architecture/stack.md) |
-| Understand the product and first slice | [Product brief](product/brief.md), then [Skeleton-viewer specification](product/skeleton-viewer.md) |
+| Understand the product and current content | [Product brief](product/brief.md), [Skeleton-viewer specification](product/skeleton-viewer.md), then [Draw game](product/draw-game.md) |
 | Implement or modify behavior | [Engineering standards](engineering/standards.md), [Testing strategy](engineering/testing.md), [Workflow](engineering/workflow.md) |
 | Make an architectural choice | [Architecture overview](architecture/overview.md), [ADR index](decisions/README.md) |
 | Select tools or run commands | [Stack](architecture/stack.md) |
@@ -29,7 +29,8 @@ docs/
 ├── README.md                         # This index and documentation contract
 ├── product/
 │   ├── brief.md                      # Users, purpose, constraints, and non-goals
-│   └── skeleton-viewer.md            # First vertical slice contract and implementation map
+│   ├── skeleton-viewer.md            # First vertical slice contract and implementation map
+│   └── draw-game.md                  # First game behavior and acceptance contract
 ├── architecture/
 │   ├── overview.md                  # System shape, boundaries, and data flow
 │   └── stack.md                     # Exact technologies, versions, and commands
@@ -43,7 +44,9 @@ docs/
 │   ├── 0005-mirrored-tv-pose-controls.md
 │   ├── 0006-session-player-limit-control.md
 │   ├── 0007-node-24-and-dependency-maintenance.md
-│   └── 0008-above-head-coarse-hand-controls.md
+│   ├── 0008-above-head-coarse-hand-controls.md
+│   ├── 0009-camera-paced-inference.md
+│   └── 0010-menu-and-draw-game.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

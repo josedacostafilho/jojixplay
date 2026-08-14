@@ -1,8 +1,8 @@
 # JojixPlay
 
-JojixPlay is a greenfield static web application that turns a phone into a private pose controller for a nearby television. The first vertical slice is a live skeleton viewer; camera pixels remain on the phone and only validated pose landmarks travel over a direct WebRTC connection.
+JojixPlay is a greenfield static web application that turns a phone into a private pose controller for a nearby television. Its live skeleton viewer and first game, Draw, keep camera pixels on the phone and send only validated pose landmarks over a direct WebRTC connection.
 
-Start with [`AGENTS.md`](AGENTS.md) and the [`docs/`](docs/README.md) knowledge base. The accepted behavior is defined in [`docs/product/skeleton-viewer.md`](docs/product/skeleton-viewer.md).
+Start with [`AGENTS.md`](AGENTS.md) and the [`docs/`](docs/README.md) knowledge base. Accepted behavior is defined in the [`skeleton-viewer`](docs/product/skeleton-viewer.md) and [`Draw`](docs/product/draw-game.md) contracts.
 
 ## Local development
 
@@ -22,7 +22,8 @@ Use `npm run validate` for the complete canonical quality suite. All commands an
 3. Scan the generated QR with the phone, or choose **Open on the phone** and enter the TV's 20-character pairing key.
 4. Connect, then press **Start body tracking**.
 5. Place the phone so its front (selfie) camera can see the players' full bodies with clear space above their heads.
-6. Raise a hand to claim the TV controls, move it clear once to arm the buttons, then reach and hold over an action. Use **Players: 1** to switch to two-player detection and the same button to switch back.
+6. Raise a hand to claim the TV controls, move it clear once to arm the buttons, then open **Games → Draw** or use the Main Menu actions.
+7. In Draw, hold the brush hand still on the white board to engage it; the other hand can dwell-engage the eraser.
 
 Camera access requires HTTPS or localhost. The application requests no audio, retains no session data, and sends only validated pose landmarks over the peer connection.
 

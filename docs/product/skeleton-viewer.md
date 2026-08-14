@@ -24,6 +24,7 @@ The skeleton viewer is implemented. Publication state, automated verification ev
 | Backpressure policy | [`src/transport/latest-sender.ts`](../../src/transport/latest-sender.ts) |
 | Renderer geometry and drawing | [`src/render/`](../../src/render/) and [`src/components/skeleton-canvas.tsx`](../../src/components/skeleton-canvas.tsx) |
 | Television pose controls | [`src/interaction/pose-controls.ts`](../../src/interaction/pose-controls.ts) and [`src/components/tv-playfield.tsx`](../../src/components/tv-playfield.tsx) |
+| Game navigation and Draw | [`src/components/tv-playfield.tsx`](../../src/components/tv-playfield.tsx) and [`src/games/draw/`](../../src/games/draw/) |
 | Production deployment | [`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) |
 
 ## Selected behavior
@@ -46,7 +47,7 @@ The skeleton viewer is implemented. Publication state, automated verification ev
 - Camera capture begins only after a user action and explicit browser permission.
 - Camera capture prefers the user-facing (selfie) camera.
 - MediaPipe Pose Landmarker Lite runs in a module worker. Every pairing session starts with a one-pose limit; the acknowledged television control can reconfigure the existing landmarker to one or two poses without restarting the camera.
-- Inference is sampled at no more than 15 frames per second.
+- The camera requests an ideal and maximum 30 FPS. Every eligible presented frame starts inference when no estimate or reconfiguration is active; there is no lower elapsed-time sampling gate.
 - The phone previews its camera and latest local skeleton, reports the active pose limit, and sends pose packets only while a peer is connected.
 - Stopping and restarting tracking within one connected pairing session retains the last acknowledged limit. Disconnecting or creating a new pairing session resets it to one.
 - Stopping or leaving closes the worker, camera tracks, room, and peer connection.
@@ -88,11 +89,11 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Canvas 2D is the intentional renderer for this prototype.
 - The renderer consumes only validated `PosePacket` values and has no dependency on MediaPipe or Trystero.
 - Source aspect ratio is preserved with contain-style letterboxing.
-- The television applies one shared horizontal mirror projection to its skeleton, effects, cursor, adaptive button layout, and hit testing. The phone preview is not changed by this television-only rule.
+- The television applies one shared horizontal mirror projection to its skeleton, Draw board/input, cursors, adaptive button layout, and hit testing. The phone preview is not changed by this television-only rule.
 - Landmarks below the visibility threshold are not connected or drawn.
 - Per-frame colors use one fixed teal/rose palette to distinguish simultaneous detections but never imply stable identity.
 - A packet older than one second in television receive time is stale and must not remain presented as live.
-- The future game host will consume the same validated pose-domain boundary, while each game will own its selected rendering implementation.
+- The Draw game consumes the same validated pose-domain boundary and owns its Canvas 2D session/renderer without coupling the application shell to a universal game engine.
 
 ## Body-control contract
 
@@ -106,11 +107,11 @@ The sender retains at most one pending packet while an earlier send is in progre
 - A new lease is body-unarmed. The coarse hand must be observed outside every target and its hover margin once before reaching into a button can begin dwell; semantic remote and accessibility activation remain available throughout.
 - A button activates after a 900 ms dwell, activates only once until the pointer leaves, and shows progress while dwelling.
 - Control releases after 600 ms with the selected wrist below the hips, one second without the controlling pose/hand, 600 ms materially displaced from the frozen layout, 15 seconds without coarse-hand activity, or a viewport change.
-- The prototype buttons toggle a fixed background theme, request the opposite one-/two-player limit, and replace the current effect with 12 palette-colored circles that fade within three seconds.
+- Main Menu buttons toggle a fixed background theme, request the opposite one-/two-player limit, or open Games. Games contains Draw and Return; Draw contains Color, Clear, and Exit.
 - While a player-limit request is pending, all three actions are disabled. Failure keeps the last acknowledged mode; success updates the dynamic **Players: 1** or **Players: 2** label.
 - Buttons remain semantic and remotely clickable. Body interactions are the canonical in-session path; the semantic path preserves television-remote and accessibility operation.
 
-Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md).
+Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and Draw are governed by [ADR-0010](../decisions/0010-menu-and-draw-game.md) and the [Draw contract](draw-game.md).
 
 ## Capability baseline
 
@@ -141,7 +142,8 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 8. All camera, worker, room, and animation resources are released on stop or unmount.
 9. Canonical formatting, linting, type analysis, unit/component tests, end-to-end smoke tests, dependency audit, and production build checks pass.
 10. A real phone-and-television run confirms pairing, camera framing, multiperson behavior where detectable, and acceptable perceived latency.
-11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, requires reachable space above the visible head, points with the complete coarse hand without wrist fallback, neutral-arms, and supports dwell activation of the background, player-limit, and circle actions.
+11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, requires reachable space above the visible head, points with complete coarse hands without wrist fallback, neutral-arms each view, and supports the Main Menu/Games/Draw hierarchy.
+12. Camera-paced single-flight inference, Draw presentation, two-hand tool engagement, path breaking, color, clearing, navigation, and ephemeral retention satisfy [Draw game](draw-game.md).
 
 ## Implementation plan
 
@@ -154,7 +156,9 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement trusted TV-mode entry, the shared mirrored projection, adaptive temporary pose controls, and the three prototype actions.
 - [x] Default to one-player inference and implement an acknowledged in-place one-/two-player switch from the television control row.
 - [x] Move the frozen row above the visible head, require overhead framing, replace direct wrist pointing with the coarse-hand center, and add neutral post-claim arming.
+- [x] Remove the fixed 15 Hz gate while retaining a 30 FPS camera ceiling and single-flight/latest-only backpressure.
+- [x] Replace Circles with Main Menu/Games navigation and implement the transient normalized two-hand Draw game.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
-- [x] Publish the GitHub Pages artifact from the remote repository.
+- [x] Publish the original skeleton-viewer artifact from the remote repository; current publication state remains in [Project status](../project/status.md).
 - [ ] Validate on the owner's real phone and television.

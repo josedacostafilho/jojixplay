@@ -496,6 +496,25 @@ button {
   background: radial-gradient(circle at center, #2a1729, #120b16 72%);
 }
 
+.draw-board {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  outline: clamp(2px, 0.25vw, 4px) solid rgb(226 232 240 / 82%);
+  outline-offset: calc(-1 * clamp(2px, 0.25vw, 4px));
+  background: #fff;
+  box-shadow:
+    0 0 0 clamp(4px, 0.5vw, 8px) rgb(7 10 18 / 52%),
+    0 22px 70px rgb(0 0 0 / 38%);
+  pointer-events: none;
+}
+
+.draw-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .skeleton-canvas {
   display: block;
   width: 100%;
@@ -505,8 +524,42 @@ button {
 
 .skeleton-canvas--tv {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset: 0;
+}
+
+.playfield-view-label {
+  position: absolute;
+  z-index: 4;
+  top: clamp(0.8rem, 2vh, 1.5rem);
+  left: clamp(0.8rem, 2vw, 1.8rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  padding: 0.48rem 0.78rem;
+  color: #dbe5f3;
+  background: rgb(7 10 18 / 76%);
+  backdrop-filter: blur(10px);
+  font-size: clamp(0.68rem, 1vw, 0.86rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.playfield-view-label__swatch,
+.pose-control-button__swatch {
+  flex: none;
+  border: 2px solid rgb(248 250 252 / 68%);
+  border-radius: 50%;
+  background: var(--draw-color);
+}
+
+.playfield-view-label__swatch {
+  width: 1rem;
+  height: 1rem;
 }
 
 .pose-control-hint {
@@ -608,6 +661,18 @@ button {
   cursor: wait;
 }
 
+.pose-control-button__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.35rem, 0.7vw, 0.65rem);
+}
+
+.pose-control-button__swatch {
+  width: clamp(0.8rem, 1.35vw, 1.25rem);
+  height: clamp(0.8rem, 1.35vw, 1.25rem);
+}
+
 .pose-control-button__progress {
   position: absolute;
   bottom: 0;
@@ -650,6 +715,52 @@ button {
     0 0 0 0.55rem rgb(248 250 252 / 14%),
     0 0 2.2rem var(--pose-cursor-color);
   pointer-events: none;
+}
+
+.draw-tool-cursor {
+  position: absolute;
+  z-index: 6;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.draw-tool-cursor::before {
+  position: absolute;
+  z-index: -1;
+  inset: -0.5rem;
+  border-radius: inherit;
+  background: conic-gradient(var(--teal) var(--draw-tool-progress), rgb(248 250 252 / 18%) 0deg);
+  content: "";
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
+}
+
+.draw-tool-cursor--brush {
+  width: clamp(1.7rem, 2.7vw, 2.8rem);
+  aspect-ratio: 1;
+  border: clamp(3px, 0.25vw, 5px) solid #f8fafc;
+  background: var(--draw-tool-color);
+  box-shadow: 0 0 1.5rem rgb(7 10 18 / 55%);
+}
+
+.draw-tool-cursor--eraser {
+  border: clamp(3px, 0.28vw, 5px) dashed #0f172a;
+  background: rgb(255 255 255 / 22%);
+  box-shadow:
+    0 0 0 2px rgb(248 250 252 / 88%),
+    0 0 1.5rem rgb(7 10 18 / 42%);
+}
+
+.draw-tool-cursor--active {
+  box-shadow:
+    0 0 0 0.45rem rgb(94 234 212 / 22%),
+    0 0 2rem rgb(94 234 212 / 48%);
+}
+
+.draw-tool-cursor--lifting {
+  box-shadow:
+    0 0 0 0.45rem rgb(251 191 36 / 24%),
+    0 0 2rem rgb(251 191 36 / 42%);
 }
 
 .pairing-card {
