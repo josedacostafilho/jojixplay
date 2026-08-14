@@ -1,4 +1,5 @@
 import type { PoseControlHands, PoseControlTarget } from "../../interaction/pose-controls";
+import { StationaryHoldTracker } from "../../interaction/stationary-hold";
 import {
   createPoseProjection,
   type Point,
@@ -44,7 +45,8 @@ export interface DrawInput<TAction extends string> {
   frame: Size;
   viewport: Size;
   targets: readonly PoseControlTarget<TAction>[];
-  nowMs: number;
+  sampleAtMs: number;
+  receivedAtMs: number;
 }
 
 interface ToolState {
@@ -54,9 +56,7 @@ interface ToolState {
   lastRawPoint: Point | null;
   lastSampleAtMs: number | null;
   lastSeenAtMs: number | null;
-  stationaryAnchor: Point | null;
-  stationarySinceMs: number | null;
-  dwellLatched: boolean;
+  hold: StationaryHoldTracker;
 }
 
 const HAND_FRESH_MS = 250;
@@ -66,6 +66,8 @@ const MINIMUM_RETAINED_MOVEMENT = 0.0025;
 const SLOW_SMOOTHING_TIME_MS = 100;
 const FAST_SMOOTHING_TIME_MS = 25;
 const FULL_RESPONSIVENESS_SPEED = 1.5;
+const STATIONARY_EXCURSION_GRACE_MS = 100;
+const MAXIMUM_STATIONARY_EXCURSION_RATIO = 0.2;
 
 function emptyToolState(): ToolState {
   return {
@@ -75,9 +77,13 @@ function emptyToolState(): ToolState {
     lastRawPoint: null,
     lastSampleAtMs: null,
     lastSeenAtMs: null,
-    stationaryAnchor: null,
-    stationarySinceMs: null,
-    dwellLatched: false,
+    hold: new StationaryHoldTracker({
+      dwellMs: DRAW_TOOL_DWELL_MS,
+      radius: STATIONARY_RADIUS,
+      excursionGraceMs: STATIONARY_EXCURSION_GRACE_MS,
+      maximumExcursionRatio: MAXIMUM_STATIONARY_EXCURSION_RATIO,
+      maximumSampleGapMs: HAND_FRESH_MS,
+    }),
   };
 }
 
@@ -110,16 +116,16 @@ function targetContainsPoint<TAction extends string>(
   );
 }
 
-function smoothPoint(state: ToolState, point: Point, nowMs: number, frame: Size): Point {
+function smoothPoint(state: ToolState, point: Point, sampleAtMs: number, frame: Size): Point {
   if (
     state.point === null ||
     state.lastRawPoint === null ||
     state.lastSampleAtMs === null ||
-    nowMs <= state.lastSampleAtMs
+    sampleAtMs <= state.lastSampleAtMs
   ) {
     return { ...point };
   }
-  const elapsedMs = nowMs - state.lastSampleAtMs;
+  const elapsedMs = sampleAtMs - state.lastSampleAtMs;
   const speed = frameDistance(state.lastRawPoint, point, frame) / (elapsedMs / 1_000);
   const responsiveness = clamp(speed / FULL_RESPONSIVENESS_SPEED, 0, 1);
   const timeConstantMs =
@@ -143,30 +149,30 @@ export class DrawSession {
   private activeTool: DrawTool | null = null;
   private lastCommandPoint: Point | null = null;
 
-  public setEnabled(enabled: boolean, nowMs: number): DrawSnapshot {
+  public setEnabled(enabled: boolean): DrawSnapshot {
     this.enabled = enabled;
     this.liftAll(true);
-    return this.snapshot(nowMs);
+    return this.snapshot();
   }
 
-  public cycleColor(nowMs: number): DrawSnapshot {
+  public cycleColor(): DrawSnapshot {
     this.colorIndex = (this.colorIndex + 1) % DRAW_COLORS.length;
     this.liftAll(false);
-    return this.snapshot(nowMs);
+    return this.snapshot();
   }
 
-  public clear(nowMs: number): DrawSnapshot {
+  public clear(): DrawSnapshot {
     this.commands.length = 0;
     this.generation += 1;
     this.revision += 1;
     this.liftAll(false);
-    return this.snapshot(nowMs);
+    return this.snapshot();
   }
 
   public update<TAction extends string>(input: DrawInput<TAction>): DrawSnapshot {
     if (!this.enabled || input.hands === null) {
       this.liftAll(true);
-      return this.snapshot(input.nowMs);
+      return this.snapshot();
     }
 
     if (
@@ -190,7 +196,7 @@ export class DrawSession {
       this.liftTool("brush", this.brush, false);
     }
 
-    return this.snapshot(input.nowMs);
+    return this.snapshot();
   }
 
   public tick(nowMs: number): DrawSnapshot {
@@ -202,7 +208,7 @@ export class DrawSession {
         this.liftTool(tool, state, true);
       }
     }
-    return this.snapshot(nowMs);
+    return this.snapshot();
   }
 
   private updateTool<TAction extends string>(
@@ -234,49 +240,38 @@ export class DrawSession {
       state.blocked = true;
       state.point = { ...rawPoint };
       state.lastRawPoint = { ...rawPoint };
-      state.lastSampleAtMs = input.nowMs;
-      state.lastSeenAtMs = input.nowMs;
+      state.lastSampleAtMs = input.sampleAtMs;
+      state.lastSeenAtMs = input.receivedAtMs;
       return false;
     }
 
     state.blocked = false;
     if (
       state.lastSeenAtMs !== null &&
-      (input.nowMs - state.lastSeenAtMs > HAND_FRESH_MS ||
+      (input.receivedAtMs - state.lastSeenAtMs > HAND_FRESH_MS ||
         (state.lastRawPoint !== null &&
           frameDistance(state.lastRawPoint, rawPoint, input.frame) > MAXIMUM_HAND_JUMP))
     ) {
       this.liftTool(tool, state, true);
     }
 
-    const filteredPoint = smoothPoint(state, rawPoint, input.nowMs, input.frame);
+    const filteredPoint = smoothPoint(state, rawPoint, input.sampleAtMs, input.frame);
     const previousPoint = state.point;
     state.point = filteredPoint;
-    state.lastSeenAtMs = input.nowMs;
-
-    if (
-      state.stationaryAnchor === null ||
-      frameDistance(state.stationaryAnchor, rawPoint, input.frame) > STATIONARY_RADIUS
-    ) {
-      state.stationaryAnchor = { ...rawPoint };
-      state.stationarySinceMs = input.nowMs;
-      state.dwellLatched = false;
-    }
+    state.lastSeenAtMs = input.receivedAtMs;
+    const holdUpdate = state.hold.update(rawPoint, input.sampleAtMs, input.frame);
 
     let engagedNow = false;
-    if (
-      !state.dwellLatched &&
-      state.stationarySinceMs !== null &&
-      input.nowMs - state.stationarySinceMs >= DRAW_TOOL_DWELL_MS
-    ) {
-      state.dwellLatched = true;
+    if (holdUpdate.completed) {
       if (state.active) {
-        this.liftTool(tool, state, false);
+        state.active = false;
+        state.blocked = false;
+        if (this.activeTool === tool) {
+          this.activeTool = null;
+          this.lastCommandPoint = null;
+        }
         state.point = filteredPoint;
-        state.lastSeenAtMs = input.nowMs;
-        state.stationaryAnchor = { ...rawPoint };
-        state.stationarySinceMs = input.nowMs;
-        state.dwellLatched = true;
+        state.lastSeenAtMs = input.receivedAtMs;
       } else if (!preventEngagement) {
         this.engageTool(tool, state, filteredPoint);
         engagedNow = true;
@@ -293,7 +288,7 @@ export class DrawSession {
     }
 
     state.lastRawPoint = { ...rawPoint };
-    state.lastSampleAtMs = input.nowMs;
+    state.lastSampleAtMs = input.sampleAtMs;
     return engagedNow;
   }
 
@@ -323,9 +318,7 @@ export class DrawSession {
 
   private liftTool(tool: DrawTool, state: ToolState, clearPoint: boolean): void {
     state.active = false;
-    state.stationaryAnchor = null;
-    state.stationarySinceMs = null;
-    state.dwellLatched = false;
+    state.hold.reset();
     state.blocked = false;
     if (this.activeTool === tool) {
       this.activeTool = null;
@@ -339,18 +332,18 @@ export class DrawSession {
     }
   }
 
-  private toolSnapshot(state: ToolState, nowMs: number): DrawToolSnapshot {
+  private toolSnapshot(state: ToolState): DrawToolSnapshot {
     if (state.point === null) {
       return { point: null, phase: "unavailable", dwellProgress: 0 };
     }
-    if (state.blocked || state.dwellLatched || state.stationarySinceMs === null) {
+    if (state.blocked || state.hold.latched || !state.hold.hasCandidate) {
       return {
         point: state.point,
         phase: state.active ? "active" : "hover",
         dwellProgress: 0,
       };
     }
-    const dwellProgress = clamp((nowMs - state.stationarySinceMs) / DRAW_TOOL_DWELL_MS, 0, 1);
+    const dwellProgress = state.hold.progress;
     return {
       point: state.point,
       phase: state.active ? (dwellProgress > 0 ? "lifting" : "active") : "arming",
@@ -358,7 +351,7 @@ export class DrawSession {
     };
   }
 
-  private snapshot(nowMs: number): DrawSnapshot {
+  private snapshot(): DrawSnapshot {
     return {
       color: DRAW_COLORS[this.colorIndex] ?? DRAW_COLORS[0],
       colorIndex: this.colorIndex,
@@ -366,8 +359,8 @@ export class DrawSession {
       generation: this.generation,
       revision: this.revision,
       activeTool: this.activeTool,
-      brush: this.toolSnapshot(this.brush, nowMs),
-      eraser: this.toolSnapshot(this.eraser, nowMs),
+      brush: this.toolSnapshot(this.brush),
+      eraser: this.toolSnapshot(this.eraser),
     };
   }
 }

@@ -1,9 +1,5 @@
-import {
-  type DetectedPose,
-  type PoseLandmark,
-  type PosePacket,
-  USABLE_LANDMARK_VISIBILITY,
-} from "../domain/pose";
+import type { DetectedPose, PoseLandmark, PosePacket } from "../domain/pose";
+import { coarseHand, usablePoseLandmark } from "../domain/pose-features";
 import {
   createPoseProjection,
   type Point,
@@ -123,19 +119,9 @@ const LEFT_SHOULDER = 11;
 const RIGHT_SHOULDER = 12;
 const LEFT_ELBOW = 13;
 const RIGHT_ELBOW = 14;
-const LEFT_WRIST = 15;
-const RIGHT_WRIST = 16;
-const LEFT_PINKY = 17;
-const RIGHT_PINKY = 18;
-const LEFT_INDEX = 19;
-const RIGHT_INDEX = 20;
-const LEFT_THUMB = 21;
-const RIGHT_THUMB = 22;
 const LEFT_HIP = 23;
 const RIGHT_HIP = 24;
 const FACE_LANDMARK_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-const LEFT_HAND_LANDMARK_INDICES = [LEFT_WRIST, LEFT_PINKY, LEFT_INDEX, LEFT_THUMB] as const;
-const RIGHT_HAND_LANDMARK_INDICES = [RIGHT_WRIST, RIGHT_PINKY, RIGHT_INDEX, RIGHT_THUMB] as const;
 const RAISE_MARGIN = 0.015;
 const CANDIDATE_MATCH_DISTANCE = 0.18;
 const LEASE_MATCH_DISTANCE = 0.28;
@@ -179,17 +165,10 @@ function midpoint(left: Point, right: Point): Point {
   return { x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 };
 }
 
-function usableLandmark(pose: DetectedPose, index: number): PoseLandmark | null {
-  const landmark = pose.landmarks[index];
-  return landmark !== undefined && landmark.visibility >= USABLE_LANDMARK_VISIBILITY
-    ? landmark
-    : null;
-}
-
 function topmostVisibleLandmarkY(pose: DetectedPose, indices: readonly number[]): number | null {
   let top: number | null = null;
   for (const index of indices) {
-    const landmark = usableLandmark(pose, index);
+    const landmark = usablePoseLandmark(pose, index);
     if (landmark !== null && (top === null || landmark.y < top)) {
       top = landmark.y;
     }
@@ -197,31 +176,19 @@ function topmostVisibleLandmarkY(pose: DetectedPose, indices: readonly number[])
   return top;
 }
 
-function landmarkCenter(pose: DetectedPose, indices: readonly number[]): Point | null {
-  let x = 0;
-  let y = 0;
-  for (const index of indices) {
-    const landmark = usableLandmark(pose, index);
-    if (landmark === null) {
-      return null;
-    }
-    x += landmark.x;
-    y += landmark.y;
-  }
-  return { x: x / indices.length, y: y / indices.length };
-}
-
 function describePose(pose: DetectedPose, poseIndex: number): PoseDescriptor | null {
-  const leftShoulder = usableLandmark(pose, LEFT_SHOULDER);
-  const rightShoulder = usableLandmark(pose, RIGHT_SHOULDER);
-  const leftHip = usableLandmark(pose, LEFT_HIP);
-  const rightHip = usableLandmark(pose, RIGHT_HIP);
+  const leftShoulder = usablePoseLandmark(pose, LEFT_SHOULDER);
+  const rightShoulder = usablePoseLandmark(pose, RIGHT_SHOULDER);
+  const leftHip = usablePoseLandmark(pose, LEFT_HIP);
+  const rightHip = usablePoseLandmark(pose, RIGHT_HIP);
   if (leftShoulder === null || rightShoulder === null || leftHip === null || rightHip === null) {
     return null;
   }
 
   const shoulderCenter = midpoint(leftShoulder, rightShoulder);
   const hipCenter = midpoint(leftHip, rightHip);
+  const leftHand = coarseHand(pose, "left");
+  const rightHand = coarseHand(pose, "right");
   return {
     poseIndex,
     shoulderCenter,
@@ -230,12 +197,12 @@ function describePose(pose: DetectedPose, poseIndex: number): PoseDescriptor | n
     headTopY: topmostVisibleLandmarkY(pose, FACE_LANDMARK_INDICES),
     leftShoulder,
     rightShoulder,
-    leftElbow: usableLandmark(pose, LEFT_ELBOW),
-    rightElbow: usableLandmark(pose, RIGHT_ELBOW),
-    leftWrist: usableLandmark(pose, LEFT_WRIST),
-    rightWrist: usableLandmark(pose, RIGHT_WRIST),
-    leftHandCenter: landmarkCenter(pose, LEFT_HAND_LANDMARK_INDICES),
-    rightHandCenter: landmarkCenter(pose, RIGHT_HAND_LANDMARK_INDICES),
+    leftElbow: usablePoseLandmark(pose, LEFT_ELBOW),
+    rightElbow: usablePoseLandmark(pose, RIGHT_ELBOW),
+    leftWrist: leftHand?.landmarks.wrist ?? null,
+    rightWrist: rightHand?.landmarks.wrist ?? null,
+    leftHandCenter: leftHand?.center ?? null,
+    rightHandCenter: rightHand?.center ?? null,
   };
 }
 

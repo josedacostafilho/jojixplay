@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { SkeletonCanvas } from "../components/skeleton-canvas";
+import { PoseDiagnosticsPanel } from "../components/pose-diagnostics-panel";
 import { StatusPill } from "../components/status-pill";
 import { roleUrl } from "../components/unsupported-panel";
 import type { PosePacket } from "../domain/pose";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { CameraPoseController } from "../pose/camera-pose-controller";
+import type { PoseDiagnosticsSnapshot } from "../pose/pose-diagnostics";
 import type { SessionCredentials } from "../session/credentials";
 import { LatestOnlySender } from "../transport/latest-sender";
 import {
@@ -46,6 +48,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
   const [camera, setCamera] = useState<CameraState>("idle");
   const [packet, setPacket] = useState<PosePacket | null>(null);
   const [poseLimit, setPoseLimit] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
+  const [diagnostics, setDiagnostics] = useState<PoseDiagnosticsSnapshot | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,6 +63,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
       cameraController.current?.stop();
       cameraController.current = null;
       setPacket(null);
+      setDiagnostics(null);
       setCamera("idle");
       poseLimitRef.current = DEFAULT_POSE_LIMIT;
       setPoseLimit(DEFAULT_POSE_LIMIT);
@@ -133,6 +137,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
     }
     setCamera("starting");
     setErrorMessage(null);
+    setDiagnostics(null);
     const controller = new CameraPoseController({
       video,
       initialPoseLimit: poseLimitRef.current,
@@ -142,9 +147,11 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
           sender.current?.push(nextPacket);
         }
       },
+      onDiagnostics: setDiagnostics,
       onError: (message) => {
         setErrorMessage(message);
         setCamera("error");
+        setDiagnostics(null);
       },
     });
     cameraController.current = controller;
@@ -166,6 +173,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
     cameraController.current?.stop();
     cameraController.current = null;
     setPacket(null);
+    setDiagnostics(null);
     setCamera("idle");
     setErrorMessage(null);
   };
@@ -253,6 +261,10 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
             </button>
           )}
         </div>
+
+        {camera === "tracking" ? (
+          <PoseDiagnosticsPanel diagnostics={diagnostics} poseLimit={poseLimit} />
+        ) : null}
 
         <ul class="privacy-list" aria-label="Privacy summary">
           <li>

@@ -269,7 +269,7 @@ export function TvPlayfield({
       setView(nextView);
       const controlUpdate = controlSession.setActions(actionsForView(nextView), nowMs);
       setSnapshot(controlUpdate.snapshot);
-      applyDrawing(drawSession.setEnabled(nextView === "draw", nowMs));
+      applyDrawing(drawSession.setEnabled(nextView === "draw"));
     },
     [applyDrawing, controlSession, drawSession],
   );
@@ -310,11 +310,11 @@ export function TvPlayfield({
           transitionTo("main");
           break;
         case "draw-color":
-          applyDrawing(drawSession.cycleColor(performance.now()));
+          applyDrawing(drawSession.cycleColor());
           setAnnouncement("Drawing color changed.");
           break;
         case "draw-clear":
-          applyDrawing(drawSession.clear(performance.now()));
+          applyDrawing(drawSession.clear());
           setAnnouncement("Drawing cleared.");
           break;
         case "draw-exit":
@@ -327,21 +327,22 @@ export function TvPlayfield({
   activateActionRef.current = activateAction;
 
   const applyPoseUpdate = useCallback(
-    (update: PoseControlUpdate<PlayfieldAction>, nowMs: number, freshFrame: Size | null) => {
+    (update: PoseControlUpdate<PlayfieldAction>, nowMs: number, freshPacket: PosePacket | null) => {
       setSnapshot((current) =>
         sameSnapshot(current, update.snapshot) ? current : update.snapshot,
       );
       if (viewRef.current === "draw") {
-        const frame = freshFrame ?? latestFrameRef.current;
+        const frame = freshPacket?.frame ?? latestFrameRef.current;
         const viewport = viewportRef.current;
-        if (freshFrame !== null && frame !== null && viewport.width > 0 && viewport.height > 0) {
+        if (freshPacket !== null && frame !== null && viewport.width > 0 && viewport.height > 0) {
           applyDrawing(
             drawSession.update({
               hands: update.snapshot.hands,
               frame,
               viewport,
               targets: update.snapshot.targets,
-              nowMs,
+              sampleAtMs: freshPacket.capturedAtMs,
+              receivedAtMs: nowMs,
             }),
           );
         } else {
@@ -380,7 +381,7 @@ export function TvPlayfield({
       return;
     }
     const nowMs = performance.now();
-    applyPoseUpdate(controlSession.updatePacket(packet, nowMs, size), nowMs, packet?.frame ?? null);
+    applyPoseUpdate(controlSession.updatePacket(packet, nowMs, size), nowMs, packet);
   }, [packet, size, applyPoseUpdate, controlSession]);
 
   useEffect(() => {

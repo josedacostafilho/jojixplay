@@ -10,12 +10,12 @@ This is a compact queue, not a wish list. Keep entries actionable and ordered. O
 
 ## P0 — release the current prototype
 
-- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, achieved one-/two-player inference cadence, acknowledged switching without camera restart, mirrored rendering, overhead framing guidance, Main Menu/Games/Draw navigation, neutral re-arming, brush/eraser dwell ergonomics, path quality, camera-bump behavior, long-session drawing, thermal behavior, stale/disconnect states, cleanup, and perceived latency.
+- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, achieved inference cadence, acknowledged switching without camera restart, mirrored rendering, overhead framing guidance, Main Menu/Games/Draw navigation, neutral re-arming, outlier-tolerant brush/eraser dwell ergonomics, path quality, camera-bump behavior, long-session drawing, thermal behavior, stale/disconnect states, cleanup, and perceived latency. Record the one-player Lite baseline through [Pose quality](../engineering/pose-quality.md); two-player stability is not part of the current pose-quality decision.
 - [ ] Inspect the real peer connection and confirm that the application sends pose packets only, never a camera media track or pixel payload.
 
 ## P1 — establish measured product budgets
 
-- [ ] Record a performance baseline from target hardware, then define budgets for startup time, sustained inference rate, pose-packet freshness, and renderer frame stability.
+- [ ] Record a performance baseline from target hardware, including the local pose diagnostics, then define budgets for startup time, sustained inference rate, processing-age p95, stationary hand spread, pose-packet freshness, and renderer frame stability.
 - [ ] Run a focused accessibility review on the deployed phone and television flows and record any target-browser limitations.
 
 ## Entry format

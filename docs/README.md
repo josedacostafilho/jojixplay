@@ -17,6 +17,7 @@ Repository-wide agent instructions live in [`../AGENTS.md`](../AGENTS.md). That 
 | Orient to the repository | [Project status](project/status.md), then [Stack](architecture/stack.md) |
 | Understand the product and current content | [Product brief](product/brief.md), [Skeleton-viewer specification](product/skeleton-viewer.md), then [Draw game](product/draw-game.md) |
 | Implement or modify behavior | [Engineering standards](engineering/standards.md), [Testing strategy](engineering/testing.md), [Workflow](engineering/workflow.md) |
+| Measure pose stability or evaluate a pose model | [Pose quality](engineering/pose-quality.md), then [ADR-0011](decisions/0011-consumer-specific-pose-stability.md) |
 | Make an architectural choice | [Architecture overview](architecture/overview.md), [ADR index](decisions/README.md) |
 | Select tools or run commands | [Stack](architecture/stack.md) |
 | Find or add future work | [Backlog](project/backlog.md) |
@@ -46,11 +47,13 @@ docs/
 │   ├── 0007-node-24-and-dependency-maintenance.md
 │   ├── 0008-above-head-coarse-hand-controls.md
 │   ├── 0009-camera-paced-inference.md
-│   └── 0010-menu-and-draw-game.md
+│   ├── 0010-menu-and-draw-game.md
+│   └── 0011-consumer-specific-pose-stability.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates
-│   └── workflow.md                  # Change lifecycle and review checklist
+│   ├── workflow.md                  # Change lifecycle and review checklist
+│   └── pose-quality.md              # One-player pose stability and latency protocol
 └── project/
     ├── status.md                    # Current facts, risks, and next decisions
     ├── backlog.md                   # Prioritized actionable work

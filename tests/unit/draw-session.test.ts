@@ -21,6 +21,7 @@ function update(
   visibleHands: PoseControlHands | null,
   options: {
     frame?: Size;
+    sampleAtMs?: number;
     targets?: readonly PoseControlTarget<"toolbar">[];
     viewport?: Size;
   } = {},
@@ -30,7 +31,8 @@ function update(
     frame: options.frame ?? FRAME,
     viewport: options.viewport ?? VIEWPORT,
     targets: options.targets ?? NO_TARGETS,
-    nowMs,
+    sampleAtMs: options.sampleAtMs ?? nowMs,
+    receivedAtMs: nowMs,
   });
 }
 
@@ -44,7 +46,7 @@ function engageBrush(session: DrawSession, point: Point = { x: 0.4, y: 0.5 }) {
 describe("Draw session", () => {
   it("dwell-engages, draws normalized unmirrored segments, and dwell-lifts after movement", () => {
     const session = new DrawSession();
-    session.setEnabled(true, 0);
+    session.setEnabled(true);
 
     const arming = update(session, 0, hands({ x: 0.4, y: 0.5 }));
     expect(arming.brush).toMatchObject({ phase: "arming", dwellProgress: 0 });
@@ -77,7 +79,7 @@ describe("Draw session", () => {
 
   it("uses the opposite hand as the eraser and allows only one engaged tool", () => {
     const session = new DrawSession();
-    session.setEnabled(true, 0);
+    session.setEnabled(true);
     engageBrush(session);
 
     update(session, 600, hands({ x: 0.43, y: 0.5 }, { x: 0.6, y: 0.5 }));
@@ -97,7 +99,7 @@ describe("Draw session", () => {
 
   it("lifts and breaks paths at the toolbar, frame bounds, stale input, jumps, and frame changes", () => {
     const session = new DrawSession();
-    session.setEnabled(true, 0);
+    session.setEnabled(true);
     engageBrush(session);
     const moved = update(session, 550, hands({ x: 0.45, y: 0.5 }));
     const commandCount = moved.commands.length;
@@ -139,21 +141,21 @@ describe("Draw session", () => {
 
   it("retains artwork and color across navigation, then clears atomically", () => {
     const session = new DrawSession();
-    session.setEnabled(true, 0);
+    session.setEnabled(true);
     const drawn = engageBrush(session);
     expect(drawn.commands).toHaveLength(1);
 
-    const disabled = session.setEnabled(false, 600);
+    const disabled = session.setEnabled(false);
     expect(disabled.activeTool).toBeNull();
     expect(disabled.commands).toHaveLength(1);
-    const colored = session.cycleColor(650);
+    const colored = session.cycleColor();
     expect(colored.color).toBe(DRAW_COLORS[1]);
     expect(colored.commands).toHaveLength(1);
-    const restored = session.setEnabled(true, 700);
+    const restored = session.setEnabled(true);
     expect(restored.color).toBe(DRAW_COLORS[1]);
     expect(restored.commands).toHaveLength(1);
 
-    const cleared = session.clear(750);
+    const cleared = session.clear();
     expect(cleared.commands).toHaveLength(0);
     expect(cleared.generation).toBe(1);
     expect(cleared.revision).toBeGreaterThan(drawn.revision);
@@ -161,7 +163,7 @@ describe("Draw session", () => {
 
   it("maps the selected right hand to the brush and its left hand to the eraser", () => {
     const session = new DrawSession();
-    session.setEnabled(true, 0);
+    session.setEnabled(true);
     const visibleHands = hands({ x: 0.3, y: 0.6 }, { x: 0.7, y: 0.4 }, "right");
     update(session, 0, visibleHands);
     update(session, 200, visibleHands);
@@ -174,5 +176,50 @@ describe("Draw session", () => {
       from: { x: 0.7, y: 0.4 },
     });
     expect(engaged.eraser.point).toEqual({ x: 0.3, y: 0.6 });
+  });
+
+  it("dwell-engages after an isolated raw hand excursion without filtering stationarity", () => {
+    const session = new DrawSession();
+    session.setEnabled(true);
+    const stable = { x: 0.4, y: 0.5 };
+    const outlier = { x: 0.41, y: 0.5 };
+
+    update(session, 0, hands(stable));
+    update(session, 100, hands(stable));
+    update(session, 200, hands(outlier));
+    update(session, 250, hands(stable));
+    const engaged = update(session, 500, hands(stable));
+
+    expect(engaged.activeTool).toBe("brush");
+    expect(engaged.commands).toHaveLength(1);
+  });
+
+  it("rejects sustained movement and starts the hold at the new stable region", () => {
+    const session = new DrawSession();
+    session.setEnabled(true);
+    const first = { x: 0.4, y: 0.5 };
+    const second = { x: 0.42, y: 0.5 };
+
+    update(session, 0, hands(first));
+    update(session, 100, hands(first));
+    update(session, 200, hands(second));
+    update(session, 250, hands(second));
+    update(session, 300, hands(second));
+    expect(update(session, 500, hands(second)).activeTool).toBeNull();
+    expect(update(session, 699, hands(second)).activeTool).toBeNull();
+    expect(update(session, 700, hands(second)).activeTool).toBe("brush");
+  });
+
+  it("uses capture timestamps for dwell despite irregular television arrival timing", () => {
+    const session = new DrawSession();
+    session.setEnabled(true);
+    const stable = hands({ x: 0.4, y: 0.5 });
+
+    update(session, 0, stable, { sampleAtMs: 0 });
+    update(session, 80, stable, { sampleAtMs: 150 });
+    update(session, 230, stable, { sampleAtMs: 300 });
+    const engaged = update(session, 400, stable, { sampleAtMs: 500 });
+
+    expect(engaged.activeTool).toBe("brush");
   });
 });

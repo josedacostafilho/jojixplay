@@ -19,6 +19,8 @@ The skeleton viewer is implemented. Publication state, automated verification ev
 | Camera scheduling and cleanup | [`src/pose/camera-pose-controller.ts`](../../src/pose/camera-pose-controller.ts) |
 | MediaPipe isolation and worker protocol | [`src/pose/`](../../src/pose/) |
 | Pose packet validation and ordering | [`src/domain/pose.ts`](../../src/domain/pose.ts) |
+| Shared coarse-hand derivation | [`src/domain/pose-features.ts`](../../src/domain/pose-features.ts) |
+| Phone-local pose diagnostics | [`src/pose/pose-diagnostics.ts`](../../src/pose/pose-diagnostics.ts) and [`src/components/pose-diagnostics-panel.tsx`](../../src/components/pose-diagnostics-panel.tsx) |
 | Player-limit domain contract | [`src/domain/pose-limit.ts`](../../src/domain/pose-limit.ts) |
 | Peer authentication and WebRTC actions | [`src/transport/peer-room.ts`](../../src/transport/peer-room.ts) |
 | Backpressure policy | [`src/transport/latest-sender.ts`](../../src/transport/latest-sender.ts) |
@@ -49,6 +51,7 @@ The skeleton viewer is implemented. Publication state, automated verification ev
 - MediaPipe Pose Landmarker Lite runs in a module worker. Every pairing session starts with a one-pose limit; the acknowledged television control can reconfigure the existing landmarker to one or two poses without restarting the camera.
 - The camera requests an ideal and maximum 30 FPS. Every eligible presented frame starts inference when no estimate or reconfiguration is active; there is no lower elapsed-time sampling gate.
 - The phone previews its camera and latest local skeleton, reports the active pose limit, and sends pose packets only while a peer is connected.
+- While tracking, the phone offers a collapsed diagnostics panel with bounded local camera/submission/completion rates, processing-age median/p95, and motion-inclusive one-player coarse-hand spread. No diagnostic coordinates or aggregates leave the phone.
 - Stopping and restarting tracking within one connected pairing session retains the last acknowledged limit. Disconnecting or creating a new pairing session resets it to one.
 - Stopping or leaving closes the worker, camera tracks, room, and peer connection.
 
@@ -94,6 +97,7 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Per-frame colors use one fixed teal/rose palette to distinguish simultaneous detections but never imply stable identity.
 - A packet older than one second in television receive time is stale and must not remain presented as live.
 - The Draw game consumes the same validated pose-domain boundary and owns its Canvas 2D session/renderer without coupling the application shell to a universal game engine.
+- Temporal processing remains consumer-specific: Draw path smoothing, stationary evidence, and skeleton presentation do not mutate or replace the canonical packet.
 
 ## Body-control contract
 
@@ -110,8 +114,9 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Main Menu buttons toggle a fixed background theme, request the opposite one-/two-player limit, or open Games. Games contains Draw and Return; Draw contains Color, Clear, and Exit.
 - While a player-limit request is pending, all three actions are disabled. Failure keeps the last acknowledged mode; success updates the dynamic **Players: 1** or **Players: 2** label.
 - Buttons remain semantic and remotely clickable. Body interactions are the canonical in-session path; the semantic path preserves television-remote and accessibility operation.
+- Draw's 500 ms tool hold uses raw coarse-hand evidence on the phone capture timeline. A bounded short excursion is tolerated, while sustained movement, frequent excursions, stale gaps, and the existing hard path-breaking boundaries prevent activation.
 
-Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and Draw are governed by [ADR-0010](../decisions/0010-menu-and-draw-game.md) and the [Draw contract](draw-game.md).
+Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head placement, coarse-hand pointing, and neutral arming are governed by [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and Draw are governed by [ADR-0010](../decisions/0010-menu-and-draw-game.md) and the [Draw contract](draw-game.md). Consumer-specific stability and measurement are governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).
 
 ## Capability baseline
 
@@ -127,6 +132,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - The room password encrypts session descriptions while they traverse public rendezvous relays.
 - The QR key arrives in the URL fragment, is scrubbed after parsing, and must not be logged. A manually entered key remains only in runtime memory.
 - No application telemetry or persistent storage is used.
+- Pose diagnostics retain only a bounded phone-memory window and expose aggregate rates, age, and pixel spread; they do not log, persist, or transmit coordinates.
 - User-facing errors must not include room credentials, raw SDP, ICE candidates, stack traces, or camera content.
 - Only the phone requests camera permission; audio is never requested.
 
@@ -158,6 +164,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Move the frozen row above the visible head, require overhead framing, replace direct wrist pointing with the coarse-hand center, and add neutral post-claim arming.
 - [x] Remove the fixed 15 Hz gate while retaining a 30 FPS camera ceiling and single-flight/latest-only backpressure.
 - [x] Replace Circles with Main Menu/Games navigation and implement the transient normalized two-hand Draw game.
+- [x] Add capture-timestamp, outlier-tolerant Draw stationarity and bounded phone-local pose diagnostics without globally smoothing pose data.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the original skeleton-viewer artifact from the remote repository; current publication state remains in [Project status](../project/status.md).

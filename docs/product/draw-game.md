@@ -59,12 +59,12 @@ Draw
 ### Tool dwell
 
 1. Place an available hand on the white board while no toolbar button is under it.
-2. Hold within the stationary tolerance for 500 ms. The cursor progress ring fills.
+2. Hold within the stationary tolerance for 500 ms. The cursor progress ring fills; a bounded isolated landmark excursion is treated as noise rather than restarting the entire hold.
 3. On completion, that tool engages and any other engaged tool lifts.
-4. Move to draw or erase. Speed-aware smoothing reduces low-speed noise while retaining faster movement response.
+4. Move to draw or erase. Speed-aware smoothing applies only to the continuous tool point, reducing low-speed path noise while retaining faster movement response.
 5. Hold still for 500 ms again to lift, or lift immediately by entering the toolbar, leaving the board, losing the hand, receiving stale input, changing camera dimensions, or jumping beyond the accepted movement bound.
 
-No mark is produced before engagement. Re-engagement begins a new path.
+No mark is produced before engagement. Re-engagement begins a new path. Stationarity is evaluated from capture-time evidence rather than from the lagging smoothed cursor: sustained movement or frequent excursions restart the hold, while one short excursion cannot make an otherwise valid hold impossible.
 
 ## Tool actions
 
@@ -96,6 +96,6 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 7. Color cycles the fixed palette, Clear requires 1,500 ms body dwell, and Exit/Return navigate as specified.
 8. Artwork survives Draw exit/re-entry within the same television session and is never persisted or transmitted.
 9. The skeleton remains useful but visually subordinate at 28% opacity.
-10. Automated gates pass, while real phone/television acceptance records latency, stability, ergonomics, and thermal behavior separately.
+10. Automated gates prove outlier-tolerant 500 ms stationarity without cursor-filter latency, while real phone/television acceptance records latency, stability, ergonomics, and thermal behavior separately.
 
-The architectural rationale is governed by [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md).
+The architectural rationale is governed by [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Pose-signal ownership, robust stationarity, and measurement are governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md).

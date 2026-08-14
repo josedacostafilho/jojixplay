@@ -1,11 +1,18 @@
 import type { PosePacket } from "../domain/pose";
 import type { PoseLimit } from "../domain/pose-limit";
+import {
+  POSE_DIAGNOSTICS_PUBLISH_INTERVAL_MS,
+  PoseDiagnosticsMonitor,
+  type PoseDiagnosticsSnapshot,
+} from "./pose-diagnostics";
 import { PoseEstimator } from "./pose-estimator";
+import { POSE_MODEL } from "./pose-model";
 
 interface CameraPoseControllerOptions {
   video: HTMLVideoElement;
   initialPoseLimit: PoseLimit;
   onPacket: (packet: PosePacket) => void;
+  onDiagnostics: (diagnostics: PoseDiagnosticsSnapshot) => void;
   onError: (message: string) => void;
 }
 
@@ -33,6 +40,7 @@ function cameraErrorMessage(error: unknown): string {
 
 export class CameraPoseController {
   private readonly estimator = new PoseEstimator();
+  private readonly diagnostics = new PoseDiagnosticsMonitor();
   private stream: MediaStream | null = null;
   private frameCallbackId: number | null = null;
   private sequence = 0;
@@ -40,6 +48,7 @@ export class CameraPoseController {
   private changingPoseLimit = false;
   private poseLimit: PoseLimit;
   private active = false;
+  private lastDiagnosticsPublishedAtMs: number | null = null;
 
   public constructor(private readonly options: CameraPoseControllerOptions) {
     this.poseLimit = options.initialPoseLimit;
@@ -50,6 +59,8 @@ export class CameraPoseController {
       return;
     }
     this.active = true;
+    this.diagnostics.reset();
+    this.lastDiagnosticsPublishedAtMs = null;
 
     try {
       const streamPromise = navigator.mediaDevices
@@ -74,7 +85,7 @@ export class CameraPoseController {
         streamPromise,
         this.estimator.initialize(
           assetUrl("mediapipe/tasks-vision-1.0.1/wasm"),
-          assetUrl("mediapipe/pose-landmarker-lite-float16-1/pose_landmarker_lite.task"),
+          assetUrl(POSE_MODEL.assetPath),
           this.poseLimit,
         ),
       ]);
@@ -115,6 +126,8 @@ export class CameraPoseController {
       }
       await this.estimator.setPoseLimit(poseLimit);
       this.poseLimit = poseLimit;
+      this.diagnostics.reset();
+      this.lastDiagnosticsPublishedAtMs = null;
     } catch {
       if (this.active) {
         this.options.onError("Player mode could not be changed. Restart body tracking to retry.");
@@ -139,6 +152,8 @@ export class CameraPoseController {
     this.options.video.pause();
     this.options.video.srcObject = null;
     this.estimator.close();
+    this.diagnostics.reset();
+    this.lastDiagnosticsPublishedAtMs = null;
   }
 
   private scheduleFrame(): void {
@@ -147,15 +162,21 @@ export class CameraPoseController {
     }
     this.frameCallbackId = this.options.video.requestVideoFrameCallback((now) => {
       this.frameCallbackId = null;
+      if (!this.active) {
+        return;
+      }
       this.scheduleFrame();
+      this.diagnostics.recordCameraFrame(now);
       if (
-        !this.active ||
         this.processingPromise !== null ||
         this.changingPoseLimit ||
         this.options.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
+        this.publishDiagnostics(now);
         return;
       }
+      this.diagnostics.recordInferenceSubmission(now);
+      this.publishDiagnostics(now);
       const processingPromise = this.processFrame(now);
       this.processingPromise = processingPromise;
       void processingPromise.finally(() => {
@@ -175,6 +196,9 @@ export class CameraPoseController {
       }
       const packet = await this.estimator.estimate(frame, capturedAtMs, this.sequence++);
       if (this.active) {
+        const completedAtMs = performance.now();
+        this.diagnostics.recordInferenceCompletion(packet, completedAtMs, this.poseLimit);
+        this.publishDiagnostics(completedAtMs);
         this.options.onPacket(packet);
       }
     } catch {
@@ -183,5 +207,16 @@ export class CameraPoseController {
         this.stop();
       }
     }
+  }
+
+  private publishDiagnostics(nowMs: number): void {
+    if (
+      this.lastDiagnosticsPublishedAtMs !== null &&
+      nowMs - this.lastDiagnosticsPublishedAtMs < POSE_DIAGNOSTICS_PUBLISH_INTERVAL_MS
+    ) {
+      return;
+    }
+    this.lastDiagnosticsPublishedAtMs = nowMs;
+    this.options.onDiagnostics(this.diagnostics.snapshot(nowMs));
   }
 }

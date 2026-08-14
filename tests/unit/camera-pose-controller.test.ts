@@ -81,6 +81,7 @@ describe("camera pose controller player limit", () => {
       video,
       initialPoseLimit: 1,
       onPacket,
+      onDiagnostics: vi.fn(),
       onError: vi.fn(),
     });
 
@@ -123,10 +124,12 @@ describe("camera pose controller player limit", () => {
   it("submits consecutive eligible camera callbacks without an elapsed-time gate", async () => {
     estimator.estimate.mockResolvedValue(EMPTY_PACKET);
     const onPacket = vi.fn();
+    const onDiagnostics = vi.fn();
     const controller = new CameraPoseController({
       video,
       initialPoseLimit: 1,
       onPacket,
+      onDiagnostics,
       onError: vi.fn(),
     });
     await controller.start();
@@ -138,6 +141,7 @@ describe("camera pose controller player limit", () => {
 
     expect(estimator.estimate).toHaveBeenNthCalledWith(1, expect.anything(), 100, 0);
     expect(estimator.estimate).toHaveBeenNthCalledWith(2, expect.anything(), 110, 1);
+    expect(onDiagnostics).toHaveBeenCalled();
     controller.stop();
   });
 
@@ -153,6 +157,7 @@ describe("camera pose controller player limit", () => {
       video,
       initialPoseLimit: 1,
       onPacket,
+      onDiagnostics: vi.fn(),
       onError: vi.fn(),
     });
     await controller.start();

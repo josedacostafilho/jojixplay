@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-14
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -29,7 +29,7 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | Database and migration tool | None | — | Persistence is forbidden for this slice |
 | CI provider | GitHub Actions | Current major actions pinned in workflow | `.github/workflows/pages.yml` |
 | Deployment/runtime platform | GitHub Pages | Static project site | `npm run build` |
-| Observability tooling | None external | — | Local status UI only |
+| Observability tooling | None external | — | Local status UI and bounded phone pose diagnostics only |
 
 ## Canonical commands
 
