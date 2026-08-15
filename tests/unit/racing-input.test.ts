@@ -21,19 +21,16 @@ function setHand(pose: DetectedPose, hand: "left" | "right", x: number, y: numbe
   }
 }
 
-function createDriverPose(
-  screenCenterX: number,
-  leftScreenY = 0.43,
-  rightScreenY = 0.43,
-): DetectedPose {
+function createDriverPose(screenCenterX: number, leanScreenOffset = 0, handY = 0.43): DetectedPose {
   const rawCenterX = 1 - screenCenterX;
+  const rawShoulderCenterX = rawCenterX - leanScreenOffset;
   const pose: DetectedPose = { landmarks: Array.from({ length: 33 }, hiddenLandmark) };
-  setLandmark(pose, 11, rawCenterX + 0.1, 0.35);
-  setLandmark(pose, 12, rawCenterX - 0.1, 0.35);
+  setLandmark(pose, 11, rawShoulderCenterX + 0.1, 0.35);
+  setLandmark(pose, 12, rawShoulderCenterX - 0.1, 0.35);
   setLandmark(pose, 23, rawCenterX + 0.075, 0.65);
   setLandmark(pose, 24, rawCenterX - 0.075, 0.65);
-  setHand(pose, "left", rawCenterX + 0.12, leftScreenY);
-  setHand(pose, "right", rawCenterX - 0.12, rightScreenY);
+  setHand(pose, "left", rawCenterX + 0.12, handY);
+  setHand(pose, "right", rawCenterX - 0.12, handY);
   return pose;
 }
 
@@ -47,18 +44,17 @@ function packet(sequence: number, poses: readonly DetectedPose[], epoch = 0): Po
 }
 
 describe("Racing input", () => {
-  it("derives an aspect-correct mirrored two-hand wheel angle", () => {
+  it("derives an aspect-correct mirrored torso lean angle", () => {
     const session = new RacingInputSession();
-    const level = session.update(packet(1, [createDriverPose(0.5)]), 1, 100);
-    expect(level.visibleDrivers).toBe(1);
-    expect(level.completeDrivers).toBe(1);
-    expect(level.observations[0]).toMatchObject({ slot: "solo", wheelValid: true });
-    expect(level.observations[0]?.wheelAngleRadians).toBeCloseTo(0, 6);
+    const neutral = session.update(packet(1, [createDriverPose(0.5)]), 1, 100);
+    expect(neutral.visibleDrivers).toBe(1);
+    expect(neutral.observations[0]).toMatchObject({ slot: "solo" });
+    expect(neutral.observations[0]?.leanAngleRadians).toBeCloseTo(0, 6);
 
-    const clockwise = session.update(packet(2, [createDriverPose(0.5, 0.38, 0.48)]), 1, 200);
-    const counterClockwise = session.update(packet(3, [createDriverPose(0.5, 0.48, 0.38)]), 1, 300);
-    expect(clockwise.observations[0]?.wheelAngleRadians).toBeGreaterThan(0);
-    expect(counterClockwise.observations[0]?.wheelAngleRadians).toBeLessThan(0);
+    const rightLean = session.update(packet(2, [createDriverPose(0.5, 0.04)]), 1, 200);
+    const leftLean = session.update(packet(3, [createDriverPose(0.5, -0.04)]), 1, 300);
+    expect(rightLean.observations[0]?.leanAngleRadians).toBeGreaterThan(0);
+    expect(leftLean.observations[0]?.leanAngleRadians).toBeLessThan(0);
   });
 
   it("keeps temporary left/right leases through pose-array reorder and one-person dropout", () => {
@@ -89,7 +85,7 @@ describe("Racing input", () => {
 
   it("requests one pause per sustained overhead gesture and rearms after lowering", () => {
     const session = new RacingInputSession();
-    const overhead = createDriverPose(0.5, 0.2, 0.2);
+    const overhead = createDriverPose(0.5, 0, 0.2);
     let latest = session.update(packet(1, [overhead]), 1, 100);
     for (let step = 2; step <= 11; step += 1) {
       latest = session.update(packet(step, [overhead]), 1, step * 100);
@@ -105,7 +101,7 @@ describe("Racing input", () => {
     expect(latest.pauseRequested).toBe(true);
   });
 
-  it("rejects an incomplete hand and a too-narrow wheel without inventing an angle", () => {
+  it("steers without complete hands and rejects a pose without a complete torso", () => {
     const incompletePose = createDriverPose(0.5);
     const hidden = incompletePose.landmarks[21];
     if (hidden === undefined) {
@@ -114,14 +110,18 @@ describe("Racing input", () => {
     hidden.visibility = 0;
     const session = new RacingInputSession();
     const incomplete = session.update(packet(1, [incompletePose]), 1, 100);
-    expect(incomplete.completeDrivers).toBe(0);
-    expect(incomplete.observations[0]?.wheelAngleRadians).toBeNull();
+    expect(incomplete.visibleDrivers).toBe(1);
+    expect(incomplete.observations[0]?.leanAngleRadians).toBeCloseTo(0, 6);
+    expect(incomplete.observations[0]?.pausePose).toBe(false);
 
-    const narrowPose = createDriverPose(0.5);
-    setHand(narrowPose, "left", 0.53, 0.43);
-    setHand(narrowPose, "right", 0.47, 0.43);
-    const narrow = session.update(packet(2, [narrowPose]), 1, 200);
-    expect(narrow.observations[0]).toMatchObject({ complete: true, wheelValid: false });
-    expect(narrow.observations[0]?.wheelAngleRadians).toBeNull();
+    const missingTorso = createDriverPose(0.5);
+    const shoulder = missingTorso.landmarks[11];
+    if (shoulder === undefined) {
+      throw new Error("Missing torso fixture landmark.");
+    }
+    shoulder.visibility = 0;
+    const rejected = session.update(packet(2, [missingTorso]), 1, 200);
+    expect(rejected.visibleDrivers).toBe(0);
+    expect(rejected.observations).toEqual([]);
   });
 });

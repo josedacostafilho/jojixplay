@@ -97,14 +97,14 @@ function setCoarseHand(pose: DetectedPose, hand: "left" | "right", x: number, y:
   }
 }
 
-function createRacingWheelPacket(sequence: number): PosePacket {
+function createRacingLeanPacket(sequence: number, screenLeanOffset = 0): PosePacket {
   const posePacket = createRaisedHandPacket(sequence);
   const pose = posePacket.poses[0];
   if (pose === undefined) {
     throw new Error("Expected one Racing pose.");
   }
-  setCoarseHand(pose, "left", 0.62, 0.43);
-  setCoarseHand(pose, "right", 0.38, 0.43);
+  visibleLandmark(pose, 11, 0.4 - screenLeanOffset, 0.3);
+  visibleLandmark(pose, 12, 0.6 - screenLeanOffset, 0.3);
   return posePacket;
 }
 
@@ -547,7 +547,7 @@ describe("TV playfield", () => {
 
     for (let sequence = 4; sequence <= 33; sequence += 1) {
       nowMs = sequence * 100;
-      view.rerender(renderPlayfield(createRacingWheelPacket(sequence)));
+      view.rerender(renderPlayfield(createRacingLeanPacket(sequence)));
       const runtime = currentRacingRuntime();
       act(() => runtime.onSnapshot(runtime.session.tick(nowMs)));
     }
@@ -576,7 +576,7 @@ describe("TV playfield", () => {
     let raceSnapshot = currentRacingRuntime().session.getSnapshot(nowMs);
     while (raceSnapshot.phase === "racing" && sequence < 2_000) {
       nowMs = sequence * 100;
-      view.rerender(renderPlayfield(createRacingWheelPacket(sequence)));
+      view.rerender(renderPlayfield(createRacingLeanPacket(sequence)));
       raceSnapshot = currentRacingRuntime().session.tick(nowMs);
       sequence += 1;
     }

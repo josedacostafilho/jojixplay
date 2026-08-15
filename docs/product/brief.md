@@ -29,7 +29,7 @@ The initial experience assumes internet access to load the static application an
 5. Leave space above the head, raise one hand to claim control, and move the coarse-hand cursor clear once to arm Main Menu.
 6. Open **Games** and select **Draw** to bring both hands together, activate Pencil or Eraser immediately, draw with the selected controller hand, and spread both hands wide to stop.
 7. Or select **Bubbles**, start a three-second countdown, then use either complete hand to pop procedurally moving bubbles during a 60-second one- or two-player round.
-8. Or select **Racing**, hold both hands like an imaginary steering wheel through calibration, then steer an automatically accelerating car through a timed solo course or landscape split-screen race.
+8. Or select **Racing**, stand naturally through calibration, then lean left or right to steer an automatically accelerating car through a timed solo course or landscape split-screen race.
 
 ## Product invariants
 

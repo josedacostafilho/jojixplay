@@ -52,6 +52,7 @@ const CAMERA_TRAILING_DISTANCE = 7;
 const CAMERA_HEIGHT = 2.7;
 const DRAW_DISTANCE_SEGMENTS = 115;
 const NEAR_CLIP = 1.5;
+const NEAR_ROAD_SAMPLE_DISTANCE = 2.5;
 
 function cameraBasis(
   track: RacingTrack,
@@ -119,12 +120,24 @@ export function projectRacingRoad(
     throw new Error("Racing projection requires a positive viewport.");
   }
   const camera = cameraBasis(track, car, viewport);
-  const firstBoundaryIndex = Math.max(1, Math.ceil(camera.point.distance / track.segmentLength));
+  const nearDistance = Math.min(track.length, camera.point.distance + NEAR_ROAD_SAMPLE_DISTANCE);
+  const nearTrackPoint = racingTrackPointAt(track, nearDistance);
+  const nearPoint = projectRoadCenter(nearTrackPoint, camera, viewport);
+  if (nearPoint === null) {
+    throw new Error("Racing road near sample resolved behind the projection clip.");
+  }
+  const nearSegmentIndex = Math.min(
+    track.points.length - 2,
+    Math.floor(nearDistance / track.segmentLength),
+  );
+  const firstBoundaryIndex = Math.max(1, nearSegmentIndex + 1);
   const lastBoundaryIndex = Math.min(
     track.points.length - 1,
     firstBoundaryIndex + DRAW_DISTANCE_SEGMENTS,
   );
-  const projected: Array<{ point: ProjectedRoadPoint; boundaryIndex: number }> = [];
+  const projected: Array<{ point: ProjectedRoadPoint; boundaryIndex: number }> = [
+    { point: nearPoint, boundaryIndex: nearSegmentIndex },
+  ];
   for (
     let boundaryIndex = firstBoundaryIndex;
     boundaryIndex <= lastBoundaryIndex;

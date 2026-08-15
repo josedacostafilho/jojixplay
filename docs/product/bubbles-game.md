@@ -82,6 +82,7 @@ Bubbles — Finished
 - On contact, score updates immediately and the bubble becomes non-collidable. For 240 ms its rim expands and fades, six to ten bounded droplets move outward, and a small `+1` rises from the hit.
 - The associated score counter pulses. A replacement bubble fades/scales into its scheduled position.
 - The live procedural avatar remains above the arena with the `bubbles` profile at 16% opacity; brighter raw-input hand rings remain the clearest gameplay feedback.
+- Ready and result message panels sit near the top center and below the body-control button layer, so Start, Exit, and Play Again remain visually unobstructed even if projected geometry overlaps them.
 - No image, audio, font, or game-engine asset is added.
 
 ## Failure and boundary behavior
@@ -120,6 +121,7 @@ Bubbles — Finished
 9. Radius-aware clamp-and-reflect keeps the complete bubble visible through edge contact, corners, frame stalls, and same-layout aspect changes.
 10. One-player Bubbles accepts either layout, two-player Bubbles cannot mount before an acknowledged landscape packet, and an active mismatch resumes with no lost game time or bridge collision.
 11. Bubbles imports no external asset, backend, persistence, stable player identity, game engine, audio path, or avatar-stabilized display value.
-12. Automated gates prove deterministic behavior; real-device acceptance measures hit tolerance, side attribution, orientation transitions, readability, sustained rendering, and perceived responsiveness.
+12. Ready and result message panels remain near the top and below actionable controls in the stacking order.
+13. Automated gates prove deterministic behavior; real-device acceptance measures hit tolerance, side attribution, orientation transitions, readability, sustained rendering, and perceived responsiveness.
 
 The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md), visible body presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), and camera layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md).

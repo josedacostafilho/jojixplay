@@ -157,38 +157,53 @@ function drawCar(
   graphics.fillCircle(left + width * 0.82, top + height * 0.72, width * 0.055);
 }
 
-function drawSteeringGauge(
+function drawLeanGauge(
   graphics: Graphics,
   car: RacingCarSnapshot,
   viewport: Size,
   prominent: boolean,
 ): void {
-  const radius = prominent
-    ? Math.min(viewport.width, viewport.height) * 0.105
-    : Math.min(viewport.width, viewport.height) * 0.052;
-  const outerSide = car.slot === "left" ? radius + 20 : viewport.width - radius - 20;
-  const centerX = car.slot === "solo" ? viewport.width - radius - 24 : outerSide;
-  const centerY = prominent ? viewport.height * 0.66 : viewport.height - radius - 22;
-  const angle = car.steering * 0.48;
+  const extent = prominent
+    ? Math.min(viewport.width, viewport.height) * 0.12
+    : Math.min(viewport.width, viewport.height) * 0.065;
+  const outerSide = car.slot === "left" ? extent + 20 : viewport.width - extent - 20;
+  const centerX = car.slot === "solo" ? viewport.width - extent - 24 : outerSide;
+  const centerY = prominent ? viewport.height * 0.68 : viewport.height - extent - 18;
+  const angle = car.steering * 0.34;
   const color = car.trackingAvailable ? COLORS.tracking : COLORS.missing;
   const alpha = prominent ? 0.9 : 0.48;
-  graphics.lineStyle(Math.max(3, radius * 0.09), color, alpha);
-  graphics.strokeCircle(centerX, centerY, radius);
-  const cosine = Math.cos(angle);
   const sine = Math.sin(angle);
-  const handRadius = radius * 0.88;
-  const leftX = centerX - cosine * handRadius;
-  const leftY = centerY - sine * handRadius;
-  const rightX = centerX + cosine * handRadius;
-  const rightY = centerY + sine * handRadius;
+  const cosine = Math.cos(angle);
+  const hipX = centerX;
+  const hipY = centerY + extent * 0.48;
+  const shoulderX = centerX + sine * extent * 1.05;
+  const shoulderY = hipY - cosine * extent * 1.05;
+  const shoulderHalfWidth = extent * 0.48;
+  const leftShoulderX = shoulderX - cosine * shoulderHalfWidth;
+  const leftShoulderY = shoulderY - sine * shoulderHalfWidth;
+  const rightShoulderX = shoulderX + cosine * shoulderHalfWidth;
+  const rightShoulderY = shoulderY + sine * shoulderHalfWidth;
+  const headX = shoulderX + sine * extent * 0.38;
+  const headY = shoulderY - cosine * extent * 0.38;
+
+  graphics.lineStyle(Math.max(2, extent * 0.055), 0xf8fafc, prominent ? 0.24 : 0.14);
   graphics.beginPath();
-  graphics.moveTo(leftX, leftY);
-  graphics.lineTo(rightX, rightY);
+  graphics.moveTo(centerX, hipY);
+  graphics.lineTo(centerX, hipY - extent * 1.45);
+  graphics.strokePath();
+
+  graphics.lineStyle(Math.max(4, extent * 0.11), color, alpha);
+  graphics.beginPath();
+  graphics.moveTo(hipX, hipY);
+  graphics.lineTo(shoulderX, shoulderY);
+  graphics.strokePath();
+  graphics.beginPath();
+  graphics.moveTo(leftShoulderX, leftShoulderY);
+  graphics.lineTo(rightShoulderX, rightShoulderY);
   graphics.strokePath();
   graphics.fillStyle(color, alpha);
-  graphics.fillCircle(leftX, leftY, Math.max(4, radius * 0.12));
-  graphics.fillCircle(rightX, rightY, Math.max(4, radius * 0.12));
-  graphics.fillCircle(centerX, centerY, Math.max(3, radius * 0.08));
+  graphics.fillCircle(headX, headY, Math.max(5, extent * 0.2));
+  graphics.fillCircle(hipX, hipY, Math.max(3, extent * 0.075));
 }
 
 function drawRoadsideTree(graphics: Graphics, x: number, y: number, scale: number): void {
@@ -312,6 +327,8 @@ class RacingScene extends Phaser.Scene {
     graphics.fillRect(0, road.horizonY * 0.56, viewport.width, road.horizonY * 0.44);
     graphics.fillStyle(COLORS.sun, 0.72);
     graphics.fillCircle(viewport.width * 0.76, road.horizonY * 0.54, viewport.height * 0.055);
+    graphics.fillStyle(COLORS.terrainDark, 1);
+    graphics.fillRect(0, road.horizonY, viewport.width, viewport.height - road.horizonY);
 
     for (let index = road.slices.length - 1; index >= 0; index -= 1) {
       const slice = road.slices[index];
@@ -421,7 +438,7 @@ class RacingScene extends Phaser.Scene {
       car.steering,
     );
     const prominentGauge = snapshot.phase === "starting";
-    drawSteeringGauge(graphics, car, viewport, prominentGauge);
+    drawLeanGauge(graphics, car, viewport, prominentGauge);
     graphics.lineStyle(2, 0xf8fafc, 0.24);
     graphics.strokeRect(0, 0, viewport.width, viewport.height);
 
@@ -432,9 +449,7 @@ class RacingScene extends Phaser.Scene {
     if (snapshot.phase === "starting") {
       const count = Math.max(1, Math.ceil(snapshot.startingRemainingMs / 1_000));
       layer.statusText.setText(
-        car.trackingAvailable
-          ? `Hold the wheel level\n${count}`
-          : "Hold both hands\nlike a steering wheel",
+        car.trackingAvailable ? `Stand naturally\n${count}` : "Keep shoulders\nand hips visible",
       );
       layer.statusText.setVisible(true);
     } else {

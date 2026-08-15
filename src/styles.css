@@ -657,15 +657,15 @@ button {
 .bubbles-round-message,
 .bubbles-countdown {
   position: absolute;
-  z-index: 5;
-  top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
 .bubbles-round-message {
+  z-index: 2;
+  top: clamp(0.7rem, 2vh, 1.35rem);
   width: min(31rem, calc(100% - 3rem));
+  transform: translateX(-50%);
   border: 1px solid rgb(165 243 252 / 24%);
   border-radius: clamp(1rem, 2vw, 1.7rem);
   padding: clamp(1.1rem, 2.5vw, 2rem);
@@ -700,6 +700,9 @@ button {
 }
 
 .bubbles-countdown {
+  z-index: 5;
+  top: 50%;
+  transform: translate(-50%, -50%);
   color: #f8fafc;
   filter: drop-shadow(0 0 1.7rem rgb(103 232 249 / 58%));
   font-size: clamp(6rem, 18vw, 16rem);
@@ -737,11 +740,11 @@ button {
 
 .racing-round-message {
   position: absolute;
-  z-index: 5;
-  top: 50%;
+  z-index: 2;
+  top: clamp(0.7rem, 2vh, 1.35rem);
   left: 50%;
   width: min(38rem, calc(100% - 3rem));
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   border: 1px solid rgb(254 243 199 / 34%);
   border-radius: clamp(1rem, 2vw, 1.7rem);
   padding: clamp(1.2rem, 2.8vw, 2.4rem);

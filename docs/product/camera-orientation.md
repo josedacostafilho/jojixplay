@@ -62,7 +62,7 @@ The shell evaluates the policy before mounting a game. A mismatch disables the c
 - The mismatched pose and avatar are hidden from the game. The television instructs the user to restore the captured layout.
 - Draw immediately ends the grip and current path. Artwork, selected tool, and color remain available when the expected layout returns.
 - Bubbles freezes the countdown or active round, movement, effects, respawn delays, scores, and result timing. It resumes from the same remaining duration.
-- Racing freezes calibration, active elapsed time, car simulation, and steering input. It keeps a prior user pause and resumes only through fresh wheel input after the captured layout returns.
+- Racing freezes calibration, active elapsed time, car simulation, and steering input. It keeps a prior user pause and resumes only through fresh torso-lean input after the captured layout returns.
 - Returning to the captured layout resets all temporal input history before input resumes, preventing dwell, stroke, swept-collision, steering, or pause-gesture bridges.
 - A new Draw entry under a different layout begins with an empty canvas because the old normalized artwork has no stable physical meaning after a deliberate camera-layout change.
 

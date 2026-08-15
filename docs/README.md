@@ -57,7 +57,8 @@ docs/
 │   ├── 0013-identity-independent-bubbles-game.md
 │   ├── 0014-procedural-body-avatar.md
 │   ├── 0015-canonical-camera-orientation.md
-│   └── 0016-phaser-canvas-racing.md
+│   ├── 0016-phaser-canvas-racing.md
+│   └── 0017-coarse-torso-lean-racing.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

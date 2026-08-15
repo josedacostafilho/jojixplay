@@ -89,6 +89,35 @@ test("phone starts the camera and local pose worker after user activation", asyn
   await expect(page.getByText(/visible · (portrait|landscape)$/)).toBeVisible();
 });
 
+test("actionable game messages stay high and behind body-control buttons", async ({ page }) => {
+  await page.goto("/");
+  const layouts = await page.evaluate(() => {
+    const controls = document.createElement("fieldset");
+    controls.className = "pose-control-targets";
+    document.body.append(controls);
+    return ["bubbles-round-message", "racing-round-message"].map((className) => {
+      const panel = document.createElement("section");
+      panel.className = className;
+      panel.textContent = "Ready";
+      document.body.append(panel);
+      const panelStyle = getComputedStyle(panel);
+      const result = {
+        className,
+        top: panel.getBoundingClientRect().top,
+        panelZIndex: Number(panelStyle.zIndex),
+        controlsZIndex: Number(getComputedStyle(controls).zIndex),
+      };
+      panel.remove();
+      return result;
+    });
+  });
+
+  for (const layout of layouts) {
+    expect(layout.top).toBeLessThan(80);
+    expect(layout.panelZIndex).toBeLessThan(layout.controlsZIndex);
+  }
+});
+
 test("production Racing chunk stays lazy and boots one forced Canvas runtime", async ({ page }) => {
   const racingAsset = (await readdir("dist/assets")).find((name) =>
     /^racing-runtime-.*\.js$/u.test(name),
@@ -129,8 +158,7 @@ test("production Racing chunk stays lazy and boots one forced Canvas runtime", a
       systemPaused: false,
       readyToStart: true,
       visibleDrivers: 2,
-      completeDrivers: 2,
-      wheelReadyDrivers: 2,
+      leanReadyDrivers: 2,
       calibrationPurpose: null,
       startingRemainingMs: 0,
       elapsedMs: 1_230,
@@ -138,22 +166,22 @@ test("production Racing chunk stays lazy and boots one forced Canvas runtime", a
       cars: [
         {
           slot: "left",
-          distance: 160,
+          distance: 163,
           lateral: -0.15,
           speed: 34,
           steering: -0.2,
           trackingAvailable: true,
-          progress: 160 / 3_024,
+          progress: 163 / 3_024,
           finishedAtMs: null,
         },
         {
           slot: "right",
-          distance: 172,
+          distance: 175,
           lateral: 0.2,
           speed: 36,
           steering: 0.25,
           trackingAvailable: true,
-          progress: 172 / 3_024,
+          progress: 175 / 3_024,
           finishedAtMs: null,
         },
       ],
@@ -193,6 +221,12 @@ test("production Racing chunk stays lazy and boots one forced Canvas runtime", a
         ? 0
         : context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1)
             .data[3];
+    const bottomRoadPixel =
+      context === null || canvas === null
+        ? [0, 0, 0, 0]
+        : Array.from(
+            context.getImageData(Math.floor(canvas.width / 4), canvas.height - 2, 1, 1).data,
+          );
     runtime.destroy();
     for (let attempt = 0; attempt < 10 && host.querySelector("canvas") !== null; attempt += 1) {
       await new Promise((resolve) => window.requestAnimationFrame(() => resolve(undefined)));
@@ -204,6 +238,7 @@ test("production Racing chunk stays lazy and boots one forced Canvas runtime", a
       mountedCanvasCount,
       hasCanvas2d,
       centerPixelAlpha,
+      bottomRoadPixel,
       remainingCanvasCount: host.querySelectorAll("canvas").length,
     };
   }, `/assets/${racingAsset}`);
@@ -217,4 +252,6 @@ test("production Racing chunk stays lazy and boots one forced Canvas runtime", a
   });
   expect(result.snapshotCount).toBeGreaterThan(0);
   expect(result.centerPixelAlpha).toBeGreaterThan(0);
+  expect(result.bottomRoadPixel[3]).toBeGreaterThan(0);
+  expect(result.bottomRoadPixel.slice(0, 3)).not.toEqual([23, 37, 84]);
 });

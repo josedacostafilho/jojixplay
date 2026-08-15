@@ -8,8 +8,8 @@ import { RACING_TRACK, racingTrackCurveAt } from "./racing-track";
 export const RACING_COUNTDOWN_MS = 3_000;
 export const RACING_FIXED_STEP_MS = 1_000 / 60;
 export const RACING_INPUT_GRACE_MS = 150;
-export const RACING_STEERING_DEAD_ZONE_RADIANS = (5 * Math.PI) / 180;
-export const RACING_FULL_STEERING_RADIANS = (28 * Math.PI) / 180;
+export const RACING_LEAN_ENTER_RADIANS = (8 * Math.PI) / 180;
+export const RACING_LEAN_RELEASE_RADIANS = (3 * Math.PI) / 180;
 
 const RACING_MAX_CATCH_UP_STEPS = 6;
 const RACING_FIXED_STEP_EPSILON_MS = 1e-7;
@@ -56,8 +56,7 @@ export interface RacingSnapshot {
   systemPaused: boolean;
   readyToStart: boolean;
   visibleDrivers: number;
-  completeDrivers: number;
-  wheelReadyDrivers: number;
+  leanReadyDrivers: number;
   calibrationPurpose: RacingCalibrationPurpose | null;
   startingRemainingMs: number;
   elapsedMs: number;
@@ -67,11 +66,9 @@ export interface RacingSnapshot {
 }
 
 interface MutableInput {
-  complete: boolean;
-  wheelValid: boolean;
-  wheelAngleRadians: number | null;
-  lastObservedAtMs: number;
-  lastValidAtMs: number | null;
+  leanAngleRadians: number | null;
+  lastLeanAtMs: number | null;
+  coarseSteering: -1 | 0 | 1;
   targetSteering: number;
 }
 
@@ -92,14 +89,26 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function steeringFromAngle(angle: number, neutral: number): number {
-  const relative = angle - neutral;
-  const magnitude = Math.abs(relative);
-  if (magnitude <= RACING_STEERING_DEAD_ZONE_RADIANS) {
+function steeringFromLean(relativeLean: number, current: -1 | 0 | 1): -1 | 0 | 1 {
+  if (current === 0) {
+    if (relativeLean >= RACING_LEAN_ENTER_RADIANS) {
+      return 1;
+    }
+    if (relativeLean <= -RACING_LEAN_ENTER_RADIANS) {
+      return -1;
+    }
     return 0;
   }
-  const range = RACING_FULL_STEERING_RADIANS - RACING_STEERING_DEAD_ZONE_RADIANS;
-  return Math.sign(relative) * clamp((magnitude - RACING_STEERING_DEAD_ZONE_RADIANS) / range, 0, 1);
+  if (current === 1) {
+    if (relativeLean <= -RACING_LEAN_ENTER_RADIANS) {
+      return -1;
+    }
+    return relativeLean <= RACING_LEAN_RELEASE_RADIANS ? 0 : 1;
+  }
+  if (relativeLean >= RACING_LEAN_ENTER_RADIANS) {
+    return 1;
+  }
+  return relativeLean >= -RACING_LEAN_RELEASE_RADIANS ? 0 : -1;
 }
 
 function createCar(slot: RacingPlayerSlot): MutableCar {
@@ -127,7 +136,6 @@ export class RacingSession {
   private inputs = new Map<RacingPlayerSlot, MutableInput>();
   private cars = new Map<RacingPlayerSlot, MutableCar>();
   private visibleDrivers = 0;
-  private completeDrivers = 0;
   private elapsedMs = 0;
   private accumulatorMs = 0;
   private lastTickAtMs: number | null = null;
@@ -142,7 +150,6 @@ export class RacingSession {
 
   public updateDrivers(input: RacingInputSnapshot, nowMs: number): RacingSnapshot {
     this.visibleDrivers = input.visibleDrivers;
-    this.completeDrivers = input.completeDrivers;
     const observedSlots = new Set<RacingPlayerSlot>();
     for (const observation of input.observations) {
       if (!slotsFor(this.playerCount).includes(observation.slot)) {
@@ -153,10 +160,7 @@ export class RacingSession {
     }
     for (const [slot, current] of this.inputs) {
       if (!observedSlots.has(slot)) {
-        current.complete = false;
-        current.wheelValid = false;
-        current.wheelAngleRadians = null;
-        current.lastObservedAtMs = nowMs;
+        current.leanAngleRadians = null;
       }
     }
     return this.snapshot(nowMs);
@@ -208,9 +212,9 @@ export class RacingSession {
       this.accumulatorMs = 0;
       if (paused) {
         for (const input of this.inputs.values()) {
-          input.wheelValid = false;
-          input.wheelAngleRadians = null;
-          input.lastValidAtMs = null;
+          input.leanAngleRadians = null;
+          input.lastLeanAtMs = null;
+          input.coarseSteering = 0;
           input.targetSteering = 0;
         }
       }
@@ -240,7 +244,7 @@ export class RacingSession {
     }
 
     if (this.corePhase === "starting") {
-      if (this.allWheelInputsFresh(nowMs)) {
+      if (this.allLeanInputsFresh(nowMs)) {
         this.calibrationElapsedMs = Math.min(
           RACING_COUNTDOWN_MS,
           this.calibrationElapsedMs + Math.min(elapsedSinceTick, 100),
@@ -283,31 +287,28 @@ export class RacingSession {
 
   private updateDriver(observation: RacingDriverObservation, nowMs: number): void {
     const current = this.inputs.get(observation.slot) ?? {
-      complete: false,
-      wheelValid: false,
-      wheelAngleRadians: null,
-      lastObservedAtMs: nowMs,
-      lastValidAtMs: null,
+      leanAngleRadians: null,
+      lastLeanAtMs: null,
+      coarseSteering: 0 as const,
       targetSteering: 0,
     };
-    current.complete = observation.complete;
-    current.wheelValid = observation.wheelValid;
-    current.wheelAngleRadians = observation.wheelAngleRadians;
-    current.lastObservedAtMs = nowMs;
-    if (observation.wheelValid && observation.wheelAngleRadians !== null) {
-      current.lastValidAtMs = nowMs;
-      if (this.corePhase === "starting") {
-        const samples = this.calibrationSamples.get(observation.slot) ?? [];
-        samples.push(observation.wheelAngleRadians);
-        if (samples.length > 120) {
-          samples.shift();
-        }
-        this.calibrationSamples.set(observation.slot, samples);
-      } else if (this.corePhase === "racing") {
-        const neutral = this.neutralAngles.get(observation.slot);
-        if (neutral !== undefined) {
-          current.targetSteering = steeringFromAngle(observation.wheelAngleRadians, neutral);
-        }
+    current.leanAngleRadians = observation.leanAngleRadians;
+    current.lastLeanAtMs = nowMs;
+    if (this.corePhase === "starting") {
+      const samples = this.calibrationSamples.get(observation.slot) ?? [];
+      samples.push(observation.leanAngleRadians);
+      if (samples.length > 120) {
+        samples.shift();
+      }
+      this.calibrationSamples.set(observation.slot, samples);
+    } else if (this.corePhase === "racing") {
+      const neutral = this.neutralAngles.get(observation.slot);
+      if (neutral !== undefined) {
+        current.coarseSteering = steeringFromLean(
+          observation.leanAngleRadians - neutral,
+          current.coarseSteering,
+        );
+        current.targetSteering = current.coarseSteering;
       }
     }
     this.inputs.set(observation.slot, current);
@@ -328,7 +329,8 @@ export class RacingSession {
     this.accumulatorMs = 0;
     this.lastTickAtMs = nowMs;
     for (const input of this.inputs.values()) {
-      input.lastValidAtMs = null;
+      input.lastLeanAtMs = null;
+      input.coarseSteering = 0;
       input.targetSteering = 0;
     }
     for (const car of this.cars.values()) {
@@ -348,26 +350,27 @@ export class RacingSession {
       );
       const input = this.inputs.get(slot);
       if (input !== undefined) {
+        input.coarseSteering = 0;
         input.targetSteering = 0;
       }
     }
     return true;
   }
 
-  private allWheelInputsFresh(nowMs: number): boolean {
+  private allLeanInputsFresh(nowMs: number): boolean {
     return slotsFor(this.playerCount).every((slot) => {
       const input = this.inputs.get(slot);
       return (
-        input?.wheelValid &&
-        input.wheelAngleRadians !== null &&
-        input.lastValidAtMs !== null &&
-        nowMs - input.lastValidAtMs <= RACING_CALIBRATION_INPUT_FRESH_MS
+        input !== undefined &&
+        input.leanAngleRadians !== null &&
+        input.lastLeanAtMs !== null &&
+        nowMs - input.lastLeanAtMs <= RACING_CALIBRATION_INPUT_FRESH_MS
       );
     });
   }
 
   private readyToStart(): boolean {
-    return this.completeDrivers >= this.playerCount;
+    return this.visibleDrivers >= this.playerCount;
   }
 
   private step(deltaSeconds: number, nowMs: number): void {
@@ -381,9 +384,13 @@ export class RacingSession {
       }
       const input = this.inputs.get(slot);
       const trackingAvailable =
-        input?.lastValidAtMs !== null &&
-        input?.lastValidAtMs !== undefined &&
-        nowMs - input.lastValidAtMs <= RACING_INPUT_GRACE_MS;
+        input?.lastLeanAtMs !== null &&
+        input?.lastLeanAtMs !== undefined &&
+        nowMs - input.lastLeanAtMs <= RACING_INPUT_GRACE_MS;
+      if (!trackingAvailable && input !== undefined) {
+        input.coarseSteering = 0;
+        input.targetSteering = 0;
+      }
       const targetSteering = trackingAvailable ? (input?.targetSteering ?? 0) : 0;
       const responseMs = trackingAvailable
         ? RACING_STEERING_TIME_CONSTANT_MS
@@ -471,7 +478,6 @@ export class RacingSession {
     this.inputs.clear();
     this.cars = new Map(slotsFor(this.playerCount).map((slot) => [slot, createCar(slot)]));
     this.visibleDrivers = 0;
-    this.completeDrivers = 0;
     this.elapsedMs = 0;
     this.accumulatorMs = 0;
     this.lastTickAtMs = nowMs;
@@ -485,9 +491,9 @@ export class RacingSession {
       const car = this.cars.get(slot) ?? createCar(slot);
       const input = this.inputs.get(slot);
       const trackingAvailable =
-        input?.lastValidAtMs !== null &&
-        input?.lastValidAtMs !== undefined &&
-        nowMs - input.lastValidAtMs <= RACING_INPUT_GRACE_MS;
+        input?.lastLeanAtMs !== null &&
+        input?.lastLeanAtMs !== undefined &&
+        nowMs - input.lastLeanAtMs <= RACING_INPUT_GRACE_MS;
       return {
         slot,
         distance: car.distance,
@@ -499,12 +505,13 @@ export class RacingSession {
         finishedAtMs: car.finishedAtMs,
       };
     });
-    const wheelReadyDrivers = slotsFor(this.playerCount).filter((slot) => {
+    const leanReadyDrivers = slotsFor(this.playerCount).filter((slot) => {
       const input = this.inputs.get(slot);
       return (
-        input?.wheelValid === true &&
-        input.lastValidAtMs !== null &&
-        nowMs - input.lastValidAtMs <= RACING_CALIBRATION_INPUT_FRESH_MS
+        input !== undefined &&
+        input.leanAngleRadians !== null &&
+        input.lastLeanAtMs !== null &&
+        nowMs - input.lastLeanAtMs <= RACING_CALIBRATION_INPUT_FRESH_MS
       );
     }).length;
     return {
@@ -516,8 +523,7 @@ export class RacingSession {
       systemPaused: this.systemPaused,
       readyToStart: this.readyToStart(),
       visibleDrivers: this.visibleDrivers,
-      completeDrivers: this.completeDrivers,
-      wheelReadyDrivers,
+      leanReadyDrivers,
       calibrationPurpose: this.calibrationPurpose,
       startingRemainingMs: Math.max(0, RACING_COUNTDOWN_MS - this.calibrationElapsedMs),
       elapsedMs: this.elapsedMs,

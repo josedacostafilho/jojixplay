@@ -10,7 +10,7 @@ scope: Procedural body-avatar appearance, presentation-only pose stabilization, 
 
 The phone and television present each detected person as a polished, faceless 2D digital mannequin instead of a landmark-and-line skeleton. The avatar is synthesized entirely from the existing 33 normalized pose landmarks: it is a readable body representation, not an inferred silhouette or an anatomically exact reconstruction.
 
-This is a presentation-only change. Unsmoothed canonical [`PosePacket`](skeleton-viewer.md#pose-packet-contract) values remain the sole input to controls and games. The avatar may make its own display copy smoother, but it must never feed projected or stabilized values back into pairing, pose controls, Draw, Bubbles, Racing, or transport. Racing deliberately mounts no avatar and uses car/steering feedback instead.
+This is a presentation-only change. Unsmoothed canonical [`PosePacket`](skeleton-viewer.md#pose-packet-contract) values remain the sole input to controls and games. The avatar may make its own display copy smoother, but it must never feed projected or stabilized values back into pairing, pose controls, Draw, Bubbles, Racing, or transport. Racing deliberately mounts no avatar and uses car/torso-lean feedback instead.
 
 ## Visual contract
 
@@ -38,7 +38,7 @@ Avatar projection uses the same contained canonical-camera transform and mirrori
 | Television menus | Yes | `0.94` | Primary live body representation |
 | Draw | Yes | `0.24` | Spatial feedback without obscuring artwork |
 | Bubbles | Yes | `0.16` | Spatial feedback without hiding targets and effects |
-| Racing | — | Not rendered | Car plus wheel/tracking gauge replace the live body view |
+| Racing | — | Not rendered | Car plus torso-lean/tracking gauge replace the live body view |
 | Phone camera preview | No | `0.38` | Lightweight local tracking confirmation |
 
 Opacity is applied once to the complete avatar layer. Rendering is event-driven on a new packet, resize, or appearance change; it does not introduce an independent permanent animation loop.

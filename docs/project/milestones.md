@@ -8,6 +8,13 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-15 — Racing controls and near-road presentation corrected
+
+- Hard-cut the unreliable two-complete-hand wheel to calibrated, aspect-corrected shoulder/hip torso lean. Racing now uses discrete full left/center/right commands with `8°` entry, `3°` release hysteresis, the existing `80 ms` response, and `150 ms` dropout grace; hands remain only for the overhead pause gesture.
+- Replaced the wheel/hand gauge and instructions with natural-stance calibration plus restrained torso-lean feedback, while retaining temporary local driver leases and the raw canonical packet boundary.
+- Added an explicit near-road projection sample past the viewport bottom and a below-horizon terrain base, eliminating the blue gap caused when a fixed segment boundary fell behind the near clip.
+- Moved Bubbles and Racing Ready/result/pause panels near the top and below the action-control layer so they cannot cover reachable buttons. Added direct hysteresis, hand-independent input, projection-bottom, production-pixel, and compiled-style regressions; target-device ergonomics and performance acceptance remain outstanding.
+
 ## 2026-08-15 — Lazy Phaser Canvas Racing implemented
 
 - Added Racing as the third game and the first concrete game-engine consumer: one exact lazy `phaser@4.2.1` runtime forced to Canvas, isolated from the shell, phone, Draw, and Bubbles, with complete exit teardown and no renderer fallback.

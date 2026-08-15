@@ -6,23 +6,17 @@ import type {
 } from "../../src/games/racing/racing-input";
 import {
   RACING_COUNTDOWN_MS,
-  RACING_FULL_STEERING_RADIANS,
   RACING_INPUT_GRACE_MS,
-  RACING_STEERING_DEAD_ZONE_RADIANS,
+  RACING_LEAN_ENTER_RADIANS,
+  RACING_LEAN_RELEASE_RADIANS,
   RacingSession,
 } from "../../src/games/racing/racing-session";
 
-function observation(
-  slot: RacingPlayerSlot,
-  wheelAngleRadians: number | null,
-  complete = true,
-): RacingDriverObservation {
+function observation(slot: RacingPlayerSlot, leanAngleRadians = 0): RacingDriverObservation {
   return {
     slot,
     torsoCenter: { x: slot === "left" ? 0.25 : slot === "right" ? 0.75 : 0.5, y: 0.5 },
-    complete,
-    wheelAngleRadians,
-    wheelValid: wheelAngleRadians !== null,
+    leanAngleRadians,
     pausePose: false,
   };
 }
@@ -31,7 +25,6 @@ function input(observations: readonly RacingDriverObservation[], epoch = 0): Rac
   return {
     observations,
     visibleDrivers: observations.length,
-    completeDrivers: observations.filter(({ complete }) => complete).length,
     pauseRequested: false,
     epoch,
   };
@@ -61,11 +54,11 @@ function calibrate(
 }
 
 describe("Racing session", () => {
-  it("requires complete drivers and advances calibration only with fresh valid wheels", () => {
+  it("requires visible torsos and advances calibration only with fresh lean input", () => {
     const session = new RacingSession();
     session.setEnabled(true, 1, 0);
     expect(session.start(0).started).toBe(false);
-    session.updateDrivers(input([observation("solo", null)]), 0);
+    session.updateDrivers(input([observation("solo")]), 0);
     expect(session.start(0).started).toBe(true);
 
     session.tick(1_000);
@@ -76,39 +69,51 @@ describe("Racing session", () => {
     session.updateDrivers(input([observation("solo", 0)]), 1_000);
     session.tick(1_100);
     expect(session.getSnapshot(1_100).startingRemainingMs).toBe(RACING_COUNTDOWN_MS - 100);
-    expect(session.getSnapshot(1_400).wheelReadyDrivers).toBe(0);
+    expect(session.getSnapshot(1_400).leanReadyDrivers).toBe(0);
   });
 
-  it("applies the dead zone, full-angle clamp, response filter, and dropout centering", () => {
+  it("applies coarse lean hysteresis, response filtering, and dropout centering", () => {
     const session = new RacingSession();
     session.setEnabled(true, 1, 0);
     let nowMs = calibrate(session, ["solo"]);
+    const advanceWithLean = (leanAngleRadians: number, samples: number): void => {
+      for (let index = 0; index < samples; index += 1) {
+        nowMs += 100;
+        session.updateDrivers(input([observation("solo", leanAngleRadians)]), nowMs);
+        session.tick(nowMs);
+      }
+    };
 
-    nowMs += 10;
-    session.updateDrivers(
-      input([observation("solo", RACING_STEERING_DEAD_ZONE_RADIANS * 0.8)]),
-      nowMs,
-    );
-    session.tick(nowMs + 100);
-    expect(session.getSnapshot(nowMs + 100).cars[0]?.steering).toBeCloseTo(0, 5);
+    advanceWithLean(RACING_LEAN_ENTER_RADIANS * 0.8, 1);
+    expect(session.getSnapshot(nowMs).cars[0]?.steering).toBeCloseTo(0, 5);
 
-    nowMs += 110;
-    session.updateDrivers(input([observation("solo", RACING_FULL_STEERING_RADIANS)]), nowMs);
-    for (let index = 1; index <= 8; index += 1) {
-      session.updateDrivers(
-        input([observation("solo", RACING_FULL_STEERING_RADIANS)]),
-        nowMs + index * 100,
-      );
-      session.tick(nowMs + index * 100);
-    }
-    const turned = session.getSnapshot(nowMs + 800).cars[0]?.steering ?? 0;
+    advanceWithLean(RACING_LEAN_ENTER_RADIANS, 8);
+    const turned = session.getSnapshot(nowMs).cars[0]?.steering ?? 0;
     expect(turned).toBeGreaterThan(0.95);
 
-    session.updateDrivers(input([observation("solo", null)]), nowMs + 810);
-    session.tick(nowMs + 810 + RACING_INPUT_GRACE_MS - 1);
-    const duringGrace = session.getSnapshot(nowMs + 959).cars[0]?.steering ?? 0;
-    session.tick(nowMs + 1_110);
-    const centered = session.getSnapshot(nowMs + 1_110).cars[0]?.steering ?? 0;
+    advanceWithLean(-RACING_LEAN_ENTER_RADIANS, 8);
+    expect(session.getSnapshot(nowMs).cars[0]?.steering).toBeLessThan(-0.95);
+    advanceWithLean(RACING_LEAN_ENTER_RADIANS, 8);
+    expect(session.getSnapshot(nowMs).cars[0]?.steering).toBeGreaterThan(0.95);
+
+    const hysteresisLean = (RACING_LEAN_ENTER_RADIANS + RACING_LEAN_RELEASE_RADIANS) / 2;
+    advanceWithLean(hysteresisLean, 3);
+    expect(session.getSnapshot(nowMs).cars[0]?.steering).toBeGreaterThan(0.95);
+
+    advanceWithLean(RACING_LEAN_RELEASE_RADIANS * 0.5, 6);
+    expect(session.getSnapshot(nowMs).cars[0]?.steering).toBeLessThan(0.02);
+
+    advanceWithLean(RACING_LEAN_ENTER_RADIANS, 8);
+    expect(session.getSnapshot(nowMs).cars[0]?.steering).toBeGreaterThan(0.95);
+
+    const lastLeanAtMs = nowMs;
+    session.updateDrivers(input([]), nowMs + 10);
+    session.tick(lastLeanAtMs + RACING_INPUT_GRACE_MS - 1);
+    const duringGrace =
+      session.getSnapshot(lastLeanAtMs + RACING_INPUT_GRACE_MS - 1).cars[0]?.steering ?? 0;
+    session.tick(lastLeanAtMs + RACING_INPUT_GRACE_MS + 300);
+    const centered =
+      session.getSnapshot(lastLeanAtMs + RACING_INPUT_GRACE_MS + 300).cars[0]?.steering ?? 0;
     expect(duringGrace).toBeGreaterThan(centered);
     expect(centered).toBeGreaterThanOrEqual(0);
   });
@@ -163,7 +168,7 @@ describe("Racing session", () => {
     let nowMs = calibrate(session, ["solo"]);
     for (let index = 1; index <= 200; index += 1) {
       nowMs += 100;
-      session.updateDrivers(input([observation("solo", RACING_FULL_STEERING_RADIANS)]), nowMs);
+      session.updateDrivers(input([observation("solo", RACING_LEAN_ENTER_RADIANS)]), nowMs);
       session.tick(nowMs);
     }
     const car = session.getSnapshot(nowMs).cars[0];
@@ -188,7 +193,7 @@ describe("Racing session", () => {
     while (versus.getSnapshot(versusNow).phase === "racing" && versusNow < 180_000) {
       versusNow += 100;
       versus.updateDrivers(
-        input([observation("left", 0), observation("right", RACING_FULL_STEERING_RADIANS)]),
+        input([observation("left", 0), observation("right", RACING_LEAN_ENTER_RADIANS)]),
         versusNow,
       );
       versus.tick(versusNow);

@@ -314,8 +314,8 @@ function controlInstruction(
         }
         if (racing.phase === "ready" && !racing.readyToStart) {
           return racing.playerCount === 1
-            ? "Keep your body and both whole hands visible"
-            : `Waiting for two complete drivers — ${racing.completeDrivers} ready`;
+            ? "Keep your shoulders and hips visible"
+            : `Waiting for two drivers — ${racing.visibleDrivers} ready`;
         }
       }
       return "Move your hand onto a button and hold";
@@ -660,8 +660,8 @@ export function TvPlayfield({
           if (!started.started) {
             setAnnouncement(
               racingPlayerCountRef.current === 1
-                ? "Keep your body and both whole hands visible before starting."
-                : "Both drivers need a visible body and two whole hands before starting.",
+                ? "Keep your shoulders and hips visible before starting."
+                : "Both drivers need visible shoulders and hips before starting.",
             );
             break;
           }
@@ -1149,17 +1149,17 @@ export function TvPlayfield({
               : racingRuntimeState === "failed"
                 ? "Racing is unavailable on this television."
                 : racing.readyToStart
-                  ? "Drivers ready — press Start, then hold both hands like a steering wheel."
+                  ? "Drivers ready — press Start, then stand naturally for calibration."
                   : racing.playerCount === 1
-                    ? "Keep your body and both whole hands visible."
-                    : `Waiting for two complete drivers — ${racing.completeDrivers} ready.`}
+                    ? "Keep your shoulders and hips visible."
+                    : `Waiting for two drivers — ${racing.visibleDrivers} ready.`}
           </p>
         </section>
       ) : null}
       {view === "racing" && racing.phase === "starting" ? (
         <p class="visually-hidden" role="status" aria-live="polite">
-          Calibrating Racing controls. {racing.wheelReadyDrivers} of {racing.playerCount} drivers
-          holding a valid steering wheel pose.
+          Calibrating Racing controls. {racing.leanReadyDrivers} of {racing.playerCount} drivers
+          have visible shoulders and hips.
         </p>
       ) : null}
       {view === "racing" && racing.phase === "racing" ? (
@@ -1169,7 +1169,7 @@ export function TvPlayfield({
         <section class="racing-round-message racing-round-message--paused" role="status">
           <p class="eyebrow">Race paused</p>
           <h2>{formatRacingTime(racing.elapsedMs)}</h2>
-          <p>Resume, recalibrate your neutral wheel, restart, or exit.</p>
+          <p>Resume, recalibrate your natural stance, restart, or exit.</p>
         </section>
       ) : null}
       {view === "racing" && racing.phase === "finished" ? (

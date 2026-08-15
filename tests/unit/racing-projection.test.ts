@@ -59,6 +59,17 @@ describe("Racing track and projection", () => {
     }
   });
 
+  it("projects an explicit near slice past the viewport bottom at a segment boundary", () => {
+    const viewport = { width: 1_280, height: 720 };
+    const projection = projectRacingRoad(car(163), viewport);
+    const nearestSlice = projection.slices[0];
+    expect(nearestSlice).toBeDefined();
+    expect(nearestSlice?.near.depth).toBeGreaterThan(1.5);
+    expect(nearestSlice?.near.depth).toBeLessThan(4);
+    expect(nearestSlice?.near.y).toBeGreaterThan(viewport.height);
+    expect(nearestSlice?.far.y).toBeLessThan(nearestSlice?.near.y ?? 0);
+  });
+
   it("projects an opponent ahead and rejects one behind the chase camera", () => {
     const viewport = { width: 640, height: 720 };
     const cameraCar = car(400, 0);
