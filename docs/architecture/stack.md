@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -20,6 +20,7 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | Build tool | Vite with Preact preset | 8.2.1 / 2.10.6 | `npm run build` |
 | Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Lite model and generated runtime assets |
 | Peer rendezvous/transport | Trystero default Nostr strategy / WebRTC | 0.25.3 | `npm ls trystero` |
+| Racing runtime and renderer | Phaser forced to Canvas | 4.2.1 | `npm ls phaser` and the lazy production Racing chunk |
 | QR generation | `qrcode` | 1.5.4 | TV-only dynamic import |
 | Formatter | Biome | 2.5.8 | `npm run format` |
 | Linter | Biome | 2.5.8 | `npm run lint` |
@@ -54,6 +55,14 @@ These commands are executable and are the only canonical paths for their concern
 | Apply database migrations | Not applicable yet |
 
 `npm run test:e2e` first builds the production artifact and then serves it through Vite preview. The browser suite therefore exercises the same asset layout used for deployment, including the vendored MediaPipe model and WebAssembly files.
+
+## Racing engine boundary
+
+- `phaser@4.2.1` is exact and is the only game engine. [`src/games/racing/racing-canvas.tsx`](../../src/games/racing/racing-canvas.tsx) dynamically imports it only after Racing mounts; initial role, pairing, phone, Draw, and Bubbles chunks do not import the engine.
+- [`vite.config.ts`](../../vite.config.ts) maps the internal `phaser-runtime` boundary directly to Phaser's production ESM runtime. [`src/vendor/phaser-runtime.d.ts`](../../src/vendor/phaser-runtime.d.ts) deliberately declares only the engine surface Racing owns because Phaser's published declaration bundle is not compatible with the repository's TypeScript 7 strict build. Do not replace this narrow boundary with `skipLibCheck`, a broad `any` declaration, or a second import path.
+- Racing always constructs `Phaser.CANVAS`. `AUTO`, WebGL, runtime renderer selection, and renderer fallbacks are forbidden by [ADR-0016](../decisions/0016-phaser-canvas-racing.md).
+- Preact owns navigation and semantic controls; pure TypeScript owns Racing input, simulation, track, and projection; Phaser owns the mounted canvas lifecycle, view cameras, frame callback, and drawing only.
+- As measured on 2026-08-15, the separate minified Racing chunk is approximately `1.38 MB` (`361 kB` gzip) and triggers Vite's generic `500 kB` advisory. The advisory is intentionally not suppressed: lazy loading keeps the cost off every other route, while target-TV startup, memory, and sustained cadence remain explicit acceptance risks.
 
 ## Static artifact and deployment
 

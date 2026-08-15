@@ -1,4 +1,5 @@
 import preact from "@preact/preset-vite";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
@@ -9,6 +10,13 @@ if (!/^\/(?:[A-Za-z0-9._~-]+\/)*$/u.test(deploymentBase)) {
 
 export default defineConfig({
   base: deploymentBase,
+  resolve: {
+    alias: {
+      "phaser-runtime": fileURLToPath(
+        new URL("./node_modules/phaser/dist/phaser.esm.js", import.meta.url),
+      ),
+    },
+  },
   plugins: [
     preact(),
     viteStaticCopy({

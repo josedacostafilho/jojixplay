@@ -1,12 +1,20 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Sparse record of durable completed project milestones
 ---
 
 # Milestone log
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
+
+## 2026-08-15 — Lazy Phaser Canvas Racing implemented
+
+- Added Racing as the third game and the first concrete game-engine consumer: one exact lazy `phaser@4.2.1` runtime forced to Canvas, isolated from the shell, phone, Draw, and Bubbles, with complete exit teardown and no renderer fallback.
+- Added pure deterministic track, pseudo-3D projection, `60 Hz` fixed-step car simulation, automatic throttle, curve drift, off-road drag, one-player active-time results, and landscape two-player split-screen winner/tie results.
+- Added raw-pose two-hand wheel extraction, three-second valid-input neutral calibration, bounded steering response/dropout handling, ephemeral Solo/Left/Right torso leases, restrained car/wheel tracking feedback, and a latched one-second overhead pause gesture.
+- Hard-cut Games to Draw/Bubbles/Racing/Return in one compact left column for both layouts; integrated Racing Ready/Calibrating/Driving/Paused/Finished/error surfaces, layout gates and locks, avatar omission, re-armed actions, and cleanup.
+- Added direct input/simulation/projection/catalog/component coverage plus production chunk and browser-runtime checks. Target-phone/television performance, steering ergonomics, pause behavior, split-screen readability, and orientation recovery remain outstanding.
 
 ## 2026-08-14 — Canonical portrait and landscape camera layouts implemented
 

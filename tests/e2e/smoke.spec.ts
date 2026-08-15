@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readdir } from "node:fs/promises";
 
 test("landing page exposes both device roles", async ({ page }) => {
   await page.goto("/");
@@ -86,4 +87,134 @@ test("phone starts the camera and local pose worker after user activation", asyn
     },
   });
   await expect(page.getByText(/visible · (portrait|landscape)$/)).toBeVisible();
+});
+
+test("production Racing chunk stays lazy and boots one forced Canvas runtime", async ({ page }) => {
+  const racingAsset = (await readdir("dist/assets")).find((name) =>
+    /^racing-runtime-.*\.js$/u.test(name),
+  );
+  expect(racingAsset).toBeDefined();
+  await page.goto("/");
+  const initiallyLoaded = await page.evaluate(() =>
+    performance
+      .getEntriesByType("resource")
+      .map(({ name }) => name)
+      .some((name) => name.includes("racing-runtime")),
+  );
+  expect(initiallyLoaded).toBe(false);
+
+  const result = await page.evaluate(async (assetUrl) => {
+    const racingModule = (await import(assetUrl)) as unknown as {
+      RacingRuntime: new (options: {
+        parent: HTMLElement;
+        session: {
+          tick: (nowMs: number) => unknown;
+          setSystemPaused: (paused: boolean, nowMs: number) => unknown;
+        };
+        playerCount: 1 | 2;
+        onReady: () => void;
+        onSnapshot: (snapshot: unknown) => void;
+        onError: (message: string) => void;
+      }) => { destroy: () => void };
+    };
+    const host = document.createElement("div");
+    Object.assign(host.style, { position: "fixed", inset: "0", width: "960px", height: "540px" });
+    document.body.replaceChildren(host);
+    const snapshot = {
+      enabled: true,
+      playerCount: 2,
+      phase: "racing",
+      paused: false,
+      orientationPaused: false,
+      systemPaused: false,
+      readyToStart: true,
+      visibleDrivers: 2,
+      completeDrivers: 2,
+      wheelReadyDrivers: 2,
+      calibrationPurpose: null,
+      startingRemainingMs: 0,
+      elapsedMs: 1_230,
+      trackLength: 3_024,
+      cars: [
+        {
+          slot: "left",
+          distance: 160,
+          lateral: -0.15,
+          speed: 34,
+          steering: -0.2,
+          trackingAvailable: true,
+          progress: 160 / 3_024,
+          finishedAtMs: null,
+        },
+        {
+          slot: "right",
+          distance: 172,
+          lateral: 0.2,
+          speed: 36,
+          steering: 0.25,
+          trackingAvailable: true,
+          progress: 172 / 3_024,
+          finishedAtMs: null,
+        },
+      ],
+      result: null,
+    };
+    let ready = false;
+    let runtimeError: string | null = null;
+    let snapshotCount = 0;
+    const session = {
+      tick: () => snapshot,
+      setSystemPaused: () => snapshot,
+    };
+    const runtime = new racingModule.RacingRuntime({
+      parent: host,
+      session,
+      playerCount: 2,
+      onReady: () => {
+        ready = true;
+      },
+      onSnapshot: () => {
+        snapshotCount += 1;
+      },
+      onError: (message) => {
+        runtimeError = message;
+      },
+    });
+    for (let attempt = 0; attempt < 200 && !ready && runtimeError === null; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 25));
+    }
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve(undefined)));
+    const canvas = host.querySelector("canvas");
+    const mountedCanvasCount = host.querySelectorAll("canvas").length;
+    const context = canvas?.getContext("2d") ?? null;
+    const hasCanvas2d = context !== null;
+    const centerPixelAlpha =
+      context === null || canvas === null
+        ? 0
+        : context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1)
+            .data[3];
+    runtime.destroy();
+    for (let attempt = 0; attempt < 10 && host.querySelector("canvas") !== null; attempt += 1) {
+      await new Promise((resolve) => window.requestAnimationFrame(() => resolve(undefined)));
+    }
+    return {
+      ready,
+      runtimeError,
+      snapshotCount,
+      mountedCanvasCount,
+      hasCanvas2d,
+      centerPixelAlpha,
+      remainingCanvasCount: host.querySelectorAll("canvas").length,
+    };
+  }, `/assets/${racingAsset}`);
+
+  expect(result).toMatchObject({
+    ready: true,
+    runtimeError: null,
+    mountedCanvasCount: 1,
+    hasCanvas2d: true,
+    remainingCanvasCount: 0,
+  });
+  expect(result.snapshotCount).toBeGreaterThan(0);
+  expect(result.centerPixelAlpha).toBeGreaterThan(0);
 });

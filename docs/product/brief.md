@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Product purpose, users, constraints, and first outcome
 ---
 
@@ -10,7 +10,7 @@ scope: Product purpose, users, constraints, and first outcome
 
 JojixPlay turns a phone into a private, camera-based body controller for games shown on a nearby television. The phone performs pose estimation locally and sends only pose landmarks to the television; camera pixels never leave the phone.
 
-The first product proof is a live procedural body-avatar viewer plus Draw and Bubbles. Together they validate camera capture, on-device pose estimation, pairing, peer-to-peer transport, readable pose presentation, body-operated navigation, continuous and discrete two-hand input, identity-independent one-/two-player scoring, timed gameplay, and separate television renderers without committing the project to a game engine prematurely.
+The current product proof is a live procedural body-avatar viewer plus Draw, Bubbles, and Racing. Together they validate camera capture, on-device pose estimation, pairing, peer-to-peer transport, readable pose presentation, body-operated navigation, continuous and discrete two-hand input, identity-independent one-/two-player scoring, timed gameplay, deterministic fixed-step steering, split-screen presentation, focused television renderers, and one concrete lazy game-engine boundary.
 
 ## Primary users and setting
 
@@ -29,22 +29,23 @@ The initial experience assumes internet access to load the static application an
 5. Leave space above the head, raise one hand to claim control, and move the coarse-hand cursor clear once to arm Main Menu.
 6. Open **Games** and select **Draw** to bring both hands together, activate Pencil or Eraser immediately, draw with the selected controller hand, and spread both hands wide to stop.
 7. Or select **Bubbles**, start a three-second countdown, then use either complete hand to pop procedurally moving bubbles during a 60-second one- or two-player round.
+8. Or select **Racing**, hold both hands like an imaginary steering wheel through calibration, then steer an automatically accelerating car through a timed solo course or landscape split-screen race.
 
 ## Product invariants
 
 - Camera frames and video streams remain on the phone.
 - The network contract contains pose landmarks and minimal session metadata only.
 - No account, database, owned backend, analytics, or retained session data exists in the prototype.
-- People are identity-independent detections. Array position is never an identity; only the bounded television-local torso continuity defined by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md) may preserve a temporary control lease.
+- People are identity-independent detections. Array position is never an identity; only the bounded television-local torso continuity defined for temporary menu control and Racing driver slots may preserve a short-lived lease.
 - Two-player Bubbles scores belong to current mirrored screen-side slots. Crossing sides transfers later attribution; no score is attached to a person identity.
-- Avatar stabilization is a private display copy. Controls, Draw, Bubbles, diagnostics, and transport never consume it.
+- Avatar stabilization is a private display copy. Controls, Draw, Bubbles, Racing, diagnostics, and transport never consume it.
 - The application shell does not depend on a particular game renderer.
 - Each future game selects exactly one renderer and loads it only when needed.
 - The repository remains greenfield and follows mandatory hard cutovers under [ADR-0001](../decisions/0001-greenfield-hard-cutover.md).
 
 ## Prototype non-goals
 
-- Accounts, saved artwork or scores, a broad game catalogue, or a game-engine integration.
+- Accounts, saved artwork, scores, race times, a broad game catalogue, audio, obstacles, car collisions, or online competition.
 - Stable player identity, persistent/general-purpose cross-frame person tracking, profiles, or accounts; the temporary local control lease is the only bounded continuity exception.
 - Camera-pixel streaming, recording, upload, or persistence.
 - TURN service, relay transport, transport fallbacks, or offline peer discovery.
@@ -52,4 +53,4 @@ The initial experience assumes internet access to load the static application an
 
 ## First-outcome success criteria
 
-The prototype succeeds when the journeys in [Phone-to-television specification](skeleton-viewer.md), [Avatar renderer](avatar-renderer.md), [Draw game](draw-game.md), and [Bubbles game](bubbles-game.md) work on a real phone and television; one or two detected bodies render continuously; the one-person avatar is visibly steadier without unacceptable fast-motion lag; menus, continuous tools, and discrete collisions operate without unacceptable false activations; timed scores remain legible and correct; failures are actionable; and inspection confirms that no camera pixels cross the peer connection.
+The prototype succeeds when the journeys in [Phone-to-television specification](skeleton-viewer.md), [Avatar renderer](avatar-renderer.md), [Draw game](draw-game.md), [Bubbles game](bubbles-game.md), and [Racing game](racing-game.md) work on a real phone and television; one or two detected bodies render continuously where intended; the one-person avatar is visibly steadier without unacceptable fast-motion lag; menus, continuous tools, collisions, and steering operate without unacceptable false activations or latency; timed scores and races remain legible and correct; the forced-Canvas Racing runtime sustains the target television; failures are actionable; and inspection confirms that no camera pixels cross the peer connection.

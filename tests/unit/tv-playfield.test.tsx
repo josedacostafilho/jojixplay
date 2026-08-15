@@ -3,6 +3,38 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TvPlayfield } from "../../src/components/tv-playfield";
 import type { CameraLayout } from "../../src/domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
+import type { RacingSession, RacingSnapshot } from "../../src/games/racing/racing-session";
+
+interface MockRacingRuntimeOptions {
+  session: RacingSession;
+  playerCount: 1 | 2;
+  onReady: () => void;
+  onSnapshot: (snapshot: RacingSnapshot) => void;
+  onError: (message: string) => void;
+}
+
+const racingRuntimeHarness = vi.hoisted(() => ({
+  options: null as MockRacingRuntimeOptions | null,
+  destroyCount: 0,
+  failureMessage: null as string | null,
+}));
+
+vi.mock("../../src/games/racing/racing-runtime", () => ({
+  RacingRuntime: class {
+    public constructor(options: MockRacingRuntimeOptions) {
+      racingRuntimeHarness.options = options;
+      if (racingRuntimeHarness.failureMessage === null) {
+        options.onReady();
+      } else {
+        options.onError(racingRuntimeHarness.failureMessage);
+      }
+    }
+
+    public destroy(): void {
+      racingRuntimeHarness.destroyCount += 1;
+    }
+  },
+}));
 
 function hiddenLandmark(): PoseLandmark {
   return { x: 0.5, y: 0.5, z: 0, visibility: 0 };
@@ -58,6 +90,35 @@ function createCloseHandsPacket(sequence: number): PosePacket {
   return posePacket;
 }
 
+function setCoarseHand(pose: DetectedPose, hand: "left" | "right", x: number, y: number): void {
+  const indices = hand === "left" ? [15, 17, 19, 21] : [16, 18, 20, 22];
+  for (const [offset, index] of indices.entries()) {
+    visibleLandmark(pose, index, x + (offset - 1.5) * 0.002, y);
+  }
+}
+
+function createRacingWheelPacket(sequence: number): PosePacket {
+  const posePacket = createRaisedHandPacket(sequence);
+  const pose = posePacket.poses[0];
+  if (pose === undefined) {
+    throw new Error("Expected one Racing pose.");
+  }
+  setCoarseHand(pose, "left", 0.62, 0.43);
+  setCoarseHand(pose, "right", 0.38, 0.43);
+  return posePacket;
+}
+
+function createRacingPausePacket(sequence: number): PosePacket {
+  const posePacket = createRaisedHandPacket(sequence);
+  const pose = posePacket.poses[0];
+  if (pose === undefined) {
+    throw new Error("Expected one Racing pose.");
+  }
+  setCoarseHand(pose, "left", 0.62, 0.18);
+  setCoarseHand(pose, "right", 0.38, 0.18);
+  return posePacket;
+}
+
 function createTwoPlayerPacket(sequence: number): PosePacket {
   const source = createCloseHandsPacket(sequence);
   const basePose = source.poses[0];
@@ -97,6 +158,9 @@ beforeEach(() => {
   nowMs = 0;
   animationCallbacks = [];
   requestCameraLayout = vi.fn(async () => undefined);
+  racingRuntimeHarness.options = null;
+  racingRuntimeHarness.destroyCount = 0;
+  racingRuntimeHarness.failureMessage = null;
   vi.spyOn(performance, "now").mockImplementation(() => nowMs);
   vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
   vi.stubGlobal(
@@ -153,6 +217,13 @@ function runAnimationFrame(timestamp: number): void {
   });
 }
 
+function currentRacingRuntime(): MockRacingRuntimeOptions {
+  if (racingRuntimeHarness.options === null) {
+    throw new Error("Expected the mock Racing runtime to be mounted.");
+  }
+  return racingRuntimeHarness.options;
+}
+
 describe("TV playfield", () => {
   it("exposes Main Menu actions, applies player-mode acknowledgement, and navigates Games", async () => {
     const onPoseLimitRequest = vi.fn(async () => undefined);
@@ -199,7 +270,13 @@ describe("TV playfield", () => {
     expect(playfield).toHaveAttribute("data-playfield-view", "games");
     expect(screen.getByRole("button", { name: "Draw" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bubbles" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Racing" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Return to Main Menu" })).toBeInTheDocument();
+    expect(view.container.querySelectorAll(".pose-control-button")).toHaveLength(4);
+    expect(view.container.querySelector(".pose-control-targets")).toHaveAttribute(
+      "data-control-placement",
+      "left-column",
+    );
     expect(screen.queryByRole("button", { name: "Background" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Return to Main Menu" }));
     expect(playfield).toHaveAttribute("data-playfield-view", "main");
@@ -431,6 +508,170 @@ describe("TV playfield", () => {
     expect(
       screen.queryByRole("heading", { name: "Rotate phone to landscape" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("runs Racing from calibration through pause and finish, then destroys its lazy runtime", async () => {
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        cameraLayoutPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
+      />
+    );
+    const view = render(renderPlayfield(createRaisedHandPacket(0)));
+    claimControls(view, renderPlayfield);
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    fireEvent.click(screen.getByRole("button", { name: "Racing" }));
+
+    const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
+    expect(playfield).toHaveAttribute("data-playfield-view", "racing");
+    expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "ready");
+    expect(
+      await screen.findByRole("img", { name: "Pseudo-3D Racing course and car" }),
+    ).toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(screen.getByRole("button", { name: "Start Racing" })).toBeEnabled(),
+    );
+    expect(
+      screen.queryByRole("img", { name: "Mirrored live body avatar from the paired phone" }),
+    ).not.toBeInTheDocument();
+    expect(currentRacingRuntime().playerCount).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Racing" }));
+    expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "starting");
+    expect(screen.queryByRole("button", { name: "Exit Racing" })).not.toBeInTheDocument();
+    expect(view.container.querySelector(".pose-cursor")).not.toBeInTheDocument();
+
+    for (let sequence = 4; sequence <= 33; sequence += 1) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createRacingWheelPacket(sequence)));
+      const runtime = currentRacingRuntime();
+      act(() => runtime.onSnapshot(runtime.session.tick(nowMs)));
+    }
+    expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "racing");
+    expect(screen.getByText("Hold both hands above your head to pause")).toBeInTheDocument();
+
+    for (let sequence = 34; sequence <= 44; sequence += 1) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createRacingPausePacket(sequence)));
+    }
+    expect(screen.getByText("Race paused")).toBeInTheDocument();
+    for (let sequence = 45; sequence <= 48; sequence += 1) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
+    }
+    expect(screen.getByRole("button", { name: "Resume Racing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recenter Racing controls" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restart Racing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit Racing" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume Racing" }));
+    expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "racing");
+    expect(screen.queryByRole("button", { name: "Resume Racing" })).not.toBeInTheDocument();
+
+    let sequence = 49;
+    let raceSnapshot = currentRacingRuntime().session.getSnapshot(nowMs);
+    while (raceSnapshot.phase === "racing" && sequence < 2_000) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createRacingWheelPacket(sequence)));
+      raceSnapshot = currentRacingRuntime().session.tick(nowMs);
+      sequence += 1;
+    }
+    expect(raceSnapshot.phase).toBe("finished");
+    act(() => currentRacingRuntime().onSnapshot(raceSnapshot));
+    expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "finished");
+    expect(screen.getByText(/^Finished in/u)).toBeInTheDocument();
+
+    for (let offset = 0; offset < 4; offset += 1) {
+      nowMs += 100;
+      view.rerender(renderPlayfield(createRaisedHandPacket(sequence + offset)));
+    }
+    expect(screen.getByRole("button", { name: "Play Racing again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit Racing" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Play Racing again" }));
+    expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "ready");
+
+    for (let offset = 4; offset < 8; offset += 1) {
+      nowMs += 100;
+      view.rerender(renderPlayfield(createRaisedHandPacket(sequence + offset)));
+    }
+    const exitingRuntime = currentRacingRuntime();
+    fireEvent.click(screen.getByRole("button", { name: "Exit Racing" }));
+    expect(playfield).toHaveAttribute("data-playfield-view", "games");
+    await vi.waitFor(() => expect(racingRuntimeHarness.destroyCount).toBe(1));
+    act(() => exitingRuntime.onSnapshot(raceSnapshot));
+    expect(screen.getByRole("button", { name: "Racing" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Play Racing again" })).not.toBeInTheDocument();
+  });
+
+  it("gates two-player Racing on landscape before mounting its split-screen runtime", async () => {
+    const portraitPacket = (sequence: number): PosePacket => ({
+      ...createTwoPlayerPacket(sequence),
+      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
+    });
+    const landscapePacket = (sequence: number): PosePacket => ({
+      ...createTwoPlayerPacket(sequence),
+      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
+    });
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={2}
+        poseLimitPending={false}
+        cameraLayoutPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
+      />
+    );
+    const view = render(renderPlayfield(portraitPacket(0)));
+    for (const sequence of [1, 2, 3, 4, 5]) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(portraitPacket(sequence)));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    fireEvent.click(screen.getByRole("button", { name: "Racing" }));
+
+    expect(requestCameraLayout).toHaveBeenCalledWith("landscape");
+    expect(screen.getByRole("heading", { name: "Rotate phone to landscape" })).toBeInTheDocument();
+    expect(screen.queryByTestId("racing-board")).not.toBeInTheDocument();
+    expect(racingRuntimeHarness.options).toBeNull();
+
+    nowMs = 600;
+    view.rerender(renderPlayfield(landscapePacket(6)));
+    expect(await screen.findByTestId("racing-board")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("img", { name: "Split-screen pseudo-3D Racing course and cars" }),
+    ).toBeInTheDocument();
+    await vi.waitFor(() => expect(currentRacingRuntime().playerCount).toBe(2));
+  });
+
+  it("keeps Exit available when the Racing runtime reports an initialization failure", async () => {
+    racingRuntimeHarness.failureMessage = "Canvas initialization failed.";
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        cameraLayoutPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
+      />
+    );
+    const view = render(renderPlayfield(createRaisedHandPacket(0)));
+    claimControls(view, renderPlayfield);
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    fireEvent.click(screen.getByRole("button", { name: "Racing" }));
+
+    expect(await screen.findByText("Canvas initialization failed.")).toBeInTheDocument();
+    for (let sequence = 4; sequence <= 7; sequence += 1) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
+    }
+    expect(screen.getByRole("button", { name: "Exit Racing" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Racing" })).not.toBeInTheDocument();
   });
 
   it("locks an active Draw session to its entering layout and releases pose controls", async () => {

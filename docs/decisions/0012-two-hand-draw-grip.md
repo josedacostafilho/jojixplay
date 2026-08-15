@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Draw tool engagement, continuity, tool selection, and toolbar placement
 ---
 
@@ -10,7 +10,9 @@ scope: Draw tool engagement, continuity, tool selection, and toolbar placement
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The per-hand stationary engagement/lifting contract in [ADR-0010](0010-menu-and-draw-game.md) and [ADR-0011](0011-consumer-specific-pose-stability.md), plus the opposite-hand eraser and overhead Draw toolbar in ADR-0010
-- **Superseded by:** [ADR-0015](0015-canonical-camera-orientation.md) for landscape Main Menu/Games placement and epoch-sensitive Draw suspension; the grip, tool, and Draw toolbar decisions remain active
+- **Superseded by:** [ADR-0015](0015-canonical-camera-orientation.md) for landscape Main Menu/Games placement and epoch-sensitive Draw suspension, then [ADR-0016](0016-phaser-canvas-racing.md) for the Games menu in portrait; the grip, tool, and Draw toolbar decisions remain active
+
+> **Current-scope note:** The statement below that Games retains an overhead row is historical. Only portrait Main Menu uses that row; Games now uses the compact left column in both layouts.
 
 ## Context
 

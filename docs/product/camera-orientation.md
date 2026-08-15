@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Portrait/landscape user experience, canonical camera coordinates, and game orientation behavior
 ---
 
@@ -46,24 +46,27 @@ horizontal presentation mirror: x → 1 - x
 | View or mode | Supported camera layouts | Control placement |
 | --- | --- | --- |
 | Main Menu | Portrait and landscape | Portrait above-head row; landscape compact left column |
-| Games | Portrait and landscape | Portrait above-head row; landscape compact left column |
+| Games | Portrait and landscape | Compact left column |
 | Draw | Portrait and landscape | Compact left column |
 | Bubbles, one player | Portrait and landscape | Compact left column while actionable |
 | Bubbles, two players | Landscape only | Compact left column while actionable |
+| Racing, one player | Portrait and landscape | Compact left column while Ready, Paused, or Finished |
+| Racing, two players | Landscape only | Compact left column while Ready, Paused, or Finished |
 
 The shell evaluates the policy before mounting a game. A mismatch disables the current pose targets, requests the required layout, and shows the same rotation instruction on the television and phone. The game begins only after the acknowledgement and a matching canonical packet.
 
 ## Active-game lock
 
-- Draw and Bubbles capture the entering frame layout.
+- Draw, Bubbles, and Racing capture the entering frame layout.
 - A different incoming layout is an orientation mismatch, not a resize.
 - The mismatched pose and avatar are hidden from the game. The television instructs the user to restore the captured layout.
 - Draw immediately ends the grip and current path. Artwork, selected tool, and color remain available when the expected layout returns.
 - Bubbles freezes the countdown or active round, movement, effects, respawn delays, scores, and result timing. It resumes from the same remaining duration.
-- Returning to the captured layout resets all temporal input history before input resumes, preventing dwell, stroke, or swept-collision bridges.
+- Racing freezes calibration, active elapsed time, car simulation, and steering input. It keeps a prior user pause and resumes only through fresh wheel input after the captured layout returns.
+- Returning to the captured layout resets all temporal input history before input resumes, preventing dwell, stroke, swept-collision, steering, or pause-gesture bridges.
 - A new Draw entry under a different layout begins with an empty canvas because the old normalized artwork has no stable physical meaning after a deliberate camera-layout change.
 
-Ordinary pose loss remains distinct: it follows each game's existing fail-closed behavior and does not pause Bubbles time.
+Ordinary pose loss remains distinct: it follows each game's existing fail-closed behavior, does not pause Bubbles time, and causes only the affected Racing steering command to ease toward center after its bounded grace interval.
 
 ## Presentation behavior
 
@@ -71,6 +74,7 @@ Ordinary pose loss remains distinct: it follows each game's existing fail-closed
 - Portrait produces a centered tall arena with side gutters. Landscape produces a wider arena.
 - Game targets and body-controlled actions stay inside the camera arena. Scores, timers, instructions, and other noninteractive HUD may use television space outside it.
 - Draw and Bubbles scale sizes and distances from the canonical frame minimum dimension as before.
+- Racing uses the camera frame only for pose geometry and reachable DOM actions; its Phaser canvas fills the television and uses one full-screen or two half-screen viewports.
 - The phone video and avatar preview share the same canonical aspect and rotation.
 
 ## Implementation plan
@@ -82,6 +86,7 @@ Ordinary pose loss remains distinct: it follows each game's existing fail-closed
 - [x] Make phone preview geometry and menu control placement layout-aware.
 - [x] Gate incompatible game entry and lock active games to their entering layout.
 - [x] Reset Draw input and pause/resume Bubbles safely across orientation mismatch, including gaps before the returning packet.
+- [x] Add one-player both-layout and two-player landscape-only Racing policy with complete simulation/input freeze on mismatch.
 - [x] Add unit, component, transport, and production-browser regression coverage.
 - [x] Run the complete canonical validation suite.
 - [ ] Validate portrait and landscape behavior on the owner's real phone and television.
@@ -91,10 +96,10 @@ Ordinary pose loss remains distinct: it follows each game's existing fail-closed
 1. A phone can begin tracking in portrait or landscape and MediaPipe receives an upright frame in either case.
 2. The TV mirror remains horizontal in physical screen space for both layouts.
 3. Packet dimensions, layout, and epoch are strictly validated; obsolete packets and peers fail closed.
-4. Main Menu and Games use the above-head row in portrait and the compact left column in landscape.
-5. Draw and one-player Bubbles can start in either layout; two-player Bubbles cannot start until landscape is acknowledged.
+4. Main Menu uses the above-head row in portrait and the compact left column in landscape; Games uses the compact left column in both layouts.
+5. Draw plus one-player Bubbles/Racing can start in either layout; two-player Bubbles/Racing cannot start until landscape is acknowledged.
 6. An incompatible game selection shows a clear rotation gate on both screens without restarting pairing, tracking, or player mode.
-7. Active games consume no mismatched-layout pose. Draw creates no bridge stroke, and Bubbles loses no game time or state during the mismatch.
+7. Active games consume no mismatched-layout pose. Draw creates no bridge stroke, Bubbles loses no game time or state, and Racing consumes no simulation time or steering history during the mismatch.
 8. Returning to the captured layout resumes through fresh input histories.
 9. Phone diagnostics reveal enough non-pixel orientation state to diagnose a target browser.
 10. No forced aspect ratio, alternate rotation implementation, screen-lock dependency, compatibility parser, or legacy protocol remains.

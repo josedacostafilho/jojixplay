@@ -12,6 +12,13 @@ import {
 } from "../games/bubbles/bubbles-session";
 import { DrawCanvas } from "../games/draw/draw-canvas";
 import { DRAW_ERASER_WIDTH, DrawSession, type DrawSnapshot } from "../games/draw/draw-session";
+import { RacingCanvas } from "../games/racing/racing-canvas";
+import { RacingInputSession } from "../games/racing/racing-input";
+import {
+  type RacingResult,
+  RacingSession,
+  type RacingSnapshot,
+} from "../games/racing/racing-session";
 import {
   type PoseControlActionDefinition,
   type PoseControlPlacement,
@@ -40,13 +47,15 @@ interface TvPlayfieldProps {
 }
 
 type BackgroundTheme = "navy" | "plum";
-type PlayfieldView = "main" | "games" | "draw" | "bubbles";
+type PlayfieldView = "main" | "games" | "draw" | "bubbles" | "racing";
+type RacingRuntimeState = "loading" | "ready" | "failed";
 type PlayfieldAction =
   | "background"
   | "players"
   | "open-games"
   | "open-draw"
   | "open-bubbles"
+  | "open-racing"
   | "return-main"
   | "draw-tool"
   | "draw-color"
@@ -54,7 +63,13 @@ type PlayfieldAction =
   | "draw-exit"
   | "bubbles-start"
   | "bubbles-restart"
-  | "bubbles-exit";
+  | "bubbles-exit"
+  | "racing-start"
+  | "racing-resume"
+  | "racing-recenter"
+  | "racing-restart"
+  | "racing-play-again"
+  | "racing-exit";
 
 const MAIN_ACTIONS = [
   { action: "background", label: "Background" },
@@ -65,6 +80,7 @@ const MAIN_ACTIONS = [
 const GAMES_ACTIONS = [
   { action: "open-draw", label: "Draw" },
   { action: "open-bubbles", label: "Bubbles" },
+  { action: "open-racing", label: "Racing" },
   { action: "return-main", label: "Return" },
 ] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
 
@@ -83,6 +99,27 @@ const BUBBLES_READY_ACTIONS = [
 const BUBBLES_RESULT_ACTIONS = [
   { action: "bubbles-restart", label: "Play Again" },
   { action: "bubbles-exit", label: "Exit" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const RACING_READY_ACTIONS = [
+  { action: "racing-start", label: "Start" },
+  { action: "racing-exit", label: "Exit" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const RACING_PAUSED_ACTIONS = [
+  { action: "racing-resume", label: "Resume" },
+  { action: "racing-recenter", label: "Recenter" },
+  { action: "racing-restart", label: "Restart" },
+  { action: "racing-exit", label: "Exit" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const RACING_RESULT_ACTIONS = [
+  { action: "racing-play-again", label: "Play Again" },
+  { action: "racing-exit", label: "Exit" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const RACING_ERROR_ACTIONS = [
+  { action: "racing-exit", label: "Exit" },
 ] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
 
 const EMPTY_SNAPSHOT: PoseControlSnapshot<PlayfieldAction> = {
@@ -106,7 +143,7 @@ interface ViewControls {
 
 interface OrientationGate {
   game: GameId;
-  view: "draw" | "bubbles";
+  view: "draw" | "bubbles" | "racing";
   requiredLayout: CameraLayout;
 }
 
@@ -120,12 +157,14 @@ function controlsForView(view: PlayfieldView, layout: CameraLayout | null): View
     case "games":
       return {
         actions: GAMES_ACTIONS,
-        placement: layout === "landscape" ? "left-column" : "overhead-row",
+        placement: "left-column",
       };
     case "draw":
       return { actions: DRAW_ACTIONS, placement: "left-column" };
     case "bubbles":
       return { actions: BUBBLES_READY_ACTIONS, placement: "left-column" };
+    case "racing":
+      return { actions: RACING_READY_ACTIONS, placement: "left-column" };
   }
 }
 
@@ -139,6 +178,8 @@ function viewLabel(view: PlayfieldView): string {
       return "Draw";
     case "bubbles":
       return "Bubbles";
+    case "racing":
+      return "Racing";
   }
 }
 
@@ -160,6 +201,26 @@ function bubblesResultMessage(result: BubblesResult | null): string {
   }
   const winner = result.winner === "left" ? "Left" : "Right";
   return `${winner} player wins — Left ${result.leftScore}, Right ${result.rightScore}.`;
+}
+
+function formatRacingTime(elapsedMs: number): string {
+  const centiseconds = Math.floor(Math.max(0, elapsedMs) / 10);
+  const minutes = Math.floor(centiseconds / 6_000);
+  const seconds = Math.floor(centiseconds / 100) % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(centiseconds % 100).padStart(2, "0")}`;
+}
+
+function racingResultMessage(result: RacingResult | null): string {
+  if (result === null) {
+    return "Race complete.";
+  }
+  if (result.type === "time") {
+    return `Finished in ${formatRacingTime(result.elapsedMs)}.`;
+  }
+  if (result.winner === "tie") {
+    return "Left and Right finish together — tie race.";
+  }
+  return `${result.winner === "left" ? "Left" : "Right"} player wins.`;
 }
 
 function samePoint(left: Point | null, right: Point | null): boolean {
@@ -212,6 +273,8 @@ function controlInstruction(
   snapshot: PoseControlSnapshot<PlayfieldAction>,
   drawing: DrawSnapshot,
   bubbles: BubblesSnapshot,
+  racing: RacingSnapshot,
+  racingRuntimeState: RacingRuntimeState,
   view: PlayfieldView,
 ): string {
   switch (snapshot.phase) {
@@ -242,6 +305,19 @@ function controlInstruction(
           ? "Waiting for one visible player"
           : `Waiting for two visible players — ${bubbles.visiblePlayers} visible`;
       }
+      if (view === "racing") {
+        if (racingRuntimeState === "loading") {
+          return "Loading Racing";
+        }
+        if (racingRuntimeState === "failed") {
+          return "Racing is unavailable — use Exit";
+        }
+        if (racing.phase === "ready" && !racing.readyToStart) {
+          return racing.playerCount === 1
+            ? "Keep your body and both whole hands visible"
+            : `Waiting for two complete drivers — ${racing.completeDrivers} ready`;
+        }
+      }
       return "Move your hand onto a button and hold";
   }
 }
@@ -266,6 +342,8 @@ function accessibleActionLabel(
       return "Draw";
     case "open-bubbles":
       return "Bubbles";
+    case "open-racing":
+      return "Racing";
     case "return-main":
       return "Return to Main Menu";
     case "draw-clear":
@@ -278,6 +356,18 @@ function accessibleActionLabel(
       return "Play Bubbles again";
     case "bubbles-exit":
       return "Exit Bubbles";
+    case "racing-start":
+      return "Start Racing";
+    case "racing-resume":
+      return "Resume Racing";
+    case "racing-recenter":
+      return "Recenter Racing controls";
+    case "racing-restart":
+      return "Restart Racing";
+    case "racing-play-again":
+      return "Play Racing again";
+    case "racing-exit":
+      return "Exit Racing";
   }
 }
 
@@ -321,11 +411,15 @@ export function TvPlayfield({
   );
   const [drawSession] = useState(() => new DrawSession());
   const [bubblesSession] = useState(() => new BubblesSession());
+  const [racingSession] = useState(() => new RacingSession());
+  const [racingInputSession] = useState(() => new RacingInputSession());
   const latestFrameRef = useRef<CameraFrame | null>(null);
   const latestPacketRef = useRef<PosePacket | null>(packet);
   const viewportRef = useRef<Size>({ width: 0, height: 0 });
   const viewRef = useRef<PlayfieldView>("main");
   const bubblesPlayerCountRef = useRef<PoseLimit>(poseLimit);
+  const racingPlayerCountRef = useRef<PoseLimit>(poseLimit);
+  const racingPhaseRef = useRef<RacingSnapshot["phase"]>("ready");
   const playerModeRequestActiveRef = useRef(false);
   const orientationReturnRequestActiveRef = useRef(false);
   const orientationMismatchRef = useRef(false);
@@ -342,6 +436,10 @@ export function TvPlayfield({
   const [bubbles, setBubbles] = useState<BubblesSnapshot>(() =>
     bubblesSession.setEnabled(false, poseLimit, 0),
   );
+  const [racing, setRacing] = useState<RacingSnapshot>(() =>
+    racingSession.setEnabled(false, poseLimit, 0),
+  );
+  const [racingRuntimeState, setRacingRuntimeState] = useState<RacingRuntimeState>("loading");
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>("navy");
   const [announcement, setAnnouncement] = useState("");
   const palette = AVATAR_ACCENT_PALETTE;
@@ -365,8 +463,14 @@ export function TvPlayfield({
   const transitionTo = useCallback(
     (nextView: PlayfieldView, enteringLayout: CameraLayout | null = null) => {
       const nowMs = performance.now();
-      const nextGameLayout = nextView === "draw" || nextView === "bubbles" ? enteringLayout : null;
-      if ((nextView === "draw" || nextView === "bubbles") && nextGameLayout === null) {
+      const nextGameLayout =
+        nextView === "draw" || nextView === "bubbles" || nextView === "racing"
+          ? enteringLayout
+          : null;
+      if (
+        (nextView === "draw" || nextView === "bubbles" || nextView === "racing") &&
+        nextGameLayout === null
+      ) {
         throw new Error("A game requires an explicit camera layout on entry.");
       }
       viewRef.current = nextView;
@@ -405,9 +509,36 @@ export function TvPlayfield({
       } else {
         setBubbles(bubblesSession.setEnabled(false, poseLimit, nowMs));
       }
+      if (nextView === "racing") {
+        racingPlayerCountRef.current = poseLimit;
+        racingPhaseRef.current = "ready";
+        racingInputSession.reset();
+        let nextRacing = racingSession.setEnabled(true, racingPlayerCountRef.current, nowMs);
+        const currentPacket = latestPacketRef.current;
+        if (currentPacket !== null && currentPacket.frame.layout === nextGameLayout) {
+          nextRacing = racingSession.updateDrivers(
+            racingInputSession.update(currentPacket, racingPlayerCountRef.current, nowMs),
+            nowMs,
+          );
+        }
+        setRacing(nextRacing);
+        setRacingRuntimeState("loading");
+      } else {
+        racingInputSession.reset();
+        racingPhaseRef.current = "ready";
+        setRacing(racingSession.setEnabled(false, poseLimit, nowMs));
+      }
       setAnnouncement("");
     },
-    [applyDrawing, bubblesSession, controlSession, drawSession, poseLimit],
+    [
+      applyDrawing,
+      bubblesSession,
+      controlSession,
+      drawSession,
+      poseLimit,
+      racingInputSession,
+      racingSession,
+    ],
   );
 
   const activateAction = useCallback(
@@ -440,8 +571,10 @@ export function TvPlayfield({
           transitionTo("games");
           break;
         case "open-draw":
-        case "open-bubbles": {
-          const game: GameId = action === "open-draw" ? "draw" : "bubbles";
+        case "open-bubbles":
+        case "open-racing": {
+          const game: GameId =
+            action === "open-draw" ? "draw" : action === "open-bubbles" ? "bubbles" : "racing";
           const nextView = game;
           const currentLayout = latestPacketRef.current?.frame.layout ?? null;
           if (currentLayout === null) {
@@ -512,6 +645,64 @@ export function TvPlayfield({
         case "bubbles-exit":
           transitionTo("games");
           break;
+        case "racing-start": {
+          if (racingRuntimeState !== "ready") {
+            setAnnouncement(
+              racingRuntimeState === "failed"
+                ? "Racing is unavailable on this television."
+                : "Racing is still loading.",
+            );
+            break;
+          }
+          const nowMs = performance.now();
+          const started = racingSession.start(nowMs);
+          setRacing(started.snapshot);
+          if (!started.started) {
+            setAnnouncement(
+              racingPlayerCountRef.current === 1
+                ? "Keep your body and both whole hands visible before starting."
+                : "Both drivers need a visible body and two whole hands before starting.",
+            );
+            break;
+          }
+          racingPhaseRef.current = "starting";
+          setSnapshot(controlSession.setControlsEnabled(false, nowMs).snapshot);
+          setAnnouncement("");
+          break;
+        }
+        case "racing-resume": {
+          const nowMs = performance.now();
+          const nextRacing = racingSession.resume(nowMs);
+          racingPhaseRef.current = nextRacing.phase;
+          setRacing(nextRacing);
+          setSnapshot(controlSession.setControlsEnabled(false, nowMs).snapshot);
+          setAnnouncement("");
+          break;
+        }
+        case "racing-recenter": {
+          const nowMs = performance.now();
+          const nextRacing = racingSession.recenter(nowMs);
+          racingPhaseRef.current = nextRacing.phase;
+          setRacing(nextRacing);
+          setSnapshot(controlSession.setControlsEnabled(false, nowMs).snapshot);
+          setAnnouncement("");
+          break;
+        }
+        case "racing-restart":
+        case "racing-play-again": {
+          const nowMs = performance.now();
+          racingInputSession.reset();
+          const nextRacing = racingSession.restart(nowMs);
+          racingPhaseRef.current = nextRacing.phase;
+          setRacing(nextRacing);
+          controlSession.setActions(RACING_READY_ACTIONS, "left-column", nowMs);
+          setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
+          setAnnouncement("Ready for a new race.");
+          break;
+        }
+        case "racing-exit":
+          transitionTo("games");
+          break;
       }
     },
     [
@@ -524,6 +715,9 @@ export function TvPlayfield({
       onPoseLimitRequest,
       poseLimit,
       poseLimitPending,
+      racingInputSession,
+      racingRuntimeState,
+      racingSession,
       transitionTo,
     ],
   );
@@ -553,6 +747,9 @@ export function TvPlayfield({
         applyDrawing(drawSession.suspend());
       } else if (viewRef.current === "bubbles") {
         setBubbles(bubblesSession.setPaused(true, nowMs));
+      } else if (viewRef.current === "racing") {
+        racingInputSession.reset();
+        setRacing(racingSession.setOrientationPaused(true, nowMs));
       }
       if (!cameraLayoutPending && !orientationReturnRequestActiveRef.current) {
         orientationReturnRequestActiveRef.current = true;
@@ -566,6 +763,8 @@ export function TvPlayfield({
     orientationReturnRequestActiveRef.current = false;
     if (viewRef.current === "bubbles") {
       setBubbles(bubblesSession.setPaused(false, nowMs));
+    } else if (viewRef.current === "racing") {
+      setRacing(racingSession.setOrientationPaused(false, nowMs));
     }
   }, [
     applyDrawing,
@@ -575,6 +774,8 @@ export function TvPlayfield({
     drawSession,
     onCameraLayoutRequest,
     orientationMismatch,
+    racingInputSession,
+    racingSession,
   ]);
 
   const applyPoseUpdate = useCallback(
@@ -620,12 +821,68 @@ export function TvPlayfield({
                 nowMs,
               ),
         );
+      } else if (viewRef.current === "racing" && freshPacket !== undefined) {
+        const racingInput = racingInputSession.update(
+          freshPacket,
+          racingPlayerCountRef.current,
+          nowMs,
+        );
+        let nextRacing = racingSession.updateDrivers(racingInput, nowMs);
+        if (racingInput.pauseRequested && racingPhaseRef.current === "racing") {
+          nextRacing = racingSession.requestUserPause(nowMs);
+          racingPhaseRef.current = nextRacing.phase;
+          controlSession.setActions(RACING_PAUSED_ACTIONS, "left-column", nowMs);
+          setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
+          setAnnouncement("Race paused.");
+        }
+        setRacing(nextRacing);
       }
       if (update.activated !== null && !poseLimitPending && !cameraLayoutPending) {
         activateActionRef.current(update.activated);
       }
     },
-    [applyDrawing, bubblesSession, cameraLayoutPending, drawSession, poseLimitPending],
+    [
+      applyDrawing,
+      bubblesSession,
+      cameraLayoutPending,
+      controlSession,
+      drawSession,
+      poseLimitPending,
+      racingInputSession,
+      racingSession,
+    ],
+  );
+
+  const handleRacingSnapshot = useCallback(
+    (nextRacing: RacingSnapshot) => {
+      const previousPhase = racingPhaseRef.current;
+      racingPhaseRef.current = nextRacing.phase;
+      setRacing(nextRacing);
+      if (nextRacing.phase === "finished" && previousPhase !== "finished") {
+        const nowMs = performance.now();
+        controlSession.setActions(RACING_RESULT_ACTIONS, "left-column", nowMs);
+        setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
+        setAnnouncement("");
+      }
+    },
+    [controlSession],
+  );
+
+  const handleRacingReady = useCallback(() => {
+    setRacingRuntimeState("ready");
+    setRacing(racingSession.setSystemPaused(false, performance.now()));
+  }, [racingSession]);
+
+  const handleRacingError = useCallback(
+    (message: string) => {
+      const nowMs = performance.now();
+      setRacingRuntimeState("failed");
+      setRacing(racingSession.setSystemPaused(true, nowMs));
+      controlSession.setActions(RACING_ERROR_ACTIONS, "left-column", nowMs);
+      setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
+      setAnnouncement(message);
+    },
+    [controlSession, racingSession],
   );
 
   useEffect(() => {
@@ -709,9 +966,23 @@ export function TvPlayfield({
   }, [announcement]);
 
   const pointerColor = palette[snapshot.controllerPoseIndex ?? 0] ?? palette[0];
-  const instruction = controlInstruction(snapshot, drawing, bubbles, view);
+  const instruction = controlInstruction(
+    snapshot,
+    drawing,
+    bubbles,
+    racing,
+    racingRuntimeState,
+    view,
+  );
   const bubblesControlsVisible =
     view !== "bubbles" || bubbles.phase === "ready" || bubbles.phase === "finished";
+  const racingControlsVisible =
+    view !== "racing" ||
+    racing.phase === "ready" ||
+    racing.phase === "paused" ||
+    racing.phase === "finished" ||
+    racingRuntimeState === "failed";
+  const gameControlsVisible = bubblesControlsVisible && racingControlsVisible;
   const frame = latestFrameRef.current;
   const projection =
     frame === null || size.width === 0 || size.height === 0
@@ -734,7 +1005,7 @@ export function TvPlayfield({
   return (
     <div
       ref={containerRef}
-      class={`tv-playfield tv-playfield--${backgroundTheme}${view === "draw" ? " tv-playfield--draw" : ""}${view === "bubbles" ? " tv-playfield--bubbles" : ""}`}
+      class={`tv-playfield tv-playfield--${backgroundTheme}${view === "draw" ? " tv-playfield--draw" : ""}${view === "bubbles" ? " tv-playfield--bubbles" : ""}${view === "racing" ? " tv-playfield--racing" : ""}`}
       data-background-theme={backgroundTheme}
       data-playfield-view={view}
       data-camera-layout={frame?.layout ?? "none"}
@@ -760,13 +1031,27 @@ export function TvPlayfield({
         </div>
       ) : null}
 
-      <AvatarCanvas
-        packet={gamePacket}
-        label="Mirrored live body avatar from the paired phone"
-        className="avatar-canvas avatar-canvas--tv"
-        mirrored
-        appearance={view === "draw" ? "draw" : view === "bubbles" ? "bubbles" : "stage"}
-      />
+      {view === "racing" ? (
+        <div class="racing-board" data-testid="racing-board" data-racing-phase={racing.phase}>
+          <RacingCanvas
+            session={racingSession}
+            playerCount={racing.playerCount}
+            onReady={handleRacingReady}
+            onSnapshot={handleRacingSnapshot}
+            onError={handleRacingError}
+          />
+        </div>
+      ) : null}
+
+      {view === "racing" ? null : (
+        <AvatarCanvas
+          packet={gamePacket}
+          label="Mirrored live body avatar from the paired phone"
+          className="avatar-canvas avatar-canvas--tv"
+          mirrored
+          appearance={view === "draw" ? "draw" : view === "bubbles" ? "bubbles" : "stage"}
+        />
+      )}
 
       {orientationInstructionLayout === null ? null : (
         <section class="camera-layout-gate" role="status" aria-live="assertive">
@@ -775,12 +1060,12 @@ export function TvPlayfield({
           <p>
             {orientationMismatch
               ? `${viewLabel(view)} is paused. Return the phone to its starting layout to resume.`
-              : `${orientationGate?.game === "bubbles" ? "Two-player Bubbles" : "This game"} needs a ${orientationInstructionLayout} camera.`}
+              : `${orientationGate?.game === "bubbles" ? "Two-player Bubbles" : orientationGate?.game === "racing" ? "Two-player Racing" : "This game"} needs a ${orientationInstructionLayout} camera.`}
           </p>
         </section>
       )}
 
-      {view === "bubbles" ? null : (
+      {view === "bubbles" || view === "racing" ? null : (
         <div class="playfield-view-label" aria-live="polite">
           <span>{viewLabel(view)}</span>
           {view === "draw" ? (
@@ -854,11 +1139,52 @@ export function TvPlayfield({
         </section>
       ) : null}
 
+      {view === "racing" && racing.phase === "ready" ? (
+        <section class="racing-round-message" aria-live="polite">
+          <p class="eyebrow">Automatic throttle</p>
+          <h2>Racing</h2>
+          <p>
+            {racingRuntimeState === "loading"
+              ? "Loading the race…"
+              : racingRuntimeState === "failed"
+                ? "Racing is unavailable on this television."
+                : racing.readyToStart
+                  ? "Drivers ready — press Start, then hold both hands like a steering wheel."
+                  : racing.playerCount === 1
+                    ? "Keep your body and both whole hands visible."
+                    : `Waiting for two complete drivers — ${racing.completeDrivers} ready.`}
+          </p>
+        </section>
+      ) : null}
+      {view === "racing" && racing.phase === "starting" ? (
+        <p class="visually-hidden" role="status" aria-live="polite">
+          Calibrating Racing controls. {racing.wheelReadyDrivers} of {racing.playerCount} drivers
+          holding a valid steering wheel pose.
+        </p>
+      ) : null}
+      {view === "racing" && racing.phase === "racing" ? (
+        <p class="racing-pause-hint">Hold both hands above your head to pause</p>
+      ) : null}
+      {view === "racing" && racing.phase === "paused" ? (
+        <section class="racing-round-message racing-round-message--paused" role="status">
+          <p class="eyebrow">Race paused</p>
+          <h2>{formatRacingTime(racing.elapsedMs)}</h2>
+          <p>Resume, recalibrate your neutral wheel, restart, or exit.</p>
+        </section>
+      ) : null}
+      {view === "racing" && racing.phase === "finished" ? (
+        <section class="racing-round-message racing-round-message--result" role="status">
+          <p class="eyebrow">Finish</p>
+          <h2>{racingResultMessage(racing.result)}</h2>
+          <p>Course time {formatRacingTime(racing.elapsedMs)}</p>
+        </section>
+      ) : null}
+
       {gamePacket !== null &&
       orientationGate === null &&
       !orientationMismatch &&
       announcement === "" &&
-      bubblesControlsVisible ? (
+      gameControlsVisible ? (
         <p class={`pose-control-hint pose-control-hint--${snapshot.phase}`} aria-live="polite">
           {instruction}
           {snapshot.phase === "claiming" ? (
@@ -873,7 +1199,7 @@ export function TvPlayfield({
       orientationGate === null &&
       !orientationMismatch &&
       snapshot.phase === "active" &&
-      bubblesControlsVisible ? (
+      gameControlsVisible ? (
         <fieldset class="pose-control-targets" data-control-placement={controlPlacement}>
           <legend class="visually-hidden">{viewLabel(view)} body-controlled actions</legend>
           {snapshot.targets.map((target) => {
@@ -882,6 +1208,9 @@ export function TvPlayfield({
             const awaitingBubblesPlayers =
               (target.action === "bubbles-start" || target.action === "bubbles-restart") &&
               !bubbles.readyToStart;
+            const awaitingRacing =
+              target.action === "racing-start" &&
+              (!racing.readyToStart || racingRuntimeState !== "ready");
             return (
               <button
                 key={target.action}
@@ -889,7 +1218,12 @@ export function TvPlayfield({
                 type="button"
                 aria-label={accessibleActionLabel(target.action, poseLimit, drawing)}
                 onClick={() => activateAction(target.action)}
-                disabled={poseLimitPending || cameraLayoutPending || awaitingBubblesPlayers}
+                disabled={
+                  poseLimitPending ||
+                  cameraLayoutPending ||
+                  awaitingBubblesPlayers ||
+                  awaitingRacing
+                }
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
                 <span class="pose-control-button__label">
@@ -914,7 +1248,7 @@ export function TvPlayfield({
       ) : null}
 
       {view !== "draw" &&
-      bubblesControlsVisible &&
+      gameControlsVisible &&
       gamePacket !== null &&
       !orientationMismatch &&
       snapshot.pointer !== null ? (

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: User-visible behavior and implemented design for the Bubbles game
 ---
 
@@ -17,6 +17,7 @@ Main Menu
 └── Games
     ├── Draw
     ├── Bubbles
+    ├── Racing
     └── Return → Main Menu
 
 Bubbles — Ready
@@ -108,7 +109,7 @@ Bubbles — Finished
 
 ## Acceptance criteria
 
-1. Games exposes Draw, Bubbles, and Return with no hidden or stale action path.
+1. Games exposes Draw, Bubbles, Racing, and Return with no hidden or stale action path.
 2. Ready shows Start and Exit and prevents a round until the selected number of usable players is visible.
 3. Start suspends controls, shows a three-second countdown, then runs exactly 60 seconds without timer drift; only an active-game layout mismatch freezes that duration.
 4. Six one-player or eight two-player bubbles remain fully inside the projected camera arena while varying in accepted radius, speed, position, and smooth drift.
@@ -118,7 +119,7 @@ Bubbles — Finished
 8. The finished state declares the sole score, the left/right winner, or a tie and exposes neutrally re-armed Play Again and Exit actions.
 9. Radius-aware clamp-and-reflect keeps the complete bubble visible through edge contact, corners, frame stalls, and same-layout aspect changes.
 10. One-player Bubbles accepts either layout, two-player Bubbles cannot mount before an acknowledged landscape packet, and an active mismatch resumes with no lost game time or bridge collision.
-11. No external asset, backend, persistence, stable player identity, game engine, audio path, or dependency on the avatar's stabilized display copy is introduced.
+11. Bubbles imports no external asset, backend, persistence, stable player identity, game engine, audio path, or avatar-stabilized display value.
 12. Automated gates prove deterministic behavior; real-device acceptance measures hit tolerance, side attribution, orientation transitions, readability, sustained rendering, and perceived responsiveness.
 
 The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md), visible body presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), and camera layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md).

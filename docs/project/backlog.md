@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Prioritized project work until a canonical issue tracker exists
 ---
 
@@ -10,12 +10,12 @@ This is a compact queue, not a wish list. Keep entries actionable and ordered. O
 
 ## P0 — release the current prototype
 
-- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR and manual-key pairing, selfie-camera selection and consent, portrait and both landscape directions, orientation/source/rotation diagnostics, canonical phone preview alignment, horizontal television mirroring, stable frame epochs, achieved inference cadence through rotation, acknowledged player/layout switching without camera restart, one-player rest stability and fast-motion lag, partial-landmark/re-entry behavior, two-person history-free presentation, portrait overhead framing, landscape left-column reach, Main Menu/Games/Draw/Bubbles navigation, two-player Bubbles landscape gating, active Draw/Bubbles rotation recovery, neutral re-arming, Draw close/wide grip ergonomics and Pencil/Eraser continuity, Bubbles Start/Play Again/Exit reach, three-second/60-second timing, either-hand hit tolerance, fast-sweep popping, complete edge containment, score/timer/result readability, two-player screen-side attribution and crossing behavior, camera-bump behavior, long-session drawing, sustained Bubbles rendering, thermal behavior, stale/disconnect states, cleanup, and perceived latency. Record the one-player Lite baseline through [Pose quality](../engineering/pose-quality.md); multi-pose avatar acceptance must not introduce identity tracking.
+- [ ] Run acceptance on the owner's real phone and television: trusted fullscreen entry, QR/manual pairing, selfie-camera consent, portrait and both landscape directions, orientation diagnostics, preview alignment, horizontal mirroring, stable frame epochs, achieved inference cadence, acknowledged player/layout switching, avatar stability, portrait Main Menu reach, compact Games/Draw/Bubbles/Racing reach, every game navigation path, two-player Bubbles/Racing landscape gates, active-game rotation recovery, neutral re-arming, Draw grip and Pencil/Eraser continuity, Bubbles timing/hit/containment/score/side behavior, and the complete [Racing acceptance](../product/racing-game.md)—first-load time, one-/two-player sustained Canvas cadence, calibration comfort, steering response/dropout, off-road behavior, overhead pause false positives, split-screen readability, results, page suspension, resize, re-entry, and teardown—plus camera-bump behavior, long-session drawing, thermals, stale/disconnect states, cleanup, and perceived latency. Record the one-player Lite baseline through [Pose quality](../engineering/pose-quality.md); multi-pose behavior must not introduce stable identity.
 - [ ] Inspect the real peer connection and confirm that the application sends pose packets only, never a camera media track or pixel payload.
 
 ## P1 — establish measured product budgets
 
-- [ ] Record a performance baseline from target hardware in portrait and landscape, including the local pose/orientation diagnostics, then define budgets for startup time, orientation-transition settlement, sustained inference rate, processing-age p95, stationary hand spread, pose-packet freshness, avatar rest/fast-motion presentation, Draw replay cost, and combined two-avatar/eight-bubble renderer stability.
+- [ ] Record a performance baseline from target hardware in portrait and landscape, including local pose/orientation diagnostics, then define budgets for application startup, lazy Racing startup, orientation settlement, sustained inference, processing-age p95, stationary hand spread, pose freshness, avatar rest/fast-motion presentation, Draw replay, two-avatar/eight-bubble rendering, one-player Racing, and two-player split-screen Racing.
 - [ ] Run a focused accessibility review on the deployed phone and television flows and record any target-browser limitations.
 
 ## Entry format

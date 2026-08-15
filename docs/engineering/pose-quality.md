@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Repeatable one-player pose stability and latency measurement protocol
 ---
 
@@ -66,6 +66,6 @@ Evaluate that display path separately from raw interaction:
 - compare slow motion and fast reversals for a meaningful reduction in shimmer without objectionable lag, overshoot, or rubber-limb behavior;
 - verify that landmark loss omits affected anatomy instead of holding stale geometry and that reappearance starts from the current observation;
 - verify that one-to-two, two-to-one, pose loss, frame-layout/epoch changes, and re-entry do not carry one person's display history onto another; and
-- repeat the Draw and Bubbles checks to confirm that avatar smoothness cannot change grip, paths, buttons, hand rings, collisions, or scores.
+- repeat the Draw, Bubbles, and Racing checks to confirm that avatar smoothness cannot change grip, paths, buttons, hand rings, collisions, scores, wheel calibration, steering, or pause gestures; Racing must remain avatar-free.
 
 Do not add an alternate filter, style selector, raw-render fallback, or different game-specific avatar. Replacing a constant or algorithm requires recorded target-device evidence, one updated canonical contract, proportional regression tests, and a hard cutover. The unsmoothed canonical `PosePacket` remains unchanged under every presentation outcome. Orientation acceptance is governed by [Camera orientation](../product/camera-orientation.md).

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Documentation system and navigation
 ---
 
@@ -15,7 +15,7 @@ Repository-wide agent instructions live in [`../AGENTS.md`](../AGENTS.md). That 
 | Goal | Read |
 | --- | --- |
 | Orient to the repository | [Project status](project/status.md), then [Stack](architecture/stack.md) |
-| Understand the product and current content | [Product brief](product/brief.md), [Phone-to-television specification](product/skeleton-viewer.md), [Camera orientation](product/camera-orientation.md), [Avatar renderer](product/avatar-renderer.md), [Draw game](product/draw-game.md), then [Bubbles game](product/bubbles-game.md) |
+| Understand the product and current content | [Product brief](product/brief.md), [Phone-to-television specification](product/skeleton-viewer.md), [Camera orientation](product/camera-orientation.md), [Avatar renderer](product/avatar-renderer.md), [Draw game](product/draw-game.md), [Bubbles game](product/bubbles-game.md), then [Racing game](product/racing-game.md) |
 | Implement or modify behavior | [Engineering standards](engineering/standards.md), [Testing strategy](engineering/testing.md), [Workflow](engineering/workflow.md) |
 | Measure pose stability or evaluate a pose model | [Pose quality](engineering/pose-quality.md), then [ADR-0011](decisions/0011-consumer-specific-pose-stability.md) |
 | Make an architectural choice | [Architecture overview](architecture/overview.md), [ADR index](decisions/README.md) |
@@ -34,7 +34,8 @@ docs/
 │   ├── camera-orientation.md          # Portrait/landscape coordinates and game policy contract
 │   ├── avatar-renderer.md            # Live procedural body and presentation-smoothing contract
 │   ├── draw-game.md                  # Draw behavior and acceptance contract
-│   └── bubbles-game.md               # Bubbles behavior and implementation contract
+│   ├── bubbles-game.md               # Bubbles behavior and implementation contract
+│   └── racing-game.md                # Racing behavior, implementation, and acceptance contract
 ├── architecture/
 │   ├── overview.md                  # System shape, boundaries, and data flow
 │   └── stack.md                     # Exact technologies, versions, and commands
@@ -55,7 +56,8 @@ docs/
 │   ├── 0012-two-hand-draw-grip.md
 │   ├── 0013-identity-independent-bubbles-game.md
 │   ├── 0014-procedural-body-avatar.md
-│   └── 0015-canonical-camera-orientation.md
+│   ├── 0015-canonical-camera-orientation.md
+│   └── 0016-phaser-canvas-racing.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

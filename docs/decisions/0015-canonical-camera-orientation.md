@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Camera rotation normalization, frame epochs, game layout policies, and orientation transitions
 ---
 
@@ -10,7 +10,9 @@ scope: Camera rotation normalization, frame epochs, game layout policies, and or
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The orientation-implicit packet, unmodified-MediaPipe-coordinate wording, fixed menu placement, and frame-dimension-only reset portions of [ADR-0005](0005-mirrored-tv-pose-controls.md), [ADR-0008](0008-above-head-coarse-hand-controls.md), [ADR-0010](0010-menu-and-draw-game.md), [ADR-0011](0011-consumer-specific-pose-stability.md), [ADR-0012](0012-two-hand-draw-grip.md), [ADR-0013](0013-identity-independent-bubbles-game.md), and [ADR-0014](0014-procedural-body-avatar.md)
-- **Superseded by:** None
+- **Superseded by:** [ADR-0016](0016-phaser-canvas-racing.md) for the four-item Games menu's compact left-column placement in both layouts and Racing's layout policy; all camera normalization, frame, request, and active-game safety rules remain active
+
+> **Current-scope note:** The original portrait Games above-head row below is historical. Games now uses one compact left column in both layouts; Main Menu retains the portrait above-head row.
 
 ## Context
 

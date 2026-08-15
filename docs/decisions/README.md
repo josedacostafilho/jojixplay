@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Architectural decision record process and index
 ---
 
@@ -27,6 +27,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0013](0013-identity-independent-bubbles-game.md) | Accepted | Add a deterministic Bubbles game with screen-side scoring and radius-safe procedural motion |
 | [0014](0014-procedural-body-avatar.md) | Accepted | Replace the visible stick skeleton with an isolated, presentation-smoothed procedural body avatar |
 | [0015](0015-canonical-camera-orientation.md) | Accepted | Normalize portrait/landscape camera frames before pose consumers and enforce explicit game layout policies |
+| [0016](0016-phaser-canvas-racing.md) | Accepted | Add Racing through a lazy, forced-Canvas Phaser runtime with application-owned simulation and pose steering |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

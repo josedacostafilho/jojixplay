@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: Television control placement, coarse-hand pointing, framing eligibility, and post-claim arming
 ---
 
@@ -10,7 +10,7 @@ scope: Television control placement, coarse-hand pointing, framing eligibility, 
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The torso-relative target row, direct wrist pointer, and immediately armed lease portions of [ADR-0005](0005-mirrored-tv-pose-controls.md)
-- **Superseded by:** [ADR-0015](0015-canonical-camera-orientation.md) for landscape Main Menu/Games placement; portrait retains the above-head row
+- **Superseded by:** [ADR-0015](0015-canonical-camera-orientation.md) for landscape placement and [ADR-0016](0016-phaser-canvas-racing.md) for the Games menu in portrait; only portrait Main Menu retains the above-head row
 
 ## Context
 

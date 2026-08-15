@@ -715,6 +715,92 @@ button {
   filter: drop-shadow(0 0 1.7rem rgb(250 204 21 / 52%));
 }
 
+.racing-board {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  background: #172554;
+  pointer-events: none;
+}
+
+.racing-canvas,
+.racing-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.racing-canvas canvas {
+  object-fit: fill;
+}
+
+.racing-round-message {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: 50%;
+  width: min(38rem, calc(100% - 3rem));
+  transform: translate(-50%, -50%);
+  border: 1px solid rgb(254 243 199 / 34%);
+  border-radius: clamp(1rem, 2vw, 1.7rem);
+  padding: clamp(1.2rem, 2.8vw, 2.4rem);
+  color: #f8fafc;
+  background: rgb(7 16 31 / 82%);
+  box-shadow: 0 28px 90px rgb(0 0 0 / 46%);
+  backdrop-filter: blur(14px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.racing-round-message h2,
+.racing-round-message p {
+  margin: 0;
+}
+
+.racing-round-message h2 {
+  font-size: clamp(2.2rem, 6vw, 5.4rem);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
+}
+
+.racing-round-message p:last-child {
+  margin-top: 0.8rem;
+  color: #dbeafe;
+  font-size: clamp(0.85rem, 1.55vw, 1.2rem);
+  font-weight: 720;
+  line-height: 1.5;
+}
+
+.racing-round-message--paused {
+  border-color: rgb(250 204 21 / 44%);
+}
+
+.racing-round-message--result {
+  border-color: rgb(94 234 212 / 44%);
+}
+
+.racing-round-message--result h2 {
+  font-size: clamp(1.8rem, 4.6vw, 4rem);
+}
+
+.racing-pause-hint {
+  position: absolute;
+  z-index: 5;
+  bottom: clamp(0.7rem, 1.8vh, 1.25rem);
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 0.42rem 0.78rem;
+  color: rgb(248 250 252 / 62%);
+  background: rgb(7 16 31 / 42%);
+  font-size: clamp(0.58rem, 0.85vw, 0.76rem);
+  font-weight: 720;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
 @keyframes bubbles-score-pop {
   0% {
     transform: scale(1);

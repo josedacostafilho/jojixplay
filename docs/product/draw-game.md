@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-14
+last_verified: 2026-08-15
 scope: User-visible contract and acceptance criteria for the first JojixPlay game
 ---
 
@@ -19,6 +19,7 @@ Main Menu
 └── Games
     ├── Draw
     ├── Bubbles
+    ├── Racing
     └── Return → Main Menu
 
 Draw
@@ -93,7 +94,7 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 
 ## Acceptance criteria
 
-1. Main Menu exposes Background, Players, and Games; Games exposes Draw, Bubbles, and Return.
+1. Main Menu exposes Background, Players, and Games; Games exposes Draw, Bubbles, Racing, and Return.
 2. Draw atomically exposes Pencil/Eraser, Color, Clear, and Exit in a smaller vertical column inside the projected frame's left edge.
 3. Draw shows a white board exactly matching the projected camera frame and dark non-drawable letterbox space.
 4. Bringing both complete hands within `0.75 ×` shoulder span immediately activates the selected tool without a timer.

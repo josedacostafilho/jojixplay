@@ -1,7 +1,7 @@
 import type { CameraLayout } from "../domain/camera";
 import type { PoseLimit } from "../domain/pose-limit";
 
-export type GameId = "draw" | "bubbles";
+export type GameId = "draw" | "bubbles" | "racing";
 
 const BOTH_LAYOUTS = ["portrait", "landscape"] as const satisfies readonly CameraLayout[];
 const LANDSCAPE_ONLY = ["landscape"] as const satisfies readonly CameraLayout[];
@@ -10,7 +10,7 @@ export function supportedCameraLayouts(
   game: GameId,
   poseLimit: PoseLimit,
 ): readonly CameraLayout[] {
-  if (game === "bubbles" && poseLimit === 2) {
+  if ((game === "bubbles" || game === "racing") && poseLimit === 2) {
     return LANDSCAPE_ONLY;
   }
   return BOTH_LAYOUTS;
