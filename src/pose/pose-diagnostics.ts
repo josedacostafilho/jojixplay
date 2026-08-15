@@ -1,3 +1,10 @@
+import {
+  type CameraFrame,
+  type CameraFrameNormalization,
+  type CameraLayout,
+  type CameraRotation,
+  sameCameraFrameBasis,
+} from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import {
   coarseHand,
@@ -20,7 +27,8 @@ export interface HandSpreadDiagnostics {
 }
 
 export interface PoseDiagnosticsSnapshot {
-  frame: { width: number; height: number } | null;
+  frame: CameraFrame | null;
+  orientation: CameraOrientationDiagnostics | null;
   cameraFramesPerSecond: number | null;
   inferenceSubmissionsPerSecond: number | null;
   inferenceCompletionsPerSecond: number | null;
@@ -29,6 +37,20 @@ export interface PoseDiagnosticsSnapshot {
   leftHand: HandSpreadDiagnostics | null;
   rightHand: HandSpreadDiagnostics | null;
 }
+
+export interface CameraOrientationDiagnostics {
+  screenType: ScreenCameraOrientationType;
+  screenAngle: CameraRotation;
+  sourceWidth: number;
+  sourceHeight: number;
+  appliedRotation: CameraRotation;
+  canonicalWidth: number;
+  canonicalHeight: number;
+  layout: CameraLayout;
+  epoch: number;
+}
+
+type ScreenCameraOrientationType = CameraFrameNormalization["screen"]["type"];
 
 interface TimedValue {
   atMs: number;
@@ -167,7 +189,22 @@ export class PoseDiagnosticsMonitor {
   private readonly inferenceCompletions: number[] = [];
   private readonly processingAges: TimedValue[] = [];
   private readonly hands: Record<PoseHand, HandSample[]> = { left: [], right: [] };
-  private frame: { width: number; height: number } | null = null;
+  private frame: CameraFrame | null = null;
+  private orientation: CameraOrientationDiagnostics | null = null;
+
+  public recordCameraNormalization(normalization: CameraFrameNormalization): void {
+    this.orientation = {
+      screenType: normalization.screen.type,
+      screenAngle: normalization.screen.angle,
+      sourceWidth: normalization.source.width,
+      sourceHeight: normalization.source.height,
+      appliedRotation: normalization.rotation,
+      canonicalWidth: normalization.frame.width,
+      canonicalHeight: normalization.frame.height,
+      layout: normalization.frame.layout,
+      epoch: normalization.frame.epoch,
+    };
+  }
 
   public recordCameraFrame(atMs: number): void {
     this.cameraFrames.push(atMs);
@@ -190,11 +227,7 @@ export class PoseDiagnosticsMonitor {
       value: Math.max(0, completedAtMs - packet.capturedAtMs),
     });
 
-    if (
-      this.frame === null ||
-      this.frame.width !== packet.frame.width ||
-      this.frame.height !== packet.frame.height
-    ) {
+    if (this.frame === null || !sameCameraFrameBasis(this.frame, packet.frame)) {
       this.frame = { ...packet.frame };
       this.clearHands();
     }
@@ -237,6 +270,7 @@ export class PoseDiagnosticsMonitor {
     const processingValues = this.processingAges.map(({ value }) => value);
     return {
       frame: this.frame === null ? null : { ...this.frame },
+      orientation: this.orientation === null ? null : { ...this.orientation },
       cameraFramesPerSecond: eventRate(this.cameraFrames),
       inferenceSubmissionsPerSecond: eventRate(this.inferenceSubmissions),
       inferenceCompletionsPerSecond: eventRate(this.inferenceCompletions),
@@ -254,6 +288,7 @@ export class PoseDiagnosticsMonitor {
     this.processingAges.length = 0;
     this.clearHands();
     this.frame = null;
+    this.orientation = null;
   }
 
   private trim(nowMs: number): void {

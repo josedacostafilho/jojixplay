@@ -1,4 +1,9 @@
 import { joinRoom, type JsonValue, type Room } from "trystero";
+import {
+  type CameraLayout,
+  type CameraLayoutMessage,
+  parseCameraLayoutMessage,
+} from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import { parsePosePacket } from "../domain/pose";
 import { type PoseLimit, type PoseLimitMessage, parsePoseLimitMessage } from "../domain/pose-limit";
@@ -13,17 +18,20 @@ interface PeerRoomOptions {
   onStateChange: (state: PeerConnectionState) => void;
   onPosePacket?: (packet: PosePacket) => void;
   onPoseLimitRequest?: (poseLimit: PoseLimit) => Promise<PoseLimit>;
+  onCameraLayoutRequest?: (layout: CameraLayout) => Promise<CameraLayout>;
 }
 
 export interface PosePeerRoom {
   sendPose(packet: PosePacket): Promise<void>;
   requestPoseLimit(poseLimit: PoseLimit): Promise<PoseLimit>;
+  requestCameraLayout(layout: CameraLayout): Promise<CameraLayout>;
   close(): Promise<void>;
 }
 
-export const PEER_PROTOCOL = "jojixplay-skeleton/2";
+export const PEER_PROTOCOL = "jojixplay-skeleton/3";
 const APP_ID = "gg.jojixplay.skeleton";
 const POSE_LIMIT_REQUEST_TIMEOUT_MS = 10_000;
+const CAMERA_LAYOUT_REQUEST_TIMEOUT_MS = 35_000;
 
 function isValidHandshake(value: unknown, expectedRole: PeerRole): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -91,6 +99,7 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
 
   const poseAction = room.makeAction("pose");
   const poseLimitAction = room.makeAction("pose-limit", { kind: "request" });
+  const cameraLayoutAction = room.makeAction("camera-layout", { kind: "request" });
   let closePromise: Promise<void> | null = null;
   const closeRoom = (): Promise<void> => {
     if (closePromise !== null) {
@@ -99,6 +108,7 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
     closed = true;
     poseAction.onMessage = null;
     poseLimitAction.onRequest = null;
+    cameraLayoutAction.onRequest = null;
     room.onPeerJoin = null;
     room.onPeerLeave = null;
     closePromise = room.leave().catch(() => undefined);
@@ -139,6 +149,26 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
         throw new Error("Player-mode acknowledgement is invalid.");
       }
       return { poseLimit: appliedPoseLimit } satisfies PoseLimitMessage;
+    };
+
+    cameraLayoutAction.onRequest = async (data, context) => {
+      if (closed || context.peerId !== approvedPeerId) {
+        throw new Error("Camera-layout request is not authorized.");
+      }
+      const parsed = parseCameraLayoutMessage(data);
+      if (!parsed.ok || options.onCameraLayoutRequest === undefined) {
+        options.onStateChange("error");
+        void closeRoom();
+        throw new Error("Camera-layout request is invalid.");
+      }
+
+      const appliedLayout = await options.onCameraLayoutRequest(parsed.value.cameraLayout);
+      if (appliedLayout !== parsed.value.cameraLayout) {
+        options.onStateChange("error");
+        void closeRoom();
+        throw new Error("Camera-layout acknowledgement is invalid.");
+      }
+      return { cameraLayout: appliedLayout } satisfies CameraLayoutMessage;
     };
   }
 
@@ -181,6 +211,23 @@ export function connectPeerRoom(options: PeerRoomOptions): PosePeerRoom {
         throw new Error("The phone returned an invalid player-mode acknowledgement.");
       }
       return parsed.value.poseLimit;
+    },
+    async requestCameraLayout(layout) {
+      if (closed || options.role !== "tv" || approvedPeerId === null) {
+        throw new Error("The phone is not connected.");
+      }
+      const requested: CameraLayoutMessage = { cameraLayout: layout };
+      const response = await cameraLayoutAction.request(requested as unknown as JsonValue, {
+        target: approvedPeerId,
+        timeoutMs: CAMERA_LAYOUT_REQUEST_TIMEOUT_MS,
+      });
+      const parsed = parseCameraLayoutMessage(response);
+      if (!parsed.ok || parsed.value.cameraLayout !== layout) {
+        options.onStateChange("error");
+        void closeRoom();
+        throw new Error("The phone returned an invalid camera-layout acknowledgement.");
+      }
+      return parsed.value.cameraLayout;
     },
     async close() {
       await closeRoom();

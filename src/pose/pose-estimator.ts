@@ -1,3 +1,4 @@
+import type { CameraFrame, CameraRotation } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import type { PoseLimit } from "../domain/pose-limit";
 import { parsePosePacket } from "../domain/pose";
@@ -14,6 +15,11 @@ interface PendingPoseLimit {
   reject: (error: Error) => void;
 }
 
+interface PendingTrackingReset {
+  resolve: () => void;
+  reject: (error: Error) => void;
+}
+
 export class PoseEstimator {
   private readonly worker = new Worker(new URL("./pose.worker.ts", import.meta.url), {
     type: "module",
@@ -26,6 +32,8 @@ export class PoseEstimator {
   private pendingEstimate: PendingEstimate | null = null;
   private pendingPoseLimit: PendingPoseLimit | null = null;
   private poseLimitTimeoutId: number | null = null;
+  private pendingTrackingReset: PendingTrackingReset | null = null;
+  private trackingResetTimeoutId: number | null = null;
   private failedError: Error | null = null;
   private ready = false;
   private closed = false;
@@ -68,6 +76,7 @@ export class PoseEstimator {
       !this.ready ||
       this.pendingEstimate !== null ||
       this.pendingPoseLimit !== null ||
+      this.pendingTrackingReset !== null ||
       this.failedError !== null
     ) {
       return Promise.reject(
@@ -90,12 +99,48 @@ export class PoseEstimator {
     });
   }
 
-  public estimate(frame: ImageBitmap, capturedAtMs: number, sequence: number): Promise<PosePacket> {
+  public resetTracking(): Promise<void> {
     if (
       this.closed ||
       !this.ready ||
       this.pendingEstimate !== null ||
       this.pendingPoseLimit !== null ||
+      this.pendingTrackingReset !== null ||
+      this.failedError !== null
+    ) {
+      return Promise.reject(
+        this.failedError ?? new Error("The pose estimator cannot reset tracking now."),
+      );
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      this.pendingTrackingReset = { resolve, reject };
+      try {
+        this.worker.postMessage({ type: "reset-tracking" } satisfies PoseWorkerRequest);
+      } catch (error) {
+        this.pendingTrackingReset = null;
+        reject(error instanceof Error ? error : new Error("Pose tracking reset failed."));
+        return;
+      }
+      this.trackingResetTimeoutId = window.setTimeout(() => {
+        this.fail(new Error("The pose engine took too long to reset tracking."));
+      }, 10_000);
+    });
+  }
+
+  public estimate(
+    frame: ImageBitmap,
+    capturedAtMs: number,
+    sequence: number,
+    cameraFrame: CameraFrame,
+    rotation: CameraRotation,
+  ): Promise<PosePacket> {
+    if (
+      this.closed ||
+      !this.ready ||
+      this.pendingEstimate !== null ||
+      this.pendingPoseLimit !== null ||
+      this.pendingTrackingReset !== null ||
       this.failedError !== null
     ) {
       frame.close();
@@ -109,6 +154,8 @@ export class PoseEstimator {
         frame,
         capturedAtMs,
         sequence,
+        cameraFrame,
+        rotation,
       };
       try {
         this.worker.postMessage(request, [frame]);
@@ -133,6 +180,9 @@ export class PoseEstimator {
     this.pendingPoseLimit?.reject(error);
     this.pendingPoseLimit = null;
     this.clearPoseLimitTimeout();
+    this.pendingTrackingReset?.reject(error);
+    this.pendingTrackingReset = null;
+    this.clearTrackingResetTimeout();
     this.worker.terminate();
   }
 
@@ -167,6 +217,18 @@ export class PoseEstimator {
       return;
     }
 
+    if (message.type === "tracking-reset") {
+      const pending = this.pendingTrackingReset;
+      this.pendingTrackingReset = null;
+      this.clearTrackingResetTimeout();
+      if (pending === null) {
+        this.fail(new Error("The pose worker acknowledged an unexpected tracking reset."));
+        return;
+      }
+      pending.resolve();
+      return;
+    }
+
     const pending = this.pendingEstimate;
     this.pendingEstimate = null;
     const parsed = parsePosePacket(message.packet);
@@ -189,6 +251,9 @@ export class PoseEstimator {
     this.pendingPoseLimit?.reject(error);
     this.pendingPoseLimit = null;
     this.clearPoseLimitTimeout();
+    this.pendingTrackingReset?.reject(error);
+    this.pendingTrackingReset = null;
+    this.clearTrackingResetTimeout();
   }
 
   private clearInitializeTimeout(): void {
@@ -202,6 +267,13 @@ export class PoseEstimator {
     if (this.poseLimitTimeoutId !== null) {
       window.clearTimeout(this.poseLimitTimeoutId);
       this.poseLimitTimeoutId = null;
+    }
+  }
+
+  private clearTrackingResetTimeout(): void {
+    if (this.trackingResetTimeoutId !== null) {
+      window.clearTimeout(this.trackingResetTimeoutId);
+      this.trackingResetTimeoutId = null;
     }
   }
 }

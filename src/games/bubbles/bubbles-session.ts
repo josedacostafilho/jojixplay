@@ -1,3 +1,4 @@
+import { type CameraFrame, sameCameraFrameBasis } from "../../domain/camera";
 import type { DetectedPose, PosePacket } from "../../domain/pose";
 import { coarseHand, usablePoseLandmark } from "../../domain/pose-features";
 import type { PoseLimit } from "../../domain/pose-limit";
@@ -56,6 +57,7 @@ export type BubblesResult =
 
 export interface BubblesSnapshot {
   phase: BubblesPhase;
+  paused: boolean;
   playerCount: PoseLimit;
   visiblePlayers: number;
   readyToStart: boolean;
@@ -74,7 +76,7 @@ export type BubblesStartResult =
   | { started: true; snapshot: BubblesSnapshot }
   | {
       started: false;
-      reason: "disabled" | "invalid-phase" | "missing-frame" | "not-ready";
+      reason: "disabled" | "paused" | "invalid-phase" | "missing-frame" | "not-ready";
       snapshot: BubblesSnapshot;
     };
 
@@ -268,7 +270,8 @@ export class BubblesSession {
   private visiblePlayers = 0;
   private scores: Record<BubblesPlayerSide, number> = { left: 0, right: 0 };
   private latestHands: BubblesHandSnapshot[] = [];
-  private frame: Size | null = null;
+  private frame: CameraFrame | null = null;
+  private pausedAtMs: number | null = null;
   private roundStartedAtMs: number | null = null;
   private lastAdvancedAtMs: number | null = null;
   private lastInputSampleAtMs: number | null = null;
@@ -286,6 +289,7 @@ export class BubblesSession {
     this.scores = { left: 0, right: 0 };
     this.latestHands = [];
     this.frame = null;
+    this.pausedAtMs = null;
     this.roundStartedAtMs = null;
     this.lastAdvancedAtMs = null;
     this.lastInputSampleAtMs = null;
@@ -299,7 +303,7 @@ export class BubblesSession {
 
   public updatePlayers(
     players: readonly BubblesPlayerInput[],
-    frame: Size,
+    frame: CameraFrame,
     sampleAtMs: number,
     receivedAtMs: number,
   ): BubblesSnapshot {
@@ -307,9 +311,11 @@ export class BubblesSession {
     if (!this.enabled) {
       return this.snapshot(receivedAtMs);
     }
+    if (this.pausedAtMs !== null) {
+      return this.snapshot(receivedAtMs);
+    }
 
-    const frameChanged =
-      this.frame === null || this.frame.width !== frame.width || this.frame.height !== frame.height;
+    const frameChanged = this.frame === null || !sameCameraFrameBasis(this.frame, frame);
     this.frame = { ...frame };
     if (frameChanged) {
       this.handHistory.clear();
@@ -350,6 +356,9 @@ export class BubblesSession {
     if (!this.enabled) {
       return { started: false, reason: "disabled", snapshot: this.snapshot(nowMs) };
     }
+    if (this.pausedAtMs !== null) {
+      return { started: false, reason: "paused", snapshot: this.snapshot(nowMs) };
+    }
     if (this.phase !== "ready" && this.phase !== "finished") {
       return { started: false, reason: "invalid-phase", snapshot: this.snapshot(nowMs) };
     }
@@ -383,8 +392,63 @@ export class BubblesSession {
     return this.snapshot(nowMs);
   }
 
+  public setPaused(paused: boolean, nowMs: number): BubblesSnapshot {
+    if (!this.enabled) {
+      return this.snapshot(nowMs);
+    }
+    if (paused) {
+      if (this.pausedAtMs !== null) {
+        return this.snapshot(nowMs);
+      }
+      this.advance(nowMs);
+      this.pausedAtMs = nowMs;
+      this.visiblePlayers = 0;
+      this.latestHands = [];
+      this.handHistory.clear();
+      this.lastInputSampleAtMs = null;
+      return this.snapshot(nowMs);
+    }
+    if (this.pausedAtMs === null) {
+      return this.snapshot(nowMs);
+    }
+
+    const pausedDurationMs = Math.max(0, nowMs - this.pausedAtMs);
+    if (this.roundStartedAtMs !== null) {
+      this.roundStartedAtMs += pausedDurationMs;
+    }
+    for (const bubble of this.bubbles) {
+      bubble.spawnedAtMs += pausedDurationMs;
+      bubble.retargetAtMs += pausedDurationMs;
+      if (bubble.poppedAtMs !== null) {
+        bubble.poppedAtMs += pausedDurationMs;
+      }
+    }
+    for (let index = 0; index < this.respawnAtMs.length; index += 1) {
+      const respawnAtMs = this.respawnAtMs[index];
+      if (respawnAtMs !== undefined) {
+        this.respawnAtMs[index] = respawnAtMs + pausedDurationMs;
+      }
+    }
+    for (const side of ["left", "right"] as const) {
+      const lastPopAtMs = this.lastPopAtMs[side];
+      if (lastPopAtMs !== null) {
+        this.lastPopAtMs[side] = lastPopAtMs + pausedDurationMs;
+      }
+    }
+    this.pausedAtMs = null;
+    this.lastAdvancedAtMs = nowMs;
+    this.handHistory.clear();
+    this.lastInputSampleAtMs = null;
+    return this.snapshot(nowMs);
+  }
+
   private readyToStart(): boolean {
-    return this.enabled && this.frame !== null && this.visiblePlayers >= this.playerCount;
+    return (
+      this.enabled &&
+      this.pausedAtMs === null &&
+      this.frame !== null &&
+      this.visiblePlayers >= this.playerCount
+    );
   }
 
   private random(): number {
@@ -540,7 +604,7 @@ export class BubblesSession {
   }
 
   private advance(nowMs: number): void {
-    if (!this.enabled) {
+    if (!this.enabled || this.pausedAtMs !== null) {
       return;
     }
     const previousAdvancedAtMs = this.lastAdvancedAtMs;
@@ -729,13 +793,14 @@ export class BubblesSession {
   }
 
   private snapshot(nowMs: number): BubblesSnapshot {
+    const effectiveNowMs = this.pausedAtMs ?? nowMs;
     const startingRemainingMs =
       this.phase === "starting" && this.roundStartedAtMs !== null
-        ? Math.max(0, this.roundStartedAtMs - nowMs)
+        ? Math.max(0, this.roundStartedAtMs - effectiveNowMs)
         : 0;
     const roundElapsedMs =
       (this.phase === "playing" || this.phase === "finished") && this.roundStartedAtMs !== null
-        ? clamp(nowMs - this.roundStartedAtMs, 0, BUBBLES_ROUND_DURATION_MS)
+        ? clamp(effectiveNowMs - this.roundStartedAtMs, 0, BUBBLES_ROUND_DURATION_MS)
         : 0;
     const roundRemainingMs =
       this.phase === "finished"
@@ -745,6 +810,7 @@ export class BubblesSession {
           : BUBBLES_ROUND_DURATION_MS;
     return {
       phase: this.phase,
+      paused: this.pausedAtMs !== null,
       playerCount: this.playerCount,
       visiblePlayers: this.visiblePlayers,
       readyToStart: this.readyToStart(),
@@ -767,7 +833,7 @@ export class BubblesSession {
       hands: this.latestHands.map((hand) => ({ ...hand, point: { ...hand.point } })),
       result: this.result,
       lastPopAtMs: { ...this.lastPopAtMs },
-      nowMs,
+      nowMs: effectiveNowMs,
     };
   }
 }

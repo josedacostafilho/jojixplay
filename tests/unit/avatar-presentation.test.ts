@@ -18,9 +18,20 @@ function packet(
   capturedAtMs: number,
   poses: DetectedPose[],
   width = 1_000,
-  height = 1_000,
+  height = 800,
+  epoch = 0,
 ): PosePacket {
-  return { sequence, capturedAtMs, frame: { width, height }, poses };
+  return {
+    sequence,
+    capturedAtMs,
+    frame: {
+      width,
+      height,
+      layout: width >= height ? "landscape" : "portrait",
+      epoch,
+    },
+    poses,
+  };
 }
 
 function setLandmark(source: DetectedPose, index: number, values: Partial<PoseLandmark>): void {
@@ -98,15 +109,20 @@ describe("Avatar presentation session", () => {
     const changedFrame = session.update(packet(3, 300, [changedFramePose], 1_280, 720));
     expect(outputLandmark(changedFrame, 0).x).toBe(0.3);
 
+    const changedEpochPose = pose();
+    setLandmark(changedEpochPose, 0, { x: 0.8 });
+    const changedEpoch = session.update(packet(4, 350, [changedEpochPose], 1_280, 720, 1));
+    expect(outputLandmark(changedEpoch, 0).x).toBe(0.8);
+
     const hiddenPose = pose();
     setLandmark(hiddenPose, 0, { x: 0.9, visibility: 0 });
-    expect(outputLandmark(session.update(packet(4, 400, [hiddenPose], 1_280, 720)), 0)).toEqual(
+    expect(outputLandmark(session.update(packet(5, 400, [hiddenPose], 1_280, 720, 1)), 0)).toEqual(
       hiddenPose.landmarks[0],
     );
 
     const returnedPose = pose();
     setLandmark(returnedPose, 0, { x: 0.6 });
-    expect(outputLandmark(session.update(packet(5, 500, [returnedPose], 1_280, 720)), 0).x).toBe(
+    expect(outputLandmark(session.update(packet(6, 500, [returnedPose], 1_280, 720, 1)), 0).x).toBe(
       0.6,
     );
   });

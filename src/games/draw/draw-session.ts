@@ -1,3 +1,4 @@
+import { type CameraFrame, sameCameraFrameBasis } from "../../domain/camera";
 import type { PoseControlHands, PoseControlTarget } from "../../interaction/pose-controls";
 import {
   createPoseProjection,
@@ -42,7 +43,7 @@ export interface DrawSnapshot {
 
 export interface DrawInput<TAction extends string> {
   hands: PoseControlHands | null;
-  frame: Size;
+  frame: CameraFrame;
   viewport: Size;
   targets: readonly PoseControlTarget<TAction>[];
   sampleAtMs: number;
@@ -124,7 +125,7 @@ export class DrawSession {
   private gripActive = false;
   private generation = 0;
   private revision = 0;
-  private frame: Size | null = null;
+  private frame: CameraFrame | null = null;
   private lastCommandPoint: Point | null = null;
 
   public setEnabled(enabled: boolean): DrawSnapshot {
@@ -153,17 +154,18 @@ export class DrawSession {
     return this.snapshot();
   }
 
+  public suspend(): DrawSnapshot {
+    this.resetInteraction(true);
+    return this.snapshot();
+  }
+
   public update<TAction extends string>(input: DrawInput<TAction>): DrawSnapshot {
     if (!this.enabled) {
       this.resetInteraction(true);
       return this.snapshot();
     }
 
-    if (
-      this.frame === null ||
-      this.frame.width !== input.frame.width ||
-      this.frame.height !== input.frame.height
-    ) {
+    if (this.frame === null || !sameCameraFrameBasis(this.frame, input.frame)) {
       const firstFrame = this.frame === null;
       this.frame = { ...input.frame };
       this.resetInteraction(true);

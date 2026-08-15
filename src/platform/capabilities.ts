@@ -38,6 +38,11 @@ export function inspectPhoneCapabilities(): CapabilityReport {
     ["module workers", typeof Worker !== "undefined"],
     ["ImageBitmap transfer", typeof createImageBitmap === "function"],
     ["video-frame callbacks", "requestVideoFrameCallback" in HTMLVideoElement.prototype],
+    [
+      "screen orientation",
+      typeof window.screen.orientation?.type === "string" &&
+        typeof window.screen.orientation?.angle === "number",
+    ],
   ]);
 }
 

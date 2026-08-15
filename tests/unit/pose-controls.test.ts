@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CameraFrame } from "../../src/domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
 import {
   type PoseControlActionDefinition,
@@ -9,7 +10,12 @@ import {
 import type { Point, Size } from "../../src/render/geometry";
 
 const VIEWPORT: Size = { width: 1_280, height: 720 };
-const FRAME = { width: 1_280, height: 720 };
+const FRAME: CameraFrame = {
+  width: 1_280,
+  height: 720,
+  layout: "landscape",
+  epoch: 0,
+};
 type TestAction = "background" | "players" | "games" | "draw" | "return" | "clear";
 const TEST_ACTIONS = [
   { action: "background", label: "Background" },
@@ -493,6 +499,20 @@ describe("television pose controls", () => {
     const resized = session.updatePacket(packet([pose]), 2_400, { width: 1_000, height: 700 });
     expect(resized.snapshot.phase).toBe("needs-headroom");
     expect(resized.snapshot.targets).toHaveLength(0);
+  });
+
+  it("releases an active lease when the camera epoch changes", () => {
+    const session = createSession();
+    const pose = createPose();
+    expect(claimSinglePerson(session, pose).snapshot.phase).toBe("active");
+
+    const changedEpoch = {
+      ...packet([pose]),
+      frame: { ...FRAME, epoch: 1 },
+    };
+    const update = session.updatePacket(changedEpoch, 400, VIEWPORT);
+    expect(update.snapshot.phase).not.toBe("active");
+    expect(update.snapshot.targets).toHaveLength(0);
   });
 
   it("releases a lease when the torso remains far from its frozen layout", () => {

@@ -93,7 +93,7 @@ function frame(...poses: AvatarPresentationPose[]): AvatarPresentationFrame {
   return {
     sequence: 1,
     capturedAtMs: 0,
-    frame: { width: 1_000, height: 1_000 },
+    frame: { width: 1_000, height: 800, layout: "landscape", epoch: 0 },
     poses,
   };
 }
@@ -102,12 +102,12 @@ describe("Avatar renderer", () => {
   it("draws a complete faceless procedural body with rounded layered primitives", () => {
     const { context, gradientStops } = contextHarness();
 
-    drawAvatar(context, frame(completeAvatarPose()), 1_000, 1_000, {
+    drawAvatar(context, frame(completeAvatarPose()), 1_000, 800, {
       mirrored: false,
       appearance: "stage",
     });
 
-    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 1_000, 1_000);
+    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 1_000, 800);
     expect(context.globalAlpha).toBe(AVATAR_APPEARANCES.stage.opacity);
     expect(context.quadraticCurveTo).toHaveBeenCalled();
     expect(context.arc).toHaveBeenCalledTimes(4);
@@ -117,10 +117,10 @@ describe("Avatar renderer", () => {
     expect(gradientStops).toContainEqual([0.72, "#5eead4"]);
 
     const pathStarts = vi.mocked(context.moveTo).mock.calls;
-    const torsoIndex = pathStarts.findIndex(([x, y]) => x === 400 && y === 300);
+    const torsoIndex = pathStarts.findIndex(([x, y]) => x === 400 && y === 240);
     expect(torsoIndex).toBeGreaterThan(0);
     expect(torsoIndex).toBeLessThan(pathStarts.length - 1);
-    expect(vi.mocked(context.ellipse).mock.calls[2]?.slice(0, 2)).toEqual([500, 167.5]);
+    expect(vi.mocked(context.ellipse).mock.calls[2]?.slice(0, 2)).toEqual([500, 134]);
   });
 
   it("omits a pose without a complete torso and omits unavailable optional anatomy", () => {
@@ -131,7 +131,7 @@ describe("Avatar renderer", () => {
     }
     rightHip.visibility = 0;
     const torsoHarness = contextHarness();
-    drawAvatar(torsoHarness.context, frame(missingTorso), 1_000, 1_000, {
+    drawAvatar(torsoHarness.context, frame(missingTorso), 1_000, 800, {
       mirrored: false,
       appearance: "stage",
     });
@@ -144,7 +144,7 @@ describe("Avatar renderer", () => {
       }
     }
     const partialHarness = contextHarness();
-    drawAvatar(partialHarness.context, frame(torsoOnly), 1_000, 1_000, {
+    drawAvatar(partialHarness.context, frame(torsoOnly), 1_000, 800, {
       mirrored: false,
       appearance: "stage",
     });
@@ -164,20 +164,20 @@ describe("Avatar renderer", () => {
         }
       }
       const unmirrored = contextHarness();
-      drawAvatar(unmirrored.context, frame(pose), 1_000, 1_000, {
+      drawAvatar(unmirrored.context, frame(pose), 1_000, 800, {
         mirrored: false,
         appearance,
       });
       const mirrored = contextHarness();
-      drawAvatar(mirrored.context, frame(pose), 1_000, 1_000, {
+      drawAvatar(mirrored.context, frame(pose), 1_000, 800, {
         mirrored: true,
         appearance,
       });
 
       expect(unmirrored.context.globalAlpha).toBe(opacity);
       expect(mirrored.context.globalAlpha).toBe(opacity);
-      expect(unmirrored.context.moveTo).toHaveBeenCalledWith(400, 300);
-      expect(mirrored.context.moveTo).toHaveBeenCalledWith(600, 300);
+      expect(unmirrored.context.moveTo).toHaveBeenCalledWith(400, 240);
+      expect(mirrored.context.moveTo).toHaveBeenCalledWith(600, 240);
     }
   });
 
@@ -188,7 +188,7 @@ describe("Avatar renderer", () => {
       context,
       frame(completeAvatarPose(0, -0.2), completeAvatarPose(1, 0.2)),
       1_000,
-      1_000,
+      800,
       { mirrored: true, appearance: "bubbles" },
     );
 

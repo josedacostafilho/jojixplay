@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import type { CameraFrame, CameraLayout } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import { type PoseLimit, MAX_POSE_LIMIT } from "../domain/pose-limit";
+import { type GameId, gameSupportsCameraLayout, requiredCameraLayout } from "../games/catalog";
 import { BubblesCanvas } from "../games/bubbles/bubbles-canvas";
 import {
   bubblesPlayersFromPosePacket,
@@ -32,7 +34,9 @@ interface TvPlayfieldProps {
   packet: PosePacket | null;
   poseLimit: PoseLimit;
   poseLimitPending: boolean;
+  cameraLayoutPending: boolean;
   onPoseLimitRequest: (poseLimit: PoseLimit) => Promise<void>;
+  onCameraLayoutRequest: (layout: CameraLayout) => Promise<void>;
 }
 
 type BackgroundTheme = "navy" | "plum";
@@ -100,12 +104,24 @@ interface ViewControls {
   placement: PoseControlPlacement;
 }
 
-function controlsForView(view: PlayfieldView): ViewControls {
+interface OrientationGate {
+  game: GameId;
+  view: "draw" | "bubbles";
+  requiredLayout: CameraLayout;
+}
+
+function controlsForView(view: PlayfieldView, layout: CameraLayout | null): ViewControls {
   switch (view) {
     case "main":
-      return { actions: MAIN_ACTIONS, placement: "overhead-row" };
+      return {
+        actions: MAIN_ACTIONS,
+        placement: layout === "landscape" ? "left-column" : "overhead-row",
+      };
     case "games":
-      return { actions: GAMES_ACTIONS, placement: "overhead-row" };
+      return {
+        actions: GAMES_ACTIONS,
+        placement: layout === "landscape" ? "left-column" : "overhead-row",
+      };
     case "draw":
       return { actions: DRAW_ACTIONS, placement: "left-column" };
     case "bubbles":
@@ -295,7 +311,9 @@ export function TvPlayfield({
   packet,
   poseLimit,
   poseLimitPending,
+  cameraLayoutPending,
   onPoseLimitRequest,
+  onCameraLayoutRequest,
 }: TvPlayfieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [controlSession] = useState(
@@ -303,15 +321,22 @@ export function TvPlayfield({
   );
   const [drawSession] = useState(() => new DrawSession());
   const [bubblesSession] = useState(() => new BubblesSession());
-  const latestFrameRef = useRef<Size | null>(null);
+  const latestFrameRef = useRef<CameraFrame | null>(null);
   const latestPacketRef = useRef<PosePacket | null>(packet);
   const viewportRef = useRef<Size>({ width: 0, height: 0 });
   const viewRef = useRef<PlayfieldView>("main");
   const bubblesPlayerCountRef = useRef<PoseLimit>(poseLimit);
   const playerModeRequestActiveRef = useRef(false);
+  const orientationReturnRequestActiveRef = useRef(false);
+  const orientationMismatchRef = useRef(false);
+  const activeGameLayoutRef = useRef<CameraLayout | null>(null);
+  const drawLayoutRef = useRef<CameraLayout | null>(null);
   const activateActionRef = useRef<(action: PlayfieldAction) => void>(() => undefined);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [view, setView] = useState<PlayfieldView>("main");
+  const [controlPlacement, setControlPlacement] = useState<PoseControlPlacement>("overhead-row");
+  const [activeGameLayout, setActiveGameLayout] = useState<CameraLayout | null>(null);
+  const [orientationGate, setOrientationGate] = useState<OrientationGate | null>(null);
   const [snapshot, setSnapshot] = useState<PoseControlSnapshot<PlayfieldAction>>(EMPTY_SNAPSHOT);
   const [drawing, setDrawing] = useState<DrawSnapshot>(() => drawSession.tick(0));
   const [bubbles, setBubbles] = useState<BubblesSnapshot>(() =>
@@ -321,9 +346,16 @@ export function TvPlayfield({
   const [announcement, setAnnouncement] = useState("");
   const palette = AVATAR_ACCENT_PALETTE;
 
+  if (activeGameLayout === null) {
+    orientationMismatchRef.current = false;
+  } else if (packet !== null) {
+    orientationMismatchRef.current = packet.frame.layout !== activeGameLayout;
+  }
+  const orientationMismatch = orientationMismatchRef.current;
+  const gamePacket = orientationMismatch ? null : packet;
   latestPacketRef.current = packet;
-  if (packet !== null) {
-    latestFrameRef.current = packet.frame;
+  if (gamePacket !== null) {
+    latestFrameRef.current = gamePacket.frame;
   }
 
   const applyDrawing = useCallback((next: DrawSnapshot) => {
@@ -331,20 +363,37 @@ export function TvPlayfield({
   }, []);
 
   const transitionTo = useCallback(
-    (nextView: PlayfieldView) => {
+    (nextView: PlayfieldView, enteringLayout: CameraLayout | null = null) => {
       const nowMs = performance.now();
+      const nextGameLayout = nextView === "draw" || nextView === "bubbles" ? enteringLayout : null;
+      if ((nextView === "draw" || nextView === "bubbles") && nextGameLayout === null) {
+        throw new Error("A game requires an explicit camera layout on entry.");
+      }
       viewRef.current = nextView;
       setView(nextView);
+      activeGameLayoutRef.current = nextGameLayout;
+      setActiveGameLayout(nextGameLayout);
+      setOrientationGate(null);
       controlSession.setControlsEnabled(true, nowMs);
-      const controls = controlsForView(nextView);
+      const controls = controlsForView(
+        nextView,
+        nextGameLayout ?? latestPacketRef.current?.frame.layout ?? null,
+      );
+      setControlPlacement(controls.placement);
       const controlUpdate = controlSession.setActions(controls.actions, controls.placement, nowMs);
       setSnapshot(controlUpdate.snapshot);
+      if (nextView === "draw" && nextGameLayout !== null) {
+        if (drawLayoutRef.current !== null && drawLayoutRef.current !== nextGameLayout) {
+          drawSession.clear();
+        }
+        drawLayoutRef.current = nextGameLayout;
+      }
       applyDrawing(drawSession.setEnabled(nextView === "draw"));
       if (nextView === "bubbles") {
         bubblesPlayerCountRef.current = poseLimit;
         let nextBubbles = bubblesSession.setEnabled(true, bubblesPlayerCountRef.current, nowMs);
         const currentPacket = latestPacketRef.current;
-        if (currentPacket !== null) {
+        if (currentPacket !== null && currentPacket.frame.layout === nextGameLayout) {
           nextBubbles = bubblesSession.updatePlayers(
             bubblesPlayersFromPosePacket(currentPacket, bubblesPlayerCountRef.current),
             currentPacket.frame,
@@ -363,7 +412,7 @@ export function TvPlayfield({
 
   const activateAction = useCallback(
     (action: PlayfieldAction) => {
-      if (poseLimitPending || playerModeRequestActiveRef.current) {
+      if (poseLimitPending || cameraLayoutPending || playerModeRequestActiveRef.current) {
         return;
       }
       switch (action) {
@@ -391,11 +440,35 @@ export function TvPlayfield({
           transitionTo("games");
           break;
         case "open-draw":
-          transitionTo("draw");
+        case "open-bubbles": {
+          const game: GameId = action === "open-draw" ? "draw" : "bubbles";
+          const nextView = game;
+          const currentLayout = latestPacketRef.current?.frame.layout ?? null;
+          if (currentLayout === null) {
+            setAnnouncement("A live camera frame is required before opening a game.");
+            break;
+          }
+          if (gameSupportsCameraLayout(game, poseLimit, currentLayout)) {
+            transitionTo(nextView, currentLayout);
+            break;
+          }
+          const requiredLayout = requiredCameraLayout(game, poseLimit);
+          if (requiredLayout === null) {
+            throw new Error("The selected game has an inconsistent camera-layout policy.");
+          }
+          const nowMs = performance.now();
+          setOrientationGate({ game, view: nextView, requiredLayout });
+          setSnapshot(controlSession.setControlsEnabled(false, nowMs).snapshot);
+          setAnnouncement("");
+          void onCameraLayoutRequest(requiredLayout).catch(() => {
+            setOrientationGate(null);
+            setSnapshot(controlSession.setControlsEnabled(true, performance.now()).snapshot);
+            setAnnouncement(
+              `Camera layout did not change. ${viewLabel(viewRef.current)} remains active.`,
+            );
+          });
           break;
-        case "open-bubbles":
-          transitionTo("bubbles");
-          break;
+        }
         case "return-main":
           transitionTo("main");
           break;
@@ -444,8 +517,10 @@ export function TvPlayfield({
     [
       applyDrawing,
       bubblesSession,
+      cameraLayoutPending,
       controlSession,
       drawSession,
+      onCameraLayoutRequest,
       onPoseLimitRequest,
       poseLimit,
       poseLimitPending,
@@ -453,6 +528,54 @@ export function TvPlayfield({
     ],
   );
   activateActionRef.current = activateAction;
+
+  useEffect(() => {
+    if (
+      orientationGate === null ||
+      cameraLayoutPending ||
+      packet?.frame.layout !== orientationGate.requiredLayout
+    ) {
+      return;
+    }
+    transitionTo(orientationGate.view, orientationGate.requiredLayout);
+  }, [cameraLayoutPending, orientationGate, packet, transitionTo]);
+
+  useEffect(() => {
+    const lockedLayout = activeGameLayoutRef.current;
+    if (lockedLayout === null) {
+      orientationReturnRequestActiveRef.current = false;
+      return;
+    }
+    const nowMs = performance.now();
+    if (orientationMismatch) {
+      setSnapshot(controlSession.reset(nowMs).snapshot);
+      if (viewRef.current === "draw") {
+        applyDrawing(drawSession.suspend());
+      } else if (viewRef.current === "bubbles") {
+        setBubbles(bubblesSession.setPaused(true, nowMs));
+      }
+      if (!cameraLayoutPending && !orientationReturnRequestActiveRef.current) {
+        orientationReturnRequestActiveRef.current = true;
+        void onCameraLayoutRequest(lockedLayout).catch(() => {
+          setAnnouncement(`Return the phone to ${lockedLayout} to resume.`);
+        });
+      }
+      return;
+    }
+
+    orientationReturnRequestActiveRef.current = false;
+    if (viewRef.current === "bubbles") {
+      setBubbles(bubblesSession.setPaused(false, nowMs));
+    }
+  }, [
+    applyDrawing,
+    bubblesSession,
+    cameraLayoutPending,
+    controlSession,
+    drawSession,
+    onCameraLayoutRequest,
+    orientationMismatch,
+  ]);
 
   const applyPoseUpdate = useCallback(
     (
@@ -498,11 +621,11 @@ export function TvPlayfield({
               ),
         );
       }
-      if (update.activated !== null && !poseLimitPending) {
+      if (update.activated !== null && !poseLimitPending && !cameraLayoutPending) {
         activateActionRef.current(update.activated);
       }
     },
-    [applyDrawing, bubblesSession, drawSession, poseLimitPending],
+    [applyDrawing, bubblesSession, cameraLayoutPending, drawSession, poseLimitPending],
   );
 
   useEffect(() => {
@@ -530,8 +653,15 @@ export function TvPlayfield({
       return;
     }
     const nowMs = performance.now();
-    applyPoseUpdate(controlSession.updatePacket(packet, nowMs, size), nowMs, packet);
-  }, [packet, size, applyPoseUpdate, controlSession]);
+    if (gamePacket !== null && (viewRef.current === "main" || viewRef.current === "games")) {
+      const controls = controlsForView(viewRef.current, gamePacket.frame.layout);
+      if (controls.placement !== controlPlacement) {
+        controlSession.setActions(controls.actions, controls.placement, nowMs);
+        setControlPlacement(controls.placement);
+      }
+    }
+    applyPoseUpdate(controlSession.updatePacket(gamePacket, nowMs, size), nowMs, gamePacket);
+  }, [gamePacket, size, applyPoseUpdate, controlPlacement, controlSession]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -542,7 +672,11 @@ export function TvPlayfield({
   }, [applyPoseUpdate, controlSession]);
 
   useEffect(() => {
-    if (view !== "bubbles" || (bubbles.phase !== "starting" && bubbles.phase !== "playing")) {
+    if (
+      view !== "bubbles" ||
+      bubbles.paused ||
+      (bubbles.phase !== "starting" && bubbles.phase !== "playing")
+    ) {
       return;
     }
     let animationFrameId: number | null = null;
@@ -564,7 +698,7 @@ export function TvPlayfield({
         window.cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [bubbles.phase, bubblesSession, controlSession, view]);
+  }, [bubbles.paused, bubbles.phase, bubblesSession, controlSession, view]);
 
   useEffect(() => {
     if (announcement === "" || announcement.startsWith("Switching")) {
@@ -594,6 +728,8 @@ export function TvPlayfield({
     bubbles.lastPopAtMs.right !== null && bubbles.nowMs - bubbles.lastPopAtMs.right <= 320;
   const leftScorePulsing =
     bubbles.lastPopAtMs.left !== null && bubbles.nowMs - bubbles.lastPopAtMs.left <= 320;
+  const orientationInstructionLayout =
+    orientationGate?.requiredLayout ?? (orientationMismatch ? activeGameLayout : null);
 
   return (
     <div
@@ -601,6 +737,7 @@ export function TvPlayfield({
       class={`tv-playfield tv-playfield--${backgroundTheme}${view === "draw" ? " tv-playfield--draw" : ""}${view === "bubbles" ? " tv-playfield--bubbles" : ""}`}
       data-background-theme={backgroundTheme}
       data-playfield-view={view}
+      data-camera-layout={frame?.layout ?? "none"}
     >
       {view === "draw" && projectedBounds !== null ? (
         <div
@@ -624,12 +761,24 @@ export function TvPlayfield({
       ) : null}
 
       <AvatarCanvas
-        packet={packet}
+        packet={gamePacket}
         label="Mirrored live body avatar from the paired phone"
         className="avatar-canvas avatar-canvas--tv"
         mirrored
         appearance={view === "draw" ? "draw" : view === "bubbles" ? "bubbles" : "stage"}
       />
+
+      {orientationInstructionLayout === null ? null : (
+        <section class="camera-layout-gate" role="status" aria-live="assertive">
+          <p class="eyebrow">Camera layout</p>
+          <h2>Rotate phone to {orientationInstructionLayout}</h2>
+          <p>
+            {orientationMismatch
+              ? `${viewLabel(view)} is paused. Return the phone to its starting layout to resume.`
+              : `${orientationGate?.game === "bubbles" ? "Two-player Bubbles" : "This game"} needs a ${orientationInstructionLayout} camera.`}
+          </p>
+        </section>
+      )}
 
       {view === "bubbles" ? null : (
         <div class="playfield-view-label" aria-live="polite">
@@ -705,7 +854,11 @@ export function TvPlayfield({
         </section>
       ) : null}
 
-      {packet !== null && announcement === "" && bubblesControlsVisible ? (
+      {gamePacket !== null &&
+      orientationGate === null &&
+      !orientationMismatch &&
+      announcement === "" &&
+      bubblesControlsVisible ? (
         <p class={`pose-control-hint pose-control-hint--${snapshot.phase}`} aria-live="polite">
           {instruction}
           {snapshot.phase === "claiming" ? (
@@ -716,13 +869,12 @@ export function TvPlayfield({
         </p>
       ) : null}
 
-      {packet !== null && snapshot.phase === "active" && bubblesControlsVisible ? (
-        <fieldset
-          class="pose-control-targets"
-          data-control-placement={
-            view === "draw" || view === "bubbles" ? "left-column" : "overhead-row"
-          }
-        >
+      {gamePacket !== null &&
+      orientationGate === null &&
+      !orientationMismatch &&
+      snapshot.phase === "active" &&
+      bubblesControlsVisible ? (
+        <fieldset class="pose-control-targets" data-control-placement={controlPlacement}>
           <legend class="visually-hidden">{viewLabel(view)} body-controlled actions</legend>
           {snapshot.targets.map((target) => {
             const hovered = snapshot.hoveredAction === target.action;
@@ -737,7 +889,7 @@ export function TvPlayfield({
                 type="button"
                 aria-label={accessibleActionLabel(target.action, poseLimit, drawing)}
                 onClick={() => activateAction(target.action)}
-                disabled={poseLimitPending || awaitingBubblesPlayers}
+                disabled={poseLimitPending || cameraLayoutPending || awaitingBubblesPlayers}
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
                 <span class="pose-control-button__label">
@@ -761,7 +913,11 @@ export function TvPlayfield({
         </fieldset>
       ) : null}
 
-      {view !== "draw" && bubblesControlsVisible && packet !== null && snapshot.pointer !== null ? (
+      {view !== "draw" &&
+      bubblesControlsVisible &&
+      gamePacket !== null &&
+      !orientationMismatch &&
+      snapshot.pointer !== null ? (
         <span
           class="pose-cursor"
           aria-hidden="true"
@@ -769,7 +925,7 @@ export function TvPlayfield({
         />
       ) : null}
 
-      {view === "draw" && toolPoint !== null ? (
+      {view === "draw" && !orientationMismatch && toolPoint !== null ? (
         <span
           class={`draw-tool-cursor draw-tool-cursor--${drawing.selectedTool} draw-tool-cursor--${drawing.cursor.phase}`}
           aria-hidden="true"

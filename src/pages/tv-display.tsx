@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { StatusPill } from "../components/status-pill";
 import { TvPlayfield } from "../components/tv-playfield";
 import { roleUrl, UnsupportedPanel } from "../components/unsupported-panel";
+import type { CameraLayout } from "../domain/camera";
 import { acceptIncreasingSequence, type PosePacket } from "../domain/pose";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { inspectTvCapabilities } from "../platform/capabilities";
@@ -53,9 +54,11 @@ export function TvDisplay() {
   const [stale, setStale] = useState(true);
   const [poseLimit, setPoseLimit] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [poseLimitPending, setPoseLimitPending] = useState(false);
+  const [cameraLayoutPending, setCameraLayoutPending] = useState(false);
   const newestSequence = useRef(-1);
   const peerRoomRef = useRef<PosePeerRoom | null>(null);
   const poseLimitRequestTokenRef = useRef<symbol | null>(null);
+  const cameraLayoutRequestTokenRef = useRef<symbol | null>(null);
   const startRequested = useRef(false);
 
   const startTvMode = useCallback(() => {
@@ -161,11 +164,13 @@ export function TvDisplay() {
           setConnection(state);
           if (state !== "connected") {
             poseLimitRequestTokenRef.current = null;
+            cameraLayoutRequestTokenRef.current = null;
             newestSequence.current = -1;
             setPacket(null);
             setStale(true);
             setPoseLimit(DEFAULT_POSE_LIMIT);
             setPoseLimitPending(false);
+            setCameraLayoutPending(false);
           }
         },
         onPosePacket: (nextPacket) => {
@@ -225,6 +230,33 @@ export function TvDisplay() {
     }
   }, []);
 
+  const requestCameraLayout = useCallback(async (requestedLayout: CameraLayout) => {
+    const room = peerRoomRef.current;
+    if (room === null) {
+      throw new Error("The phone is not connected.");
+    }
+    if (cameraLayoutRequestTokenRef.current !== null) {
+      throw new Error("Camera layout is already changing.");
+    }
+    const requestToken = Symbol("camera-layout-request");
+    cameraLayoutRequestTokenRef.current = requestToken;
+    setCameraLayoutPending(true);
+    try {
+      const appliedLayout = await room.requestCameraLayout(requestedLayout);
+      if (cameraLayoutRequestTokenRef.current !== requestToken || peerRoomRef.current !== room) {
+        throw new Error("The phone disconnected before camera layout changed.");
+      }
+      if (appliedLayout !== requestedLayout) {
+        throw new Error("The phone acknowledged an unexpected camera layout.");
+      }
+    } finally {
+      if (cameraLayoutRequestTokenRef.current === requestToken) {
+        cameraLayoutRequestTokenRef.current = null;
+        setCameraLayoutPending(false);
+      }
+    }
+  }, []);
+
   if (!capabilities.supported) {
     return <UnsupportedPanel device="television" missing={capabilities.missing} />;
   }
@@ -264,7 +296,9 @@ export function TvDisplay() {
             packet={isLive ? packet : null}
             poseLimit={poseLimit}
             poseLimitPending={poseLimitPending}
+            cameraLayoutPending={cameraLayoutPending}
             onPoseLimitRequest={requestPoseLimit}
+            onCameraLayoutRequest={requestCameraLayout}
           />
         ) : null}
 

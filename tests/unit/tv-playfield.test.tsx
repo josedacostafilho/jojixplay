@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TvPlayfield } from "../../src/components/tv-playfield";
+import type { CameraLayout } from "../../src/domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
 
 function hiddenLandmark(): PoseLandmark {
@@ -35,7 +36,7 @@ function createRaisedHandPacket(sequence: number): PosePacket {
   return {
     sequence,
     capturedAtMs: sequence * 100,
-    frame: { width: 1_280, height: 720 },
+    frame: { width: 1_280, height: 720, layout: "landscape", epoch: 0 },
     poses: [pose],
   };
 }
@@ -90,10 +91,12 @@ class ImmediateResizeObserver {
 let nowMs = 0;
 let animationCallbacks: FrameRequestCallback[] = [];
 let canvasContext: CanvasRenderingContext2D;
+let requestCameraLayout: ReturnType<typeof vi.fn<(layout: CameraLayout) => Promise<void>>>;
 
 beforeEach(() => {
   nowMs = 0;
   animationCallbacks = [];
+  requestCameraLayout = vi.fn(async () => undefined);
   vi.spyOn(performance, "now").mockImplementation(() => nowMs);
   vi.stubGlobal("ResizeObserver", ImmediateResizeObserver);
   vi.stubGlobal(
@@ -158,7 +161,9 @@ describe("TV playfield", () => {
         packet={packet}
         poseLimit={poseLimit}
         poseLimitPending={false}
+        cameraLayoutPending={false}
         onPoseLimitRequest={onPoseLimitRequest}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -174,6 +179,10 @@ describe("TV playfield", () => {
       "Players: 1",
     );
     expect(screen.getByRole("button", { name: "Games" })).toBeInTheDocument();
+    expect(view.container.querySelector(".pose-control-targets")).toHaveAttribute(
+      "data-control-placement",
+      "left-column",
+    );
     expect(screen.queryByRole("button", { name: "Circles" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Background" }));
@@ -197,24 +206,30 @@ describe("TV playfield", () => {
   });
 
   it("uses a compact left Draw toolbar and retains its tool and color across Exit", () => {
-    const createPortraitPacket = (sequence: number) => ({
+    const createPortraitPacket = (sequence: number): PosePacket => ({
       ...createRaisedHandPacket(sequence),
-      frame: { width: 720, height: 1_280 },
+      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
     });
-    const createClosePortraitPacket = (sequence: number) => ({
+    const createClosePortraitPacket = (sequence: number): PosePacket => ({
       ...createCloseHandsPacket(sequence),
-      frame: { width: 720, height: 1_280 },
+      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
     });
     const renderPlayfield = (packet: PosePacket) => (
       <TvPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
+        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createPortraitPacket(0)));
     claimControls(view, renderPlayfield, createPortraitPacket);
+    expect(view.container.querySelector(".pose-control-targets")).toHaveAttribute(
+      "data-control-placement",
+      "overhead-row",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Games" }));
     animationCallbacks = [];
     fireEvent.click(screen.getByRole("button", { name: "Draw" }));
@@ -293,7 +308,9 @@ describe("TV playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
+        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -350,7 +367,9 @@ describe("TV playfield", () => {
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
+        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createTwoPlayerPacket(0)));
@@ -367,6 +386,105 @@ describe("TV playfield", () => {
     expect(screen.getByRole("button", { name: "Start Bubbles" })).toBeEnabled();
   });
 
+  it("gates two-player Bubbles until a matching landscape packet arrives", async () => {
+    const portraitPacket = (sequence: number): PosePacket => ({
+      ...createTwoPlayerPacket(sequence),
+      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
+    });
+    const landscapePacket = (sequence: number): PosePacket => ({
+      ...createTwoPlayerPacket(sequence),
+      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
+    });
+    const renderPlayfield = (packet: PosePacket) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={2}
+        poseLimitPending={false}
+        cameraLayoutPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
+      />
+    );
+    const view = render(renderPlayfield(portraitPacket(0)));
+    for (const sequence of [1, 2, 3, 4, 5]) {
+      nowMs = sequence * 100;
+      view.rerender(renderPlayfield(portraitPacket(sequence)));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bubbles" }));
+
+    expect(requestCameraLayout).toHaveBeenCalledWith("landscape");
+    expect(screen.getByRole("heading", { name: "Rotate phone to landscape" })).toBeInTheDocument();
+    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+      "data-playfield-view",
+      "games",
+    );
+    expect(screen.queryByTestId("bubbles-board")).not.toBeInTheDocument();
+
+    nowMs = 600;
+    view.rerender(renderPlayfield(landscapePacket(6)));
+    expect(await screen.findByTestId("bubbles-board")).toBeInTheDocument();
+    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+      "data-playfield-view",
+      "bubbles",
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Rotate phone to landscape" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("locks an active Draw session to its entering layout and releases pose controls", async () => {
+    const portraitPacket = (sequence: number, epoch = 0): PosePacket => ({
+      ...createRaisedHandPacket(sequence),
+      frame: { width: 720, height: 1_280, layout: "portrait", epoch },
+    });
+    const landscapePacket = (sequence: number): PosePacket => ({
+      ...createRaisedHandPacket(sequence),
+      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
+    });
+    const renderPlayfield = (packet: PosePacket | null) => (
+      <TvPlayfield
+        packet={packet}
+        poseLimit={1}
+        poseLimitPending={false}
+        cameraLayoutPending={false}
+        onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
+      />
+    );
+    const view = render(renderPlayfield(portraitPacket(0)));
+    claimControls(view, renderPlayfield, portraitPacket);
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    requestCameraLayout.mockClear();
+
+    nowMs = 400;
+    view.rerender(renderPlayfield(landscapePacket(4)));
+    expect(
+      await screen.findByRole("heading", { name: "Rotate phone to portrait" }),
+    ).toBeInTheDocument();
+    expect(requestCameraLayout).toHaveBeenCalledWith("portrait");
+    expect(screen.getByTestId("draw-board")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Exit Draw" })).not.toBeInTheDocument();
+
+    nowMs = 450;
+    view.rerender(renderPlayfield(null));
+    expect(screen.getByRole("heading", { name: "Rotate phone to portrait" })).toBeInTheDocument();
+    expect(requestCameraLayout).toHaveBeenCalledTimes(1);
+
+    nowMs = 500;
+    view.rerender(renderPlayfield(portraitPacket(5, 2)));
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Rotate phone to portrait" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+      "data-playfield-view",
+      "draw",
+    );
+  });
+
   it("asks for overhead framing and withholds controls when the head is too high", () => {
     const noHeadroomPacket = (sequence: number) => {
       const posePacket = createRaisedHandPacket(sequence);
@@ -375,6 +493,12 @@ describe("TV playfield", () => {
         throw new Error("Expected a face landmark.");
       }
       face.y = 0.04;
+      posePacket.frame = {
+        width: 720,
+        height: 1_280,
+        layout: "portrait",
+        epoch: 0,
+      };
       return posePacket;
     };
     const renderPlayfield = (packet: PosePacket) => (
@@ -382,7 +506,9 @@ describe("TV playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
+        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(noHeadroomPacket(0)));
@@ -401,7 +527,9 @@ describe("TV playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending
+        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -419,7 +547,9 @@ describe("TV playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
+        cameraLayoutPending={false}
         onPoseLimitRequest={onPoseLimitRequest}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -445,7 +575,9 @@ describe("TV playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
+        cameraLayoutPending={false}
         onPoseLimitRequest={onPoseLimitRequest}
+        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));

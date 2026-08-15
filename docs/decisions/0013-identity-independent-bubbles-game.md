@@ -10,7 +10,7 @@ scope: Bubbles game lifecycle, simulation, input, scoring, presentation, and run
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** [ADR-0014](0014-procedural-body-avatar.md) for the visible reduced-opacity body layer; all Bubbles lifecycle, input, simulation, and scoring decisions remain active
+- **Superseded by:** [ADR-0014](0014-procedural-body-avatar.md) for the visible reduced-opacity body layer; [ADR-0015](0015-canonical-camera-orientation.md) for layout policy, frame epochs, and full-state orientation pause/resume. The remaining Bubbles lifecycle, input, simulation, and scoring decisions remain active
 
 ## Context
 

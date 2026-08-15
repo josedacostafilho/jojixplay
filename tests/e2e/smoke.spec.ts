@@ -85,5 +85,5 @@ test("phone starts the camera and local pose worker after user activation", asyn
       frameRate: { ideal: 30, max: 30 },
     },
   });
-  await expect(page.getByText(/visible$/)).toBeVisible();
+  await expect(page.getByText(/visible · (portrait|landscape)$/)).toBeVisible();
 });

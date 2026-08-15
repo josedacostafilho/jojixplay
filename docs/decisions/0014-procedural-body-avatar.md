@@ -10,7 +10,7 @@ scope: Live pose presentation renderer and its isolated stabilization boundary
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The visible stick-skeleton presentation portions of ADR-0003, ADR-0005, and ADR-0011
-- **Superseded by:** None
+- **Superseded by:** [ADR-0015](0015-canonical-camera-orientation.md) for canonical frame epochs and orientation-transition continuity resets; the procedural renderer and presentation-only stabilization decisions remain active
 
 ## Context
 

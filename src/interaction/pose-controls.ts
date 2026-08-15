@@ -1,3 +1,4 @@
+import { type CameraFrame, sameCameraFrameBasis } from "../domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../domain/pose";
 import { coarseHand, usablePoseLandmark } from "../domain/pose-features";
 import {
@@ -116,7 +117,7 @@ interface ControlLease<TAction extends string> {
   lastSeenAtMs: number;
   lastMotionAtMs: number;
   lastMotionPoint: Point;
-  frame: Size;
+  frame: CameraFrame;
   layout: ControlLayout;
   overheadLayout: OverheadControlLayout | null;
   targets: readonly PoseControlTarget<TAction>[];
@@ -530,6 +531,15 @@ export class PoseControlSession<TAction extends string> {
     return this.result(nowMs, null);
   }
 
+  public reset(nowMs: number): PoseControlUpdate<TAction> {
+    this.visiblePeople = 0;
+    this.multiplePeople = false;
+    this.headroomAvailable = false;
+    this.candidate = null;
+    this.lease = null;
+    return this.result(nowMs, null);
+  }
+
   updatePacket(
     packet: PosePacket | null,
     nowMs: number,
@@ -567,10 +577,7 @@ export class PoseControlSession<TAction extends string> {
     this.headroomAvailable = posesWithHeadroom.length > 0;
 
     if (this.lease !== null) {
-      if (
-        packet.frame.width !== this.lease.frame.width ||
-        packet.frame.height !== this.lease.frame.height
-      ) {
+      if (!sameCameraFrameBasis(packet.frame, this.lease.frame)) {
         this.lease = null;
         this.candidate = null;
         return this.result(nowMs, null);
@@ -610,7 +617,7 @@ export class PoseControlSession<TAction extends string> {
 
   private updateClaim(
     poses: readonly PoseDescriptor[],
-    frame: Size,
+    frame: CameraFrame,
     nowMs: number,
     viewport: Size,
   ): PoseControlUpdate<TAction> {
@@ -654,7 +661,7 @@ export class PoseControlSession<TAction extends string> {
   private beginLease(
     pose: PoseDescriptor,
     hand: ControlHand,
-    frame: Size,
+    frame: CameraFrame,
     viewport: Size,
     nowMs: number,
   ): void {
@@ -704,7 +711,7 @@ export class PoseControlSession<TAction extends string> {
 
   private updateLease(
     poses: readonly PoseDescriptor[],
-    frame: Size,
+    frame: CameraFrame,
     nowMs: number,
   ): PoseControlUpdate<TAction> {
     const lease = this.lease;

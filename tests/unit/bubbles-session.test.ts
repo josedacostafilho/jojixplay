@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CameraFrame } from "../../src/domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
 import {
   BUBBLES_HAND_HIT_RADIUS,
@@ -15,9 +16,14 @@ import {
   type BubblesPlayerInput,
   BubblesSession,
 } from "../../src/games/bubbles/bubbles-session";
-import type { Point, Size } from "../../src/render/geometry";
+import type { Point } from "../../src/render/geometry";
 
-const FRAME: Size = { width: 1_280, height: 720 };
+const FRAME: CameraFrame = {
+  width: 1_280,
+  height: 720,
+  layout: "landscape",
+  epoch: 0,
+};
 
 function lcg(seed = 1): () => number {
   let state = seed >>> 0;
@@ -366,7 +372,12 @@ describe("Bubbles session", () => {
       BUBBLES_STARTING_DURATION_MS + 100,
       BUBBLES_STARTING_DURATION_MS + 100,
     );
-    const portraitFrame = { width: 720, height: 1_280 };
+    const portraitFrame: CameraFrame = {
+      width: 720,
+      height: 1_280,
+      layout: "portrait",
+      epoch: 1,
+    };
     const changed = frameChangeSession.updatePlayers(
       [player("right", frameChangePath.to)],
       portraitFrame,
@@ -385,6 +396,56 @@ describe("Bubbles session", () => {
       expect(bubble.point.y).toBeGreaterThanOrEqual(radiusY);
       expect(bubble.point.y).toBeLessThanOrEqual(1 - radiusY);
     }
+
+    const epochSession = readySession(1, lcg(11));
+    const epochStart = epochSession.start(0);
+    if (!epochStart.started) {
+      throw new Error("Expected Bubbles to start.");
+    }
+    const epochTarget = epochSession.tick(BUBBLES_STARTING_DURATION_MS + 100).bubbles[0];
+    if (epochTarget === undefined) {
+      throw new Error("Expected a target bubble.");
+    }
+    const epochPath = handPointsAcrossBubble(epochTarget.point);
+    epochSession.updatePlayers(
+      [player("right", epochPath.from)],
+      FRAME,
+      BUBBLES_STARTING_DURATION_MS + 100,
+      BUBBLES_STARTING_DURATION_MS + 100,
+    );
+    expect(
+      epochSession.updatePlayers(
+        [player("right", epochPath.to)],
+        { ...FRAME, epoch: 1 },
+        BUBBLES_STARTING_DURATION_MS + 133,
+        BUBBLES_STARTING_DURATION_MS + 133,
+      ).scores.right,
+    ).toBe(0);
+  });
+
+  it("freezes the complete round clock and simulation while paused", () => {
+    const session = readySession(1, lcg(17));
+    const started = session.start(0);
+    if (!started.started) {
+      throw new Error("Expected Bubbles to start.");
+    }
+    const beforePause = session.tick(BUBBLES_STARTING_DURATION_MS + 1_000);
+    const paused = session.setPaused(true, BUBBLES_STARTING_DURATION_MS + 1_000);
+    const pausedLater = session.tick(BUBBLES_STARTING_DURATION_MS + 31_000);
+
+    expect(paused).toMatchObject({
+      paused: true,
+      phase: "playing",
+      roundElapsedMs: 1_000,
+      roundRemainingMs: BUBBLES_ROUND_DURATION_MS - 1_000,
+    });
+    expect(pausedLater.roundElapsedMs).toBe(paused.roundElapsedMs);
+    expect(pausedLater.bubbles).toEqual(paused.bubbles);
+    expect(paused.bubbles).toEqual(beforePause.bubbles);
+
+    const resumed = session.setPaused(false, BUBBLES_STARTING_DURATION_MS + 31_000);
+    expect(resumed).toMatchObject({ paused: false, roundElapsedMs: 1_000 });
+    expect(session.tick(BUBBLES_STARTING_DURATION_MS + 32_000).roundElapsedMs).toBe(2_000);
   });
 
   it("derives mirrored identity-independent slots and complete hands from pose packets", () => {

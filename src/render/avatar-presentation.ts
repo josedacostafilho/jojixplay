@@ -4,6 +4,7 @@ import {
   type PosePacket,
   USABLE_LANDMARK_VISIBILITY,
 } from "../domain/pose";
+import { sameCameraFrameBasis } from "../domain/camera";
 import type { PoseHand } from "../domain/pose-features";
 
 export const AVATAR_PRESENTATION_TIMING = {
@@ -256,8 +257,7 @@ export class AvatarPresentationSession {
       elapsedMs > 0 &&
       elapsedMs <= AVATAR_PRESENTATION_TIMING.maximumContinuationGapMs &&
       this.lastFrame !== null &&
-      this.lastFrame.width === packet.frame.width &&
-      this.lastFrame.height === packet.frame.height &&
+      sameCameraFrameBasis(this.lastFrame, packet.frame) &&
       this.landmarkHistory.length === sourcePose.landmarks.length;
 
     if (!continuous || elapsedMs === null) {

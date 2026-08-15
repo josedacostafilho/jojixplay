@@ -5,7 +5,7 @@ function validPacket(): PosePacket {
   return {
     sequence: 7,
     capturedAtMs: 1234.5,
-    frame: { width: 1280, height: 720 },
+    frame: { width: 1280, height: 720, layout: "landscape", epoch: 0 },
     poses: [
       {
         landmarks: Array.from({ length: 33 }, (_, index) => ({
@@ -57,6 +57,22 @@ describe("pose packet parser", () => {
     expect(parsePosePacket(topLevel).ok).toBe(false);
     expect(parsePosePacket(frame).ok).toBe(false);
     expect(parsePosePacket(landmark).ok).toBe(false);
+  });
+
+  it("rejects the superseded frame schema and inconsistent layout metadata", () => {
+    const missingLayout = validPacket() as unknown as { frame: Record<string, unknown> };
+    delete missingLayout.frame.layout;
+    const missingEpoch = validPacket() as unknown as { frame: Record<string, unknown> };
+    delete missingEpoch.frame.epoch;
+    const inconsistent = validPacket();
+    inconsistent.frame.layout = "portrait";
+    const square = validPacket();
+    square.frame = { width: 720, height: 720, layout: "landscape", epoch: 0 };
+
+    expect(parsePosePacket(missingLayout).ok).toBe(false);
+    expect(parsePosePacket(missingEpoch).ok).toBe(false);
+    expect(parsePosePacket(inconsistent).ok).toBe(false);
+    expect(parsePosePacket(square).ok).toBe(false);
   });
 
   it("rejects malformed counts and numeric values", () => {

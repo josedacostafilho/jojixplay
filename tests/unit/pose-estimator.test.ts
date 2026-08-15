@@ -48,6 +48,11 @@ describe("pose estimator worker protocol", () => {
     worker.respond({ type: "pose-limit-set", poseLimit: 2 });
     await expect(changed).resolves.toBeUndefined();
 
+    const reset = estimator.resetTracking();
+    expect(worker.postMessage).toHaveBeenLastCalledWith({ type: "reset-tracking" });
+    worker.respond({ type: "tracking-reset" });
+    await expect(reset).resolves.toBeUndefined();
+
     estimator.close();
     expect(worker.terminate).toHaveBeenCalledOnce();
   });

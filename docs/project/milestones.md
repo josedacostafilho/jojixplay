@@ -8,6 +8,14 @@ scope: Sparse record of durable completed project milestones
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
 
+## 2026-08-14 — Canonical portrait and landscape camera layouts implemented
+
+- Hard-cut the orientation-implicit packet and peer protocol to an upright canonical camera frame with strict portrait/landscape metadata and frame epochs; the phone now combines validated Screen Orientation data with actual bitmap dimensions, supplies MediaPipe one clockwise quarter-turn, transforms its unrotated landmark output once, and resets tracking after a stable basis change.
+- Added strict acknowledged television-to-phone layout requests, matching phone/TV rotation guidance, canonical phone preview geometry, and bounded local source/rotation/layout/epoch diagnostics without transmitting source orientation.
+- Made Main Menu and Games use portrait overhead rows or landscape left columns; Draw and one-player Bubbles accept either layout, while two-player Bubbles is gated on landscape through the shared typed game catalog.
+- Locked active games to their entering layout: mismatched pose is withheld, Draw cancels interaction while retaining same-layout art, and Bubbles freezes and resumes its complete clock and simulation with fresh temporal input histories.
+- Preserved the delivered camera aspect rather than forcing `4:3` or treating aspect ratio as field-of-view evidence. Added domain, worker, controller, transport, temporal-consumer, game-session, component, and browser-smoke regression coverage; real-device portrait/both-landscape acceptance remains outstanding.
+
 ## 2026-08-14 — Procedural body avatar implemented
 
 - Hard-cut the landmark-dot and bone-line renderer to one faceless procedural Canvas body shared by the phone preview and television, with curved torso, tapered rounded limbs, blended joints, complete coarse hands/feet, and teal/rose materials.

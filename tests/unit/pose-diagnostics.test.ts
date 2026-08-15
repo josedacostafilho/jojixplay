@@ -31,12 +31,36 @@ function packet(capturedAtMs: number, thumbOffset = 0): PosePacket {
   return {
     sequence: capturedAtMs,
     capturedAtMs,
-    frame: { width: 1_280, height: 720 },
+    frame: { width: 1_280, height: 720, layout: "landscape", epoch: 0 },
     poses: [pose],
   };
 }
 
 describe("pose diagnostics", () => {
+  it("reports bounded phone-local orientation normalization metadata", () => {
+    const monitor = new PoseDiagnosticsMonitor();
+    monitor.recordCameraNormalization({
+      source: { width: 720, height: 1_280 },
+      rotation: 90,
+      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 3 },
+      screen: { type: "landscape-primary", layout: "landscape", angle: 90 },
+    });
+
+    expect(monitor.snapshot(0).orientation).toEqual({
+      screenType: "landscape-primary",
+      screenAngle: 90,
+      sourceWidth: 720,
+      sourceHeight: 1_280,
+      appliedRotation: 90,
+      canonicalWidth: 1_280,
+      canonicalHeight: 720,
+      layout: "landscape",
+      epoch: 3,
+    });
+    monitor.reset();
+    expect(monitor.snapshot(0).orientation).toBeNull();
+  });
+
   it("reports rolling pipeline rates, processing age, and one-player hand spread", () => {
     const monitor = new PoseDiagnosticsMonitor();
     for (let atMs = 0; atMs <= 2_000; atMs += 100) {
@@ -50,7 +74,12 @@ describe("pose diagnostics", () => {
     }
 
     const snapshot = monitor.snapshot(2_040);
-    expect(snapshot.frame).toEqual({ width: 1_280, height: 720 });
+    expect(snapshot.frame).toEqual({
+      width: 1_280,
+      height: 720,
+      layout: "landscape",
+      epoch: 0,
+    });
     expect(snapshot.cameraFramesPerSecond).toBeCloseTo(10);
     expect(snapshot.inferenceSubmissionsPerSecond).toBeCloseTo(10);
     expect(snapshot.inferenceCompletionsPerSecond).toBeCloseTo(10);
@@ -75,7 +104,7 @@ describe("pose diagnostics", () => {
     expect(monitor.snapshot(520)).toMatchObject({ leftHand: null, rightHand: null });
   });
 
-  it("breaks the hand window on dropout and frame-dimension changes", () => {
+  it("breaks the hand window on dropout and camera-basis changes", () => {
     const monitor = new PoseDiagnosticsMonitor();
     for (let atMs = 0; atMs <= 500; atMs += 100) {
       monitor.recordInferenceCompletion(packet(atMs), atMs + 20, 1);
@@ -91,7 +120,10 @@ describe("pose diagnostics", () => {
     }
     expect(monitor.snapshot(1_220).leftHand?.sampleCount).toBe(6);
 
-    const resized = { ...packet(1_300), frame: { width: 640, height: 480 } };
+    const resized: PosePacket = {
+      ...packet(1_300),
+      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
+    };
     monitor.recordInferenceCompletion(resized, 1_320, 1);
     expect(monitor.snapshot(1_320).leftHand).toBeNull();
   });

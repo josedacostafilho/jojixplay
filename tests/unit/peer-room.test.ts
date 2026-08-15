@@ -20,6 +20,7 @@ interface RoomHarness {
   room: Room;
   poseAction: MessageAction;
   poseLimitAction: RequestAction;
+  cameraLayoutAction: RequestAction;
   leave: ReturnType<typeof vi.fn>;
   callbacks: () => JoinRoomCallbacks;
 }
@@ -38,10 +39,19 @@ function createRoomHarness(): RoomHarness {
     onRequest: null,
     onReceiveProgress: null,
   };
+  const cameraLayoutAction: RequestAction = {
+    request: vi.fn(async () => ({ cameraLayout: "landscape" })),
+    requestMany: vi.fn(async () => []),
+    onRequest: null,
+    onReceiveProgress: null,
+  };
   const room = {
-    makeAction: vi.fn((namespace: string) =>
-      namespace === "pose-limit" ? poseLimitAction : poseAction,
-    ),
+    makeAction: vi.fn((namespace: string) => {
+      if (namespace === "pose-limit") {
+        return poseLimitAction;
+      }
+      return namespace === "camera-layout" ? cameraLayoutAction : poseAction;
+    }),
     leave,
     onPeerJoin: null,
     onPeerLeave: null,
@@ -58,6 +68,7 @@ function createRoomHarness(): RoomHarness {
     room,
     poseAction,
     poseLimitAction,
+    cameraLayoutAction,
     leave,
     callbacks: () => {
       if (capturedCallbacks === undefined) {
@@ -137,9 +148,11 @@ describe("peer room", () => {
       onStateChange: vi.fn(),
     });
 
-    await expect(completeHandshake(harness, "phone", "jojixplay-skeleton")).rejects.toThrow(
-      "incompatible role or protocol",
-    );
+    for (const protocol of ["jojixplay-skeleton", "jojixplay-skeleton/2"]) {
+      await expect(completeHandshake(harness, "phone", protocol)).rejects.toThrow(
+        "incompatible role or protocol",
+      );
+    }
   });
 
   it("requests an absolute player limit and accepts only its matching acknowledgement", async () => {
@@ -260,6 +273,59 @@ describe("peer room", () => {
       ),
     ).rejects.toThrow("not authorized");
     expect(onPoseLimitRequest).not.toHaveBeenCalled();
+  });
+
+  it("requests an absolute camera layout and accepts only its matching acknowledgement", async () => {
+    const harness = createRoomHarness();
+    vi.mocked(harness.cameraLayoutAction.request).mockResolvedValue({
+      cameraLayout: "portrait",
+    });
+    const peerRoom = connectPeerRoom({
+      role: "tv",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: vi.fn(),
+    });
+
+    await completeHandshake(harness, "phone");
+    harness.room.onPeerJoin?.("peer-one");
+
+    await expect(peerRoom.requestCameraLayout("portrait")).resolves.toBe("portrait");
+    expect(harness.cameraLayoutAction.request).toHaveBeenCalledWith(
+      { cameraLayout: "portrait" },
+      { target: "peer-one", timeoutMs: 35_000 },
+    );
+  });
+
+  it("applies only a strict authorized camera-layout request on the phone", async () => {
+    const harness = createRoomHarness();
+    const states: PeerConnectionState[] = [];
+    const onCameraLayoutRequest = vi.fn(async (layout: "portrait" | "landscape") => layout);
+    connectPeerRoom({
+      role: "phone",
+      credentials: {
+        room: "abcdefghijklmnopqrstuv",
+        secret: "abcdefghijklmnopqrstuvwxyzABCDEF",
+      },
+      onStateChange: (state) => states.push(state),
+      onCameraLayoutRequest,
+    });
+
+    await completeHandshake(harness, "tv");
+    harness.room.onPeerJoin?.("peer-one");
+    const context = { peerId: "peer-one", signal: new AbortController().signal };
+    await expect(
+      harness.cameraLayoutAction.onRequest?.({ cameraLayout: "landscape" }, context),
+    ).resolves.toEqual({ cameraLayout: "landscape" });
+    expect(onCameraLayoutRequest).toHaveBeenCalledWith("landscape");
+
+    await expect(
+      harness.cameraLayoutAction.onRequest?.({ cameraLayout: "landscape", legacy: true }, context),
+    ).rejects.toThrow("invalid");
+    expect(states.at(-1)).toBe("error");
+    expect(harness.leave).toHaveBeenCalledOnce();
   });
 
   it("does not poison an active pair when an extra peer fails", async () => {

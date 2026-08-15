@@ -25,7 +25,7 @@ function packet(sequence: number): PosePacket {
   return {
     sequence,
     capturedAtMs: sequence * 100,
-    frame: { width: 1_000, height: 1_000 },
+    frame: { width: 640, height: 360, layout: "landscape", epoch: 0 },
     poses: [pose],
   };
 }

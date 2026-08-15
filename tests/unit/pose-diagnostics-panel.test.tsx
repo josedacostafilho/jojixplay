@@ -4,7 +4,18 @@ import { PoseDiagnosticsPanel } from "../../src/components/pose-diagnostics-pane
 import type { PoseDiagnosticsSnapshot } from "../../src/pose/pose-diagnostics";
 
 const DIAGNOSTICS: PoseDiagnosticsSnapshot = {
-  frame: { width: 1_280, height: 720 },
+  frame: { width: 1_280, height: 720, layout: "landscape", epoch: 2 },
+  orientation: {
+    screenType: "landscape-primary",
+    screenAngle: 90,
+    sourceWidth: 720,
+    sourceHeight: 1_280,
+    appliedRotation: 90,
+    canonicalWidth: 1_280,
+    canonicalHeight: 720,
+    layout: "landscape",
+    epoch: 2,
+  },
   cameraFramesPerSecond: 30,
   inferenceSubmissionsPerSecond: 24,
   inferenceCompletionsPerSecond: 24,
@@ -33,6 +44,11 @@ describe("pose diagnostics panel", () => {
     expect(screen.getByText(/Hand spread includes real movement/)).toBeInTheDocument();
     expect(screen.getByText("30.0 / second")).toBeInTheDocument();
     expect(screen.getByText("35 ms median · 48 ms p95")).toBeInTheDocument();
+    expect(screen.getByText("1280 × 720 · landscape · epoch 2")).toBeInTheDocument();
+    expect(
+      screen.getByText("landscape-primary · 90° screen · 720 × 1280 source"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("90° clockwise → 1280 × 720")).toBeInTheDocument();
     expect(screen.getByText("7.2 px p95 · worst index 12.4 px")).toBeInTheDocument();
     expect(
       screen.getByText("No coordinates, images, or diagnostics leave this phone."),

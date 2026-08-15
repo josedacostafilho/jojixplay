@@ -3,6 +3,7 @@ import { AvatarCanvas } from "../components/avatar-canvas";
 import { PoseDiagnosticsPanel } from "../components/pose-diagnostics-panel";
 import { StatusPill } from "../components/status-pill";
 import { roleUrl } from "../components/unsupported-panel";
+import type { CameraFrameNormalization, CameraLayout } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { CameraPoseController } from "../pose/camera-pose-controller";
@@ -48,6 +49,8 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
   const [camera, setCamera] = useState<CameraState>("idle");
   const [packet, setPacket] = useState<PosePacket | null>(null);
   const [poseLimit, setPoseLimit] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
+  const [cameraFrame, setCameraFrame] = useState<CameraFrameNormalization | null>(null);
+  const [requestedCameraLayout, setRequestedCameraLayout] = useState<CameraLayout | null>(null);
   const [diagnostics, setDiagnostics] = useState<PoseDiagnosticsSnapshot | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -64,6 +67,8 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
       cameraController.current = null;
       setPacket(null);
       setDiagnostics(null);
+      setCameraFrame(null);
+      setRequestedCameraLayout(null);
       setCamera("idle");
       poseLimitRef.current = DEFAULT_POSE_LIMIT;
       setPoseLimit(DEFAULT_POSE_LIMIT);
@@ -92,6 +97,14 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
           poseLimitRef.current = requestedPoseLimit;
           setPoseLimit(requestedPoseLimit);
           return requestedPoseLimit;
+        },
+        onCameraLayoutRequest: async (requestedLayout) => {
+          const controller = cameraController.current;
+          if (controller === null) {
+            throw new Error("Body tracking is not active.");
+          }
+          await controller.requestCameraLayout(requestedLayout);
+          return requestedLayout;
         },
       });
     } catch {
@@ -138,6 +151,8 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
     setCamera("starting");
     setErrorMessage(null);
     setDiagnostics(null);
+    setCameraFrame(null);
+    setRequestedCameraLayout(null);
     const controller = new CameraPoseController({
       video,
       initialPoseLimit: poseLimitRef.current,
@@ -148,6 +163,13 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
         }
       },
       onDiagnostics: setDiagnostics,
+      onCameraFrame: (nextFrame) => {
+        setCameraFrame(nextFrame);
+        setPacket((current) =>
+          nextFrame !== null && current?.frame.epoch === nextFrame.frame.epoch ? current : null,
+        );
+      },
+      onRequestedCameraLayout: setRequestedCameraLayout,
       onError: (message) => {
         setErrorMessage(message);
         setCamera("error");
@@ -174,12 +196,19 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
     cameraController.current = null;
     setPacket(null);
     setDiagnostics(null);
+    setCameraFrame(null);
+    setRequestedCameraLayout(null);
     setCamera("idle");
     setErrorMessage(null);
   };
 
   const peerTone =
     connection === "connected" ? "active" : connection === "error" ? "danger" : "neutral";
+  const cameraQuarterTurn = cameraFrame?.rotation === 90 || cameraFrame?.rotation === 270;
+  const cameraStageStyle =
+    cameraFrame === null
+      ? undefined
+      : `aspect-ratio: ${cameraFrame.frame.width} / ${cameraFrame.frame.height}; --camera-preview-rotation: ${cameraFrame.rotation}deg; --camera-canonical-aspect: ${cameraFrame.frame.width / cameraFrame.frame.height}`;
 
   return (
     <main class="phone-page">
@@ -207,7 +236,11 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
           </p>
         </div>
 
-        <div class={`camera-stage camera-stage--${camera}`}>
+        <div
+          class={`camera-stage camera-stage--${camera}`}
+          data-camera-quarter-turn={cameraQuarterTurn ? "true" : "false"}
+          style={cameraStageStyle}
+        >
           <video ref={videoRef} muted playsInline aria-label="Live camera preview" />
           <AvatarCanvas
             packet={camera === "tracking" ? packet : null}
@@ -222,14 +255,20 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
                 ╱│╲
                 <br />╱ ╲
               </span>
-              <span>Place the phone near the TV in landscape if possible.</span>
+              <span>Hold the phone upright or sideways. A game will ask if it needs one.</span>
             </div>
           ) : null}
+          {requestedCameraLayout === null ? null : (
+            <div class="camera-orientation-prompt" role="status" aria-live="assertive">
+              <strong>Rotate phone to {requestedCameraLayout}</strong>
+              <span>Tracking resumes automatically when the camera is stable.</span>
+            </div>
+          )}
           <div class="camera-badge">
             {camera === "tracking"
               ? packet === null
                 ? "Scanning…"
-                : `${packet.poses.length} of ${poseLimit} ${poseLimit === 1 ? "player" : "players"} visible`
+                : `${packet.poses.length} of ${poseLimit} ${poseLimit === 1 ? "player" : "players"} visible · ${packet.frame.layout}`
               : "Camera off"}
           </div>
         </div>

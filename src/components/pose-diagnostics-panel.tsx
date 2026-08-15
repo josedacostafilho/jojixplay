@@ -29,6 +29,7 @@ function handSpread(spread: HandSpreadDiagnostics | null | undefined): string {
 
 export function PoseDiagnosticsPanel({ diagnostics, poseLimit }: PoseDiagnosticsPanelProps) {
   const frame = diagnostics?.frame;
+  const orientation = diagnostics?.orientation;
   return (
     <details class="pose-diagnostics">
       <summary>Pose diagnostics</summary>
@@ -43,7 +44,23 @@ export function PoseDiagnosticsPanel({ diagnostics, poseLimit }: PoseDiagnostics
             <dd>
               {frame === undefined || frame === null
                 ? "Collecting…"
-                : `${frame.width} × ${frame.height}`}
+                : `${frame.width} × ${frame.height} · ${frame.layout} · epoch ${frame.epoch}`}
+            </dd>
+          </div>
+          <div>
+            <dt>Orientation input</dt>
+            <dd>
+              {orientation === undefined || orientation === null
+                ? "Collecting…"
+                : `${orientation.screenType} · ${orientation.screenAngle}° screen · ${orientation.sourceWidth} × ${orientation.sourceHeight} source`}
+            </dd>
+          </div>
+          <div>
+            <dt>Orientation normalization</dt>
+            <dd>
+              {orientation === undefined || orientation === null
+                ? "Collecting…"
+                : `${orientation.appliedRotation}° clockwise → ${orientation.canonicalWidth} × ${orientation.canonicalHeight}`}
             </dd>
           </div>
           <div>

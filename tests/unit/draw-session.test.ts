@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CameraFrame } from "../../src/domain/camera";
 import {
   DRAW_COLORS,
   DRAW_GRIP_ENGAGE_SHOULDER_RATIO,
@@ -8,7 +9,12 @@ import {
 import type { PoseControlHands, PoseControlTarget } from "../../src/interaction/pose-controls";
 import type { Point, Size } from "../../src/render/geometry";
 
-const FRAME: Size = { width: 1_280, height: 720 };
+const FRAME: CameraFrame = {
+  width: 1_280,
+  height: 720,
+  layout: "landscape",
+  epoch: 0,
+};
 const VIEWPORT: Size = { width: 1_280, height: 720 };
 const SHOULDER_SPAN = 0.36;
 const NO_TARGETS: readonly PoseControlTarget<"toolbar">[] = [];
@@ -27,7 +33,7 @@ function update(
   nowMs: number,
   visibleHands: PoseControlHands | null,
   options: {
-    frame?: Size;
+    frame?: CameraFrame;
     sampleAtMs?: number;
     targets?: readonly PoseControlTarget<"toolbar">[];
     viewport?: Size;
@@ -209,7 +215,7 @@ describe("Draw session", () => {
     expect(afterJump.commands).toHaveLength(beforeJump + 1);
   });
 
-  it("fails closed across stale pose input and camera-dimension changes", () => {
+  it("fails closed across stale pose input and camera-basis changes", () => {
     const session = new DrawSession();
     session.setEnabled(true);
     engagePencil(session);
@@ -222,12 +228,41 @@ describe("Draw session", () => {
 
     engagePencil(session);
     const resized = update(session, 100, hands({ x: 0.4, y: 0.5 }, { x: 0.5, y: 0.5 }), {
-      frame: { width: 640, height: 480 },
+      frame: { width: 640, height: 480, layout: "landscape", epoch: 1 },
     });
     expect(resized).toMatchObject({
       gripActive: false,
       cursor: { phase: "unavailable", point: null },
     });
+
+    const epochSession = new DrawSession();
+    epochSession.setEnabled(true);
+    engagePencil(epochSession);
+    expect(
+      update(epochSession, 100, hands({ x: 0.4, y: 0.5 }, { x: 0.5, y: 0.5 }), {
+        frame: { ...FRAME, epoch: 1 },
+      }),
+    ).toMatchObject({
+      gripActive: false,
+      cursor: { phase: "unavailable", point: null },
+    });
+  });
+
+  it("suspends interaction without discarding artwork, tool, or color", () => {
+    const session = new DrawSession();
+    session.setEnabled(true);
+    const drawn = engagePencil(session);
+    session.cycleTool();
+    session.cycleColor();
+
+    const suspended = session.suspend();
+    expect(suspended).toMatchObject({
+      gripActive: false,
+      selectedTool: "eraser",
+      color: DRAW_COLORS[1],
+      cursor: { phase: "unavailable", point: null },
+    });
+    expect(suspended.commands).toEqual(drawn.commands);
   });
 
   it("requires both hands and a valid shoulder span to begin a grip", () => {

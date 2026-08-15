@@ -10,9 +10,9 @@ scope: Raw-pose ownership, consumer-specific filtering, diagnostics, model selec
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The single-anchor, every-outlier-resets stationary test in [ADR-0010](0010-menu-and-draw-game.md)
-- **Superseded by:** [ADR-0012](0012-two-hand-draw-grip.md) for Draw's stationary engagement/lifting classifier; [ADR-0014](0014-procedural-body-avatar.md) for the visible display signal; raw-pose ownership, consumer separation, diagnostics, and model-selection decisions remain active
+- **Superseded by:** [ADR-0012](0012-two-hand-draw-grip.md) for Draw's stationary engagement/lifting classifier; [ADR-0014](0014-procedural-body-avatar.md) for the visible display signal; [ADR-0015](0015-canonical-camera-orientation.md) for the orientation-implicit, byte-for-byte MediaPipe landmark basis. Unfiltered canonical-pose ownership, consumer separation, diagnostics, and model-selection decisions remain active
 
-> **Current-scope note:** ADR-0012 supersedes every Draw stationarity rule and test expectation below, and ADR-0014 supersedes the unfiltered stick-skeleton display row. Those passages remain only as historical rationale. Raw-pose ownership, consumer-specific filtering, local diagnostics, and the model-selection boundary remain operative.
+> **Current-scope note:** ADR-0012 supersedes every Draw stationarity rule and test expectation below, ADR-0014 supersedes the unfiltered stick-skeleton display row, and ADR-0015 supersedes the statement that packets retain MediaPipe's orientation-specific image coordinates unchanged. Those passages remain only as historical rationale. Unfiltered canonical-pose ownership after phone-local orientation normalization, consumer-specific filtering, local diagnostics, and the model-selection boundary remain operative.
 
 ## Context
 

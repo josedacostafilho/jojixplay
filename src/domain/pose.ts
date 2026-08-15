@@ -1,3 +1,5 @@
+import { type CameraFrame, isCameraFrame } from "./camera";
+
 export const MAX_POSES = 2;
 export const LANDMARKS_PER_POSE = 33;
 export const USABLE_LANDMARK_VISIBILITY = 0.35;
@@ -16,10 +18,7 @@ export interface DetectedPose {
 export interface PosePacket {
   sequence: number;
   capturedAtMs: number;
-  frame: {
-    width: number;
-    height: number;
-  };
+  frame: CameraFrame;
   poses: DetectedPose[];
 }
 
@@ -33,7 +32,6 @@ export function acceptIncreasingSequence(
 }
 
 const POSE_PACKET_KEYS = ["sequence", "capturedAtMs", "frame", "poses"];
-const FRAME_KEYS = ["width", "height"];
 const POSE_KEYS = ["landmarks"];
 const LANDMARK_KEYS = ["x", "y", "z", "visibility"];
 
@@ -52,10 +50,6 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function isFrameDimension(value: unknown): value is number {
-  return Number.isInteger(value) && Number(value) > 0 && Number(value) <= 16_384;
-}
-
 export function parsePosePacket(value: unknown): PosePacketParseResult {
   if (!isRecord(value) || !hasExactKeys(value, POSE_PACKET_KEYS)) {
     return { ok: false, error: "Pose packet has an invalid shape." };
@@ -70,12 +64,7 @@ export function parsePosePacket(value: unknown): PosePacketParseResult {
     return { ok: false, error: "Pose packet metadata is invalid." };
   }
 
-  if (
-    !isRecord(value.frame) ||
-    !hasExactKeys(value.frame, FRAME_KEYS) ||
-    !isFrameDimension(value.frame.width) ||
-    !isFrameDimension(value.frame.height)
-  ) {
+  if (!isCameraFrame(value.frame)) {
     return { ok: false, error: "Pose packet frame dimensions are invalid." };
   }
 
@@ -128,6 +117,8 @@ export function parsePosePacket(value: unknown): PosePacketParseResult {
       frame: {
         width: Number(value.frame.width),
         height: Number(value.frame.height),
+        layout: value.frame.layout,
+        epoch: Number(value.frame.epoch),
       },
       poses,
     },
