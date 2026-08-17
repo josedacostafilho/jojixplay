@@ -16,9 +16,12 @@ function report(checks: Array<[string, boolean]>): CapabilityReport {
   return { supported: missing.length === 0, missing };
 }
 
-function sharedChecks(): Array<[string, boolean]> {
+function secureContextChecks(): Array<[string, boolean]> {
+  return [["a secure browsing context", window.isSecureContext]];
+}
+
+function peerChecks(): Array<[string, boolean]> {
   return [
-    ["a secure browsing context", window.isSecureContext],
     [
       "Web Crypto",
       typeof globalThis.crypto?.getRandomValues === "function" &&
@@ -29,9 +32,8 @@ function sharedChecks(): Array<[string, boolean]> {
   ];
 }
 
-export function inspectPhoneCapabilities(): CapabilityReport {
-  return report([
-    ...sharedChecks(),
+function cameraChecks(): Array<[string, boolean]> {
+  return [
     ["camera access", typeof navigator.mediaDevices?.getUserMedia === "function"],
     ["WebAssembly", typeof WebAssembly !== "undefined"],
     ["WebGL 2", hasWebGl2()],
@@ -43,14 +45,30 @@ export function inspectPhoneCapabilities(): CapabilityReport {
       typeof window.screen.orientation?.type === "string" &&
         typeof window.screen.orientation?.angle === "number",
     ],
+  ];
+}
+
+function playfieldChecks(): Array<[string, boolean]> {
+  const context = document.createElement("canvas").getContext("2d");
+  return [
+    ["Canvas 2D", context !== null],
+    ["responsive canvas sizing", typeof ResizeObserver !== "undefined"],
+  ];
+}
+
+export function inspectPhoneControllerCapabilities(): CapabilityReport {
+  return report([
+    ...secureContextChecks(),
+    ...peerChecks(),
+    ...cameraChecks(),
+    ...playfieldChecks(),
   ]);
 }
 
-export function inspectTvCapabilities(): CapabilityReport {
-  const context = document.createElement("canvas").getContext("2d");
-  return report([
-    ...sharedChecks(),
-    ["Canvas 2D", context !== null],
-    ["responsive canvas sizing", typeof ResizeObserver !== "undefined"],
-  ]);
+export function inspectLocalPlayCapabilities(): CapabilityReport {
+  return report([...secureContextChecks(), ...cameraChecks(), ...playfieldChecks()]);
+}
+
+export function inspectTvDisplayCapabilities(): CapabilityReport {
+  return report([...secureContextChecks(), ...peerChecks(), ...playfieldChecks()]);
 }

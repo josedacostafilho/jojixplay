@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-17
 scope: Architectural decision record process and index
 ---
 
@@ -29,6 +29,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0015](0015-canonical-camera-orientation.md) | Accepted | Normalize portrait/landscape camera frames before pose consumers and enforce explicit game layout policies |
 | [0016](0016-phaser-canvas-racing.md) | Accepted | Add Racing through a lazy, forced-Canvas Phaser runtime with application-owned simulation and pose steering |
 | [0017](0017-coarse-torso-lean-racing.md) | Accepted | Hard-cut Racing from a two-hand wheel to calibrated, hysteretic torso-lean steering |
+| [0018](0018-all-in-one-phone-play.md) | Accepted | Add direct all-in-one phone play through the shared body playfield with no preview or peer transport |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

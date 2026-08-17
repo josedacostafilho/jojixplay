@@ -2,12 +2,9 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { AvatarCanvas } from "../components/avatar-canvas";
 import { PoseDiagnosticsPanel } from "../components/pose-diagnostics-panel";
 import { StatusPill } from "../components/status-pill";
-import { roleUrl } from "../components/unsupported-panel";
-import type { CameraFrameNormalization, CameraLayout } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
-import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
-import { CameraPoseController } from "../pose/camera-pose-controller";
-import type { PoseDiagnosticsSnapshot } from "../pose/pose-diagnostics";
+import { useCameraPose } from "../pose/use-camera-pose";
+import { applicationModeUrl } from "../platform/application-mode";
 import type { SessionCredentials } from "../session/credentials";
 import { LatestOnlySender } from "../transport/latest-sender";
 import {
@@ -20,7 +17,6 @@ interface PhoneControllerProps {
   credentials: SessionCredentials;
 }
 
-type CameraState = "idle" | "starting" | "tracking" | "error";
 const PAIRING_TIMEOUT_MS = 30_000;
 
 function peerLabel(state: PeerConnectionState): string {
@@ -39,20 +35,31 @@ function peerLabel(state: PeerConnectionState): string {
 }
 
 export function PhoneController({ credentials }: PhoneControllerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const cameraController = useRef<CameraPoseController | null>(null);
   const peerRoom = useRef<PosePeerRoom | null>(null);
   const sender = useRef<LatestOnlySender<PosePacket> | null>(null);
   const peerStateRef = useRef<PeerConnectionState>("connecting");
-  const poseLimitRef = useRef<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [connection, setConnection] = useState<PeerConnectionState>("connecting");
-  const [camera, setCamera] = useState<CameraState>("idle");
-  const [packet, setPacket] = useState<PosePacket | null>(null);
-  const [poseLimit, setPoseLimit] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
-  const [cameraFrame, setCameraFrame] = useState<CameraFrameNormalization | null>(null);
-  const [requestedCameraLayout, setRequestedCameraLayout] = useState<CameraLayout | null>(null);
-  const [diagnostics, setDiagnostics] = useState<PoseDiagnosticsSnapshot | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const {
+    videoRef,
+    state: camera,
+    packet,
+    poseLimit,
+    cameraFrame,
+    requestedCameraLayout,
+    diagnostics,
+    errorMessage: cameraError,
+    start: startTracking,
+    stop: stopCamera,
+    setPoseLimit,
+    requestCameraLayout,
+  } = useCameraPose({
+    onPacket: (nextPacket) => {
+      if (peerStateRef.current === "connected") {
+        sender.current?.push(nextPacket);
+      }
+    },
+  });
 
   useEffect(() => {
     let pairingTimeoutId: number | null = null;
@@ -63,15 +70,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
       }
     };
     const stopCameraAfterSessionEnd = () => {
-      cameraController.current?.stop();
-      cameraController.current = null;
-      setPacket(null);
-      setDiagnostics(null);
-      setCameraFrame(null);
-      setRequestedCameraLayout(null);
-      setCamera("idle");
-      poseLimitRef.current = DEFAULT_POSE_LIMIT;
-      setPoseLimit(DEFAULT_POSE_LIMIT);
+      stopCamera({ resetPoseLimit: true });
     };
     let room: PosePeerRoom;
     try {
@@ -89,21 +88,11 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
           }
         },
         onPoseLimitRequest: async (requestedPoseLimit) => {
-          const controller = cameraController.current;
-          if (controller === null) {
-            throw new Error("Body tracking is not active.");
-          }
-          await controller.setPoseLimit(requestedPoseLimit);
-          poseLimitRef.current = requestedPoseLimit;
-          setPoseLimit(requestedPoseLimit);
+          await setPoseLimit(requestedPoseLimit);
           return requestedPoseLimit;
         },
         onCameraLayoutRequest: async (requestedLayout) => {
-          const controller = cameraController.current;
-          if (controller === null) {
-            throw new Error("Body tracking is not active.");
-          }
-          await controller.requestCameraLayout(requestedLayout);
+          await requestCameraLayout(requestedLayout);
           return requestedLayout;
         },
       });
@@ -117,7 +106,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
       (nextPacket) => room.sendPose(nextPacket),
       () => {
         if (peerStateRef.current === "connected") {
-          setErrorMessage("Pose delivery failed. Check the connection and retry the session.");
+          setDeliveryError("Pose delivery failed. Check the connection and retry the session.");
         }
       },
     );
@@ -134,73 +123,12 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
 
     return () => {
       clearPairingTimeout();
-      cameraController.current?.stop();
-      cameraController.current = null;
       sender.current?.dispose();
       sender.current = null;
       peerRoom.current = null;
       void room.close();
     };
-  }, [credentials]);
-
-  const startTracking = async () => {
-    const video = videoRef.current;
-    if (video === null || camera === "starting" || camera === "tracking") {
-      return;
-    }
-    setCamera("starting");
-    setErrorMessage(null);
-    setDiagnostics(null);
-    setCameraFrame(null);
-    setRequestedCameraLayout(null);
-    const controller = new CameraPoseController({
-      video,
-      initialPoseLimit: poseLimitRef.current,
-      onPacket: (nextPacket) => {
-        setPacket(nextPacket);
-        if (peerStateRef.current === "connected") {
-          sender.current?.push(nextPacket);
-        }
-      },
-      onDiagnostics: setDiagnostics,
-      onCameraFrame: (nextFrame) => {
-        setCameraFrame(nextFrame);
-        setPacket((current) =>
-          nextFrame !== null && current?.frame.epoch === nextFrame.frame.epoch ? current : null,
-        );
-      },
-      onRequestedCameraLayout: setRequestedCameraLayout,
-      onError: (message) => {
-        setErrorMessage(message);
-        setCamera("error");
-        setDiagnostics(null);
-      },
-    });
-    cameraController.current = controller;
-    try {
-      await controller.start();
-      if (cameraController.current === controller) {
-        setCamera("tracking");
-      }
-    } catch (error) {
-      if (cameraController.current === controller) {
-        cameraController.current = null;
-        setCamera("error");
-        setErrorMessage(error instanceof Error ? error.message : "Body tracking could not start.");
-      }
-    }
-  };
-
-  const stopTracking = () => {
-    cameraController.current?.stop();
-    cameraController.current = null;
-    setPacket(null);
-    setDiagnostics(null);
-    setCameraFrame(null);
-    setRequestedCameraLayout(null);
-    setCamera("idle");
-    setErrorMessage(null);
-  };
+  }, [credentials, requestCameraLayout, setPoseLimit, stopCamera]);
 
   const peerTone =
     connection === "connected" ? "active" : connection === "error" ? "danger" : "neutral";
@@ -213,7 +141,7 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
   return (
     <main class="phone-page">
       <header class="app-header">
-        <a class="brand" href={roleUrl(null)} aria-label="Jojixplay home">
+        <a class="brand" href={applicationModeUrl(null)} aria-label="Jojixplay home">
           <span class="brand__mark" aria-hidden="true">
             J
           </span>
@@ -273,9 +201,14 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
           </div>
         </div>
 
-        {errorMessage !== null ? (
+        {cameraError !== null ? (
           <p class="inline-error" role="alert">
-            {errorMessage}
+            {cameraError}
+          </p>
+        ) : null}
+        {deliveryError !== null ? (
+          <p class="inline-error" role="alert">
+            {deliveryError}
           </p>
         ) : null}
         {connection === "error" ? (
@@ -287,14 +220,21 @@ export function PhoneController({ credentials }: PhoneControllerProps) {
 
         <div class="phone-actions">
           {camera === "tracking" ? (
-            <button class="button button--danger" type="button" onClick={stopTracking}>
+            <button
+              class="button button--danger"
+              type="button"
+              onClick={() => stopCamera({ resetPoseLimit: false })}
+            >
               Stop tracking
             </button>
           ) : (
             <button
               class="button button--primary"
               type="button"
-              onClick={() => void startTracking()}
+              onClick={() => {
+                setDeliveryError(null);
+                void startTracking();
+              }}
               disabled={camera === "starting" || connection === "error"}
             >
               {camera === "starting" ? "Starting camera…" : "Start body tracking"}

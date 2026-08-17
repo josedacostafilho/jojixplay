@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-17
 scope: User-visible behavior and implemented design for the Bubbles game
 ---
 
@@ -8,7 +8,7 @@ scope: User-visible behavior and implemented design for the Bubbles game
 
 ## Outcome
 
-Bubbles is a timed one- or two-player game. Procedurally rendered soap bubbles drift inside the reachable phone-camera projection, and every complete coarse hand can pop them. The television owns simulation, collision, score, animation, and results; the phone continues to send only validated pose landmarks.
+Bubbles is a timed one- or two-player game. Procedurally rendered soap bubbles drift inside the reachable phone-camera projection, and every complete coarse hand can pop them. The mounted `BodyPlayfield` owns simulation, collision, score, animation, and results; it receives only validated pose landmarks through paired delivery or direct local play.
 
 ## Navigation and round contract
 
@@ -98,7 +98,7 @@ Bubbles — Finished
 
 ## Completed implementation plan
 
-- [x] Add a deterministic television-local Bubbles session owning lifecycle, clock, scores, random bubble generation, drift, edge reflection, pop state, and respawn scheduling.
+- [x] Add a deterministic playfield-local Bubbles session owning lifecycle, clock, scores, random bubble generation, drift, edge reflection, pop state, and respawn scheduling.
 - [x] Add a pure pose-to-game adapter deriving usable torsos, both complete mirrored hand centers, and identity-independent left/right score slots.
 - [x] Add aspect-corrected current-point and fresh swept-segment collision with one-winner deterministic attribution.
 - [x] Add a procedural Canvas renderer for bubbles, shimmer, bounded pop particles, floating `+1`, and visible hand hit rings.

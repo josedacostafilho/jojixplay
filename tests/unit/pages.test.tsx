@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 describe("entry pages", () => {
-  it("offers television and phone roles", () => {
+  it("offers television, paired-phone, and all-in-one application modes", () => {
     render(<LandingPage />);
 
     expect(
@@ -20,16 +20,20 @@ describe("entry pages", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open on the TV/ })).toHaveAttribute(
       "href",
-      expect.stringContaining("role=tv"),
+      expect.stringContaining("mode=tv"),
     );
     expect(screen.getByRole("link", { name: /Open on the phone/ })).toHaveAttribute(
       "href",
-      expect.stringContaining("role=phone"),
+      expect.stringContaining("mode=phone"),
+    );
+    expect(screen.getByRole("link", { name: /Play on this phone/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("mode=local"),
     );
   });
 
   it("offers manual pairing when a phone route has no QR credential", () => {
-    window.history.replaceState(null, "", "/?role=phone");
+    window.history.replaceState(null, "", "/?mode=phone");
     render(<App />);
 
     expect(
@@ -55,12 +59,24 @@ describe("entry pages", () => {
   });
 
   it("keeps a malformed QR fragment on the manual recovery path", () => {
-    window.history.replaceState(null, "", "/?role=phone#key=too-short");
+    window.history.replaceState(null, "", "/?mode=phone#key=too-short");
     render(<App />);
 
     expect(screen.getByRole("textbox", { name: "TV pairing key" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Enter the 20-character pairing key shown on your TV.",
+    );
+  });
+
+  it("rejects the removed role route instead of retaining a compatibility alias", () => {
+    window.history.replaceState(null, "", "/?role=phone");
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: "Choose a current JojixPlay mode." }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This application link is malformed or no longer supported.",
     );
   });
 

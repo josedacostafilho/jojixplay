@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-17
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -30,7 +30,8 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | Database and migration tool | None | — | Persistence is forbidden for this slice |
 | CI provider | GitHub Actions | Current major actions pinned in workflow | `.github/workflows/pages.yml` |
 | Deployment/runtime platform | GitHub Pages | Static project site | `npm run build` |
-| Observability tooling | None external | — | Local status UI and bounded phone pose diagnostics only |
+| Optional immersive behavior | Fullscreen and Screen Wake Lock browser APIs | Best-effort only | Local play and TV trusted-start paths; never part of blocking support checks |
+| Observability tooling | None external | — | User-visible mode status and bounded paired-phone pose diagnostics only |
 
 ## Canonical commands
 
@@ -58,7 +59,7 @@ These commands are executable and are the only canonical paths for their concern
 
 ## Racing engine boundary
 
-- `phaser@4.2.1` is exact and is the only game engine. [`src/games/racing/racing-canvas.tsx`](../../src/games/racing/racing-canvas.tsx) dynamically imports it only after Racing mounts; initial role, pairing, phone, Draw, and Bubbles chunks do not import the engine.
+- `phaser@4.2.1` is exact and is the only game engine. [`src/games/racing/racing-canvas.tsx`](../../src/games/racing/racing-canvas.tsx) dynamically imports it only after Racing mounts; landing, television setup, pairing, paired controller, local-play setup, Draw, and Bubbles do not load the engine.
 - [`vite.config.ts`](../../vite.config.ts) maps the internal `phaser-runtime` boundary directly to Phaser's production ESM runtime. [`src/vendor/phaser-runtime.d.ts`](../../src/vendor/phaser-runtime.d.ts) deliberately declares only the engine surface Racing owns because Phaser's published declaration bundle is not compatible with the repository's TypeScript 7 strict build. Do not replace this narrow boundary with `skipLibCheck`, a broad `any` declaration, or a second import path.
 - Racing always constructs `Phaser.CANVAS`. `AUTO`, WebGL, runtime renderer selection, and renderer fallbacks are forbidden by [ADR-0016](../decisions/0016-phaser-canvas-racing.md).
 - Preact owns navigation and semantic controls; pure TypeScript owns Racing input, simulation, track, and projection; Phaser owns the mounted canvas lifecycle, view cameras, frame callback, and drawing only.

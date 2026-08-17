@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { roleUrl, UnsupportedPanel } from "../components/unsupported-panel";
-import { inspectPhoneCapabilities } from "../platform/capabilities";
+import { UnsupportedPanel } from "../components/unsupported-panel";
+import { inspectPhoneControllerCapabilities } from "../platform/capabilities";
+import { applicationModeUrl } from "../platform/application-mode";
 import {
   deriveSessionCredentials,
   type PairingKey,
@@ -18,7 +19,7 @@ type DerivationState =
   | { status: "error" };
 
 export function PhoneSession({ pairingKey }: PhoneSessionProps) {
-  const capabilities = useMemo(inspectPhoneCapabilities, []);
+  const capabilities = useMemo(inspectPhoneControllerCapabilities, []);
   const [derivation, setDerivation] = useState<DerivationState>({ status: "loading" });
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export function PhoneSession({ pairingKey }: PhoneSessionProps) {
           <p class="eyebrow">Pairing failed</p>
           <h1 id="pairing-failed-title">The secure session could not be prepared.</h1>
           <p>Return to the TV, create a new session, and enter its new pairing key.</p>
-          <a class="button button--secondary" href={roleUrl(null)}>
+          <a class="button button--secondary" href={applicationModeUrl(null)}>
             Return to setup
           </a>
         </section>

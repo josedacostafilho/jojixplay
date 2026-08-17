@@ -1,12 +1,20 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-17
 scope: Sparse record of durable completed project milestones
 ---
 
 # Milestone log
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
+
+## 2026-08-17 — All-in-one phone play implemented
+
+- Added **Play on this phone** as a first-class third application mode: the shared camera/MediaPipe lifecycle now feeds the shared mirrored body playfield directly in memory with no pairing key, relay, WebSocket, WebRTC, sender queue, backend, or loopback transport.
+- Kept the internal capture video visually and accessibility hidden, so local play shows only application status, the procedural avatar, and games; best-effort fullscreen and Screen Wake Lock are owned by trusted start/explicit stop without becoming compatibility requirements.
+- Hard-cut query routing from `role` to strict `mode=tv|phone|local`, renamed `TvPlayfield` to `BodyPlayfield`, and updated every implementation, CSS, test, and current reference without retaining aliases.
+- Extracted one camera lifecycle for paired and local phone pages, preserved one-pose defaults plus apply-before-display player/layout changes, added a one-second local freshness gate, and kept Draw/Bubbles/Racing as exactly the same renderer and domain paths in both topologies.
+- Added direct unit/component and production-browser evidence for routing, capabilities, camera ownership, local packets, no-preview presentation, operation with peer APIs absent, optional immersive cleanup, and first real MediaPipe output. Real-phone combined rendering/thermals and external-mirroring acceptance remain outstanding.
 
 ## 2026-08-15 — Racing controls and near-road presentation corrected
 

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-17
 scope: First vertical slice contract, acceptance criteria, and implementation plan
 ---
 
@@ -8,15 +8,15 @@ scope: First vertical slice contract, acceptance criteria, and implementation pl
 
 ## Implementation state
 
-The phone-to-television vertical slice is implemented. Its original stick-skeleton proof has been hard-cut to the procedural body avatar in [Avatar renderer](avatar-renderer.md). Publication state, automated verification evidence, and outstanding real phone/television acceptance are tracked in [Project status](../project/status.md).
+The phone-to-television vertical slice is implemented. Its original stick-skeleton proof has been hard-cut to the procedural body avatar in [Avatar renderer](avatar-renderer.md). This document owns the paired-device topology; the direct all-in-one topology is specified separately in [Play on this phone](local-play.md). Publication state, automated verification evidence, and outstanding real-device acceptance are tracked in [Project status](../project/status.md).
 
 ## Implementation map
 
 | Concern | Canonical implementation |
 | --- | --- |
-| Role routing and page lifecycle | [`src/app.tsx`](../../src/app.tsx) and [`src/pages/`](../../src/pages/) |
+| Strict application-mode routing and page lifecycle | [`src/platform/application-mode.ts`](../../src/platform/application-mode.ts), [`src/app.tsx`](../../src/app.tsx), and [`src/pages/`](../../src/pages/) |
 | Pairing credentials and fragment contract | [`src/session/credentials.ts`](../../src/session/credentials.ts) |
-| Camera scheduling and cleanup | [`src/pose/camera-pose-controller.ts`](../../src/pose/camera-pose-controller.ts) |
+| Shared camera lifecycle, scheduling, and cleanup | [`src/pose/use-camera-pose.ts`](../../src/pose/use-camera-pose.ts) and [`src/pose/camera-pose-controller.ts`](../../src/pose/camera-pose-controller.ts) |
 | Camera layout, rotation, and epoch contract | [`src/domain/camera.ts`](../../src/domain/camera.ts) and [Camera orientation](camera-orientation.md) |
 | MediaPipe isolation and worker protocol | [`src/pose/`](../../src/pose/) |
 | Pose packet validation and ordering | [`src/domain/pose.ts`](../../src/domain/pose.ts) |
@@ -26,8 +26,8 @@ The phone-to-television vertical slice is implemented. Its original stick-skelet
 | Peer authentication and WebRTC actions | [`src/transport/peer-room.ts`](../../src/transport/peer-room.ts) |
 | Backpressure policy | [`src/transport/latest-sender.ts`](../../src/transport/latest-sender.ts) |
 | Avatar presentation and drawing | [`src/render/avatar-presentation.ts`](../../src/render/avatar-presentation.ts), [`src/render/avatar.ts`](../../src/render/avatar.ts), and [`src/components/avatar-canvas.tsx`](../../src/components/avatar-canvas.tsx) |
-| Television pose controls | [`src/interaction/pose-controls.ts`](../../src/interaction/pose-controls.ts) and [`src/components/tv-playfield.tsx`](../../src/components/tv-playfield.tsx) |
-| Game navigation and action phases | [`src/components/tv-playfield.tsx`](../../src/components/tv-playfield.tsx) |
+| Shared mirrored pose controls | [`src/interaction/pose-controls.ts`](../../src/interaction/pose-controls.ts) and [`src/components/body-playfield.tsx`](../../src/components/body-playfield.tsx) |
+| Game navigation and action phases | [`src/components/body-playfield.tsx`](../../src/components/body-playfield.tsx) |
 | Game camera-layout policies | [`src/games/catalog.ts`](../../src/games/catalog.ts) |
 | Draw game | [`src/games/draw/`](../../src/games/draw/) |
 | Bubbles game | [`src/games/bubbles/`](../../src/games/bubbles/) |
@@ -38,7 +38,7 @@ The phone-to-television vertical slice is implemented. Its original stick-skelet
 
 ### Television
 
-- The television selects the `tv` role from the static application.
+- The television selects exact application mode `mode=tv` from the static application.
 - It waits for one trusted television-side **Start TV mode** activation, requests fullscreen on a best-effort basis, and only then creates and joins a pairing session.
 - It creates a cryptographically random 20-character Crockford base32 pairing key with 100 bits of entropy and displays it in five readable groups.
 - It derives a 128-bit room value and 192-bit password representation from that key with purpose-separated SHA-256 inputs, then joins through Trystero's Nostr strategy.
@@ -50,7 +50,7 @@ The phone-to-television vertical slice is implemented. Its original stick-skelet
 
 ### Phone
 
-- The phone obtains the pairing key from the QR fragment or a validated manual-entry form. It immediately removes a QR fragment from the visible history entry; fragments are not sent to the static host in HTTP requests.
+- The paired controller selects exact application mode `mode=phone` and obtains the pairing key from the QR fragment or a validated manual-entry form. It immediately removes a QR fragment from the visible history entry; fragments are not sent to the static host in HTTP requests.
 - Manual entry is case-insensitive, groups the key for readability, and normalizes the ambiguous Crockford characters O, I, and L. Both entry methods feed the same key derivation and session path.
 - Camera capture begins only after a user action and explicit browser permission.
 - Camera capture prefers the user-facing (selfie) camera.
@@ -103,7 +103,7 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Canvas 2D is the graphics baseline. The avatar, Draw, and Bubbles own focused direct Canvas renderers; Racing owns one lazy Phaser runtime forced to its Canvas renderer.
 - Each avatar canvas owns an isolated presentation session that consumes only validated `PosePacket` values and has no dependency on MediaPipe or Trystero.
 - The actual canonical camera aspect ratio is preserved with contain-style letterboxing. The application neither forces `4:3` nor treats aspect ratio as a field-of-view proxy.
-- The television applies one shared horizontal mirror projection to its avatar, Draw board/input, Bubbles arena/input, Racing pose steering, cursors, adaptive button layout, and hit testing. The phone preview remains unmirrored.
+- `BodyPlayfield` applies one shared horizontal mirror projection to its avatar, Draw board/input, Bubbles arena/input, Racing pose steering, cursors, adaptive button layout, and hit testing. The paired phone preview remains unmirrored.
 - The avatar synthesizes a faceless oval head, curved torso, tapered rounded limbs/joints, complete coarse hands, and complete feet. Missing required geometry is omitted; a pose without all shoulders and hips is not drawn.
 - Per-frame materials use one fixed teal/rose palette to distinguish simultaneous detections but never imply stable identity.
 - Continuous one-pose display copies use the bounded presentation-only landmark, segment-length, and near-side stabilization in [Avatar renderer](avatar-renderer.md). Zero or multiple poses reset that history; multi-pose presentation uses only current-packet geometry.
@@ -178,7 +178,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Implement strict session-link and pose-packet domain contracts.
 - [x] Implement the MediaPipe worker and bounded phone inference loop.
 - [x] Implement decentralized rendezvous and latest-only WebRTC pose delivery.
-- [x] Implement the accessible role selection, phone controller, QR/manual-key pairing, status surfaces, and initial Canvas pose renderer.
+- [x] Implement accessible application-mode selection, paired phone controller, QR/manual-key pairing, status surfaces, and the initial Canvas pose renderer.
 - [x] Implement trusted TV-mode entry, the shared mirrored projection, adaptive temporary pose controls, and the three prototype actions.
 - [x] Default to one-player inference and implement an acknowledged in-place one-/two-player switch from the television control row.
 - [x] Move the frozen row above the visible head, require overhead framing, replace direct wrist pointing with the coarse-hand center, and add neutral post-claim arming.

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-17
 scope: Implemented user-visible behavior, controls, simulation, presentation, and acceptance criteria for Racing
 ---
 
@@ -8,9 +8,9 @@ scope: Implemented user-visible behavior, controls, simulation, presentation, an
 
 ## Intended outcome
 
-Racing is a television-local pseudo-3D arcade race controlled entirely by body pose. Forward throttle is automatic. Drivers lean their torso left or right to issue a coarse full-turn command and return near their calibrated natural stance to center. One player races a deterministic point-to-point course against elapsed time; two players race the same course simultaneously through left/right split-screen views.
+Racing is a playfield-local pseudo-3D arcade race controlled entirely by body pose. Forward throttle is automatic. Drivers lean their torso left or right to issue a coarse full-turn command and return near their calibrated natural stance to center. One player races a deterministic point-to-point course against elapsed time; two players race the same course simultaneously through left/right split-screen views.
 
-The phone continues to infer pose and send only validated canonical landmarks. Phaser and the complete race simulation exist only on the television. No score, identifier, input history, asset state, or camera pixel is transmitted or persisted.
+The phone continues to infer pose and produces only validated canonical landmarks. Phaser and the complete race simulation exist only in the mounted shared playfield: on the television in paired mode or on the same phone in local play. No score, identifier, input history, asset state, or camera pixel is transmitted or persisted.
 
 ## Navigation and lifecycle
 
@@ -48,13 +48,13 @@ Racing — Finished
 
 ## Camera-layout contract
 
-| Mode | Supported camera layouts | Television presentation |
+| Mode | Supported camera layouts | Playfield presentation |
 | --- | --- | --- |
 | One player | Portrait and landscape | One full-screen chase view |
 | Two players | Landscape only | Left and right vertical split-screen chase views |
 
 - A two-player selection from portrait enters the existing absolute landscape request gate and mounts Racing only after acknowledgement plus a matching canonical packet.
-- The Racing canvas always fills the television. Camera aspect ratio constrains pose coordinates and reachable menu targets, not the road viewport.
+- The Racing canvas always fills `BodyPlayfield`. Camera aspect ratio constrains pose coordinates and reachable menu targets, not the road viewport.
 - Racing locks its entering camera layout. A mismatch freezes countdown, simulation time, cars, and rendering state; hides pose input; and requests return to the captured layout.
 - Returning to the captured layout clears input and pause-gesture history before resuming. A prior user pause remains active rather than being silently dismissed.
 
@@ -62,14 +62,14 @@ Racing — Finished
 
 - One-player mode selects the sole usable pose and labels it `Solo`.
 - Two-player mode initially assigns the mirrored leftmost torso to the Left car and the rightmost torso to the Right car.
-- During that mounted race, bounded nearest-torso continuity retains each television-local lease through MediaPipe array reorder and brief dropout. An uncertain or implausibly displaced observation becomes unavailable rather than being guessed.
-- Leases never leave television memory and reset on camera epoch, Restart, Play Again, Exit, disconnect, or runtime destruction. They are not stable identities. Players should remain generally on their starting sides.
+- During that mounted race, bounded nearest-torso continuity retains each playfield-local lease through MediaPipe array reorder and brief dropout. An uncertain or implausibly displaced observation becomes unavailable rather than being guessed.
+- Leases never leave playfield memory and reset on camera epoch, Restart, Play Again, Exit, paired disconnect, local stop, or runtime destruction. They are not stable identities. Players should remain generally on their starting sides.
 
 ## Steering contract
 
 ### Valid torso lean
 
-- A steering observation requires both shoulders and both hips. Racing mirrors their two averaged centers through the shared television presentation rule and applies camera-aspect correction before measuring the hip-center-to-shoulder-center angle.
+- A steering observation requires both shoulders and both hips. Racing mirrors their two averaged centers through the shared playfield presentation rule and applies camera-aspect correction before measuring the hip-center-to-shoulder-center angle.
 - A shoulder center displaced to physical screen-right from the hip center is a positive/right lean; screen-left is negative/left. Anatomical indices and `PosePacket` are never swapped or mutated.
 - Averaging the four central-body landmarks provides a deliberately coarse signal. Complete hands, wrists, elbows, face landmarks, and the avatar's stabilized display copy never feed steering.
 
@@ -115,9 +115,9 @@ Racing — Finished
 - Phaser-load or initialization failure shows an actionable Racing error and leaves Exit available; it never falls back to another renderer.
 - Start remains disabled until the selected number of usable torsos is visible and the Phaser runtime is ready.
 - Calibration waits for fresh torso input rather than guessing. Tracking loss during Racing centers only the affected steering command after the grace interval; it does not pause the opponent or invent an identity.
-- Disconnect, stale pose, camera epoch, orientation mismatch, user pause, viewport resize, page suspension, and unmount have explicit reset or freeze semantics and create no steering bridge.
+- Paired disconnect, local stale pose, camera epoch, orientation mismatch, user pause, viewport resize, page suspension, local stop, and unmount have explicit reset or freeze semantics and create no steering bridge.
 - Runtime teardown removes Phaser cameras, canvas, callbacks, engine resources, and transient game state. Component unmount ignores any callback already queued for Phaser's final destruction frame. Re-entry creates one fresh runtime.
-- Racing does not alter `PosePacket`, inference cadence, player-limit acknowledgement, transport, static deployment, or the phone runtime.
+- Racing does not alter `PosePacket`, inference cadence, camera reconfiguration semantics, transport, static deployment, or the shared camera runtime.
 
 ## Implementation plan
 
@@ -127,7 +127,7 @@ Racing — Finished
 - [x] Add deterministic track construction, calibration, fixed-step simulation, automatic throttle, curvature drift, off-road drag, finish timing, pause/recenter/restart, and results.
 - [x] Add pure pseudo-3D projection functions, explicit near-road coverage, and bounded viewport geometry.
 - [x] Add one forced-Canvas Phaser adapter with one-/two-camera rendering, procedural cars/scenery, torso-lean feedback, HUD, resize ownership, error handling, and complete teardown.
-- [x] Integrate Ready, calibration, active race, pause, results, semantic controls, avatar omission, orientation locking, and accessible status into the television playfield.
+- [x] Integrate Ready, calibration, active race, pause, results, semantic controls, avatar omission, orientation locking, and accessible status into the shared body playfield.
 - [x] Add unit, component, production-build, and browser-smoke regression coverage.
 - [x] Reconcile architecture, product, testing, status, backlog, milestone, agent, and decision documentation with implemented truth.
 - [x] Run the complete canonical validation suite and publish the validated commit.
@@ -135,18 +135,18 @@ Racing — Finished
 ## Acceptance criteria
 
 1. Games exposes Draw, Bubbles, Racing, and Return through one compact left column in portrait and landscape, with no hidden prior action.
-2. Racing lazy-loads one pinned Phaser Canvas runtime and never loads it on the phone, pairing, Draw, or Bubbles paths.
+2. Racing lazy-loads one pinned Phaser Canvas runtime only after Racing mounts; landing, pairing, paired controller, local setup, Draw, and Bubbles do not load it.
 3. Ready requires the selected number of usable torsos, offers Start/Exit, omits the avatar, and starts no simulation before explicit activation.
 4. Calibration advances for three seconds only while every driver supplies fresh shoulder/hip geometry and establishes an independent natural neutral angle.
 5. Steering obeys the discrete `8°` enter and `3°` release hysteresis, response filter, dropout grace, and center-on-loss rules without mutating or globally smoothing pose packets.
 6. One-player Racing supports portrait and landscape and reports active elapsed finish time. Two-player Racing requires landscape, renders left/right chase views, and declares a winner or exact tie.
 7. Automatic throttle, curve drift, lateral steering, off-road speed loss, bounded lateral position, and the deterministic finish behave identically across render rates.
-8. Array reorder and brief dropout do not swap two-player cars; continuity remains bounded, television-local, ephemeral, and reset at every declared boundary.
+8. Array reorder and brief dropout do not swap two-player cars; continuity remains bounded, playfield-local, ephemeral, and reset at every declared boundary.
 9. Active Racing renders no avatar, pose cursor, or buttons. Each viewport's restrained torso-lean indicator exposes the command and tracking state without obscuring the road; the nearest projected road always reaches past the bottom edge.
 10. A deliberate one-second two-hands-overhead gesture pauses once; Resume, Recenter, Restart, and Exit are neutrally re-armed and have the documented state effects.
 11. Orientation mismatch and page suspension freeze the complete active race without consuming time or bridging input, and returning to the captured layout respects an existing user pause.
 12. Load failure and unsupported state fail clearly without a fallback renderer; Exit, cleanup, and re-entry remain reliable.
 13. Ready, Paused, and Finished message panels remain near the top and below actionable controls in the stacking order.
-14. Automated gates prove the deterministic contracts, continuous near-road coverage, and production chunk; real-device acceptance records television startup, sustained split-screen cadence, lean-threshold comfort/latency, pause behavior, readability, and orientation recovery.
+14. Automated gates prove the deterministic contracts, continuous near-road coverage, and production chunk; real-device acceptance records selected-playfield startup, sustained split-screen cadence, lean-threshold comfort/latency, pause behavior, readability, orientation recovery, and local inference-plus-rendering cost.
 
 The runtime architecture is governed by [ADR-0016](../decisions/0016-phaser-canvas-racing.md), while current steering is governed by [ADR-0017](../decisions/0017-coarse-torso-lean-racing.md). Shared pose, mirroring, player-limit, renderer-boundary, and camera-layout constraints remain governed by the active records in the [ADR index](../decisions/README.md).

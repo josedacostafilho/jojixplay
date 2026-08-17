@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { LandingPage } from "./pages/landing-page";
+import { LocalPlayPage } from "./pages/local-play-page";
 import { PhonePairingPage } from "./pages/phone-pairing-page";
 import { PhoneSession } from "./pages/phone-session";
 import { TvDisplay } from "./pages/tv-display";
+import { applicationModeUrl, parseApplicationMode } from "./platform/application-mode";
 import { type PairingKey, parsePairingKeyFragment } from "./session/credentials";
 
 function PhoneRoute() {
@@ -33,12 +35,29 @@ function PhoneRoute() {
 }
 
 export function App() {
-  const role = new URLSearchParams(window.location.search).get("role");
-  if (role === "tv") {
+  const mode = parseApplicationMode(window.location.search);
+  if (!mode.ok) {
+    return (
+      <main class="page page--centered">
+        <section class="panel" aria-labelledby="invalid-link-title">
+          <p class="eyebrow">Invalid application link</p>
+          <h1 id="invalid-link-title">Choose a current JojixPlay mode.</h1>
+          <p role="alert">{mode.error}</p>
+          <a class="button button--secondary" href={applicationModeUrl(null)}>
+            Return to setup
+          </a>
+        </section>
+      </main>
+    );
+  }
+  if (mode.value === "tv") {
     return <TvDisplay />;
   }
-  if (role === "phone") {
+  if (mode.value === "phone") {
     return <PhoneRoute />;
+  }
+  if (mode.value === "local") {
+    return <LocalPlayPage />;
   }
   return <LandingPage />;
 }

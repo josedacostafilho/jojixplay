@@ -39,13 +39,13 @@ describe("session pairing", () => {
   it("round-trips the canonical key through a fragment-only phone URL", () => {
     const pairingKey = validKey("0123456789ABCDEFGHJK");
     const pairingUrl = buildPhonePairingUrl(
-      "https://example.test/jojixplay/?role=tv&debug=yes#old",
+      "https://example.test/jojixplay/?mode=tv&debug=yes#old",
       pairingKey,
     );
     const url = new URL(pairingUrl);
 
     expect(url.pathname).toBe("/jojixplay/");
-    expect(url.search).toBe("?role=phone");
+    expect(url.search).toBe("?mode=phone");
     expect(url.search).not.toContain(pairingKey);
     expect(parsePairingKeyFragment(url.hash)).toEqual({ ok: true, value: pairingKey });
   });

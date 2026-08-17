@@ -84,7 +84,7 @@ export function parsePairingKeyFragment(fragment: string): PairingKeyResult {
 export function buildPhonePairingUrl(pageUrl: string, pairingKey: PairingKey): string {
   const url = new URL(pageUrl);
   url.search = "";
-  url.searchParams.set("role", "phone");
+  url.searchParams.set("mode", "phone");
   url.hash = new URLSearchParams({ key: pairingKey }).toString();
   return url.toString();
 }

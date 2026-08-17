@@ -1,3 +1,5 @@
+import { applicationModeUrl } from "../platform/application-mode";
+
 interface UnsupportedPanelProps {
   device: "phone" | "television";
   missing: string[];
@@ -19,20 +21,10 @@ export function UnsupportedPanel({ device, missing }: UnsupportedPanelProps) {
             <li key={capability}>{capability}</li>
           ))}
         </ul>
-        <a class="button button--secondary" href={roleUrl(null)}>
+        <a class="button button--secondary" href={applicationModeUrl(null)}>
           Return to setup
         </a>
       </section>
     </main>
   );
-}
-
-export function roleUrl(role: "phone" | "tv" | null): string {
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.hash = "";
-  if (role !== null) {
-    url.searchParams.set("role", role);
-  }
-  return url.toString();
 }

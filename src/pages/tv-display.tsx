@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { StatusPill } from "../components/status-pill";
-import { TvPlayfield } from "../components/tv-playfield";
-import { roleUrl, UnsupportedPanel } from "../components/unsupported-panel";
+import { BodyPlayfield } from "../components/body-playfield";
+import { UnsupportedPanel } from "../components/unsupported-panel";
 import type { CameraLayout } from "../domain/camera";
 import { acceptIncreasingSequence, type PosePacket } from "../domain/pose";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
-import { inspectTvCapabilities } from "../platform/capabilities";
+import { inspectTvDisplayCapabilities } from "../platform/capabilities";
+import { applicationModeUrl } from "../platform/application-mode";
 import {
   buildPhonePairingUrl,
   createPairingKey,
@@ -39,7 +40,7 @@ function connectionLabel(state: PeerConnectionState): string {
 }
 
 export function TvDisplay() {
-  const capabilities = useMemo(inspectTvCapabilities, []);
+  const capabilities = useMemo(inspectTvDisplayCapabilities, []);
   const [tvMode, setTvMode] = useState<TvModeState>("ready");
   const [pairingKey, setPairingKey] = useState<PairingKey | null>(null);
   const pairingUrl = useMemo(
@@ -281,7 +282,7 @@ export function TvDisplay() {
   return (
     <main class="tv-page">
       <header class="app-header app-header--tv">
-        <a class="brand" href={roleUrl(null)} aria-label="Jojixplay home">
+        <a class="brand" href={applicationModeUrl(null)} aria-label="Jojixplay home">
           <span class="brand__mark" aria-hidden="true">
             J
           </span>
@@ -292,7 +293,7 @@ export function TvDisplay() {
 
       <section class="tv-stage" aria-labelledby="tv-title">
         {connection === "connected" ? (
-          <TvPlayfield
+          <BodyPlayfield
             packet={isLive ? packet : null}
             poseLimit={poseLimit}
             poseLimitPending={poseLimitPending}

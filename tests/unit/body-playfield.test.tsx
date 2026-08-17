@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TvPlayfield } from "../../src/components/tv-playfield";
+import { BodyPlayfield } from "../../src/components/body-playfield";
 import type { CameraLayout } from "../../src/domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
 import type { RacingSession, RacingSnapshot } from "../../src/games/racing/racing-session";
@@ -224,11 +224,11 @@ function currentRacingRuntime(): MockRacingRuntimeOptions {
   return racingRuntimeHarness.options;
 }
 
-describe("TV playfield", () => {
+describe("body playfield", () => {
   it("exposes Main Menu actions, applies player-mode acknowledgement, and navigates Games", async () => {
     const onPoseLimitRequest = vi.fn(async () => undefined);
     const renderPlayfield = (packet: PosePacket, poseLimit: 1 | 2 = 1) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={poseLimit}
         poseLimitPending={false}
@@ -240,7 +240,7 @@ describe("TV playfield", () => {
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
     claimControls(view, (packet) => renderPlayfield(packet));
 
-    const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
+    const playfield = view.container.querySelector<HTMLElement>(".body-playfield");
     const cursor = view.container.querySelector<HTMLElement>(".pose-cursor");
     expect(playfield).toHaveAttribute("data-playfield-view", "main");
     expect(playfield).toHaveAttribute("data-background-theme", "navy");
@@ -292,7 +292,7 @@ describe("TV playfield", () => {
       frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
     });
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -311,7 +311,7 @@ describe("TV playfield", () => {
     animationCallbacks = [];
     fireEvent.click(screen.getByRole("button", { name: "Draw" }));
 
-    const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
+    const playfield = view.container.querySelector<HTMLElement>(".body-playfield");
     expect(playfield).toHaveAttribute("data-playfield-view", "draw");
     expect(screen.getByTestId("draw-board")).toHaveStyle({
       left: "437.5px",
@@ -381,7 +381,7 @@ describe("TV playfield", () => {
 
   it("runs the Bubbles countdown, suspends controls, and exposes results", () => {
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -395,7 +395,7 @@ describe("TV playfield", () => {
     fireEvent.click(screen.getByRole("button", { name: "Games" }));
     fireEvent.click(screen.getByRole("button", { name: "Bubbles" }));
 
-    const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
+    const playfield = view.container.querySelector<HTMLElement>(".body-playfield");
     expect(playfield).toHaveAttribute("data-playfield-view", "bubbles");
     expect(screen.getByTestId("bubbles-board")).toHaveStyle({
       left: "0px",
@@ -440,7 +440,7 @@ describe("TV playfield", () => {
 
   it("shows identity-independent left and right Bubbles score slots in two-player mode", () => {
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
@@ -473,7 +473,7 @@ describe("TV playfield", () => {
       frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
     });
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
@@ -492,7 +492,7 @@ describe("TV playfield", () => {
 
     expect(requestCameraLayout).toHaveBeenCalledWith("landscape");
     expect(screen.getByRole("heading", { name: "Rotate phone to landscape" })).toBeInTheDocument();
-    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+    expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
       "data-playfield-view",
       "games",
     );
@@ -501,7 +501,7 @@ describe("TV playfield", () => {
     nowMs = 600;
     view.rerender(renderPlayfield(landscapePacket(6)));
     expect(await screen.findByTestId("bubbles-board")).toBeInTheDocument();
-    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+    expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
       "data-playfield-view",
       "bubbles",
     );
@@ -512,7 +512,7 @@ describe("TV playfield", () => {
 
   it("runs Racing from calibration through pause and finish, then destroys its lazy runtime", async () => {
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -526,7 +526,7 @@ describe("TV playfield", () => {
     fireEvent.click(screen.getByRole("button", { name: "Games" }));
     fireEvent.click(screen.getByRole("button", { name: "Racing" }));
 
-    const playfield = view.container.querySelector<HTMLElement>(".tv-playfield");
+    const playfield = view.container.querySelector<HTMLElement>(".body-playfield");
     expect(playfield).toHaveAttribute("data-playfield-view", "racing");
     expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "ready");
     expect(
@@ -536,7 +536,7 @@ describe("TV playfield", () => {
       expect(screen.getByRole("button", { name: "Start Racing" })).toBeEnabled(),
     );
     expect(
-      screen.queryByRole("img", { name: "Mirrored live body avatar from the paired phone" }),
+      screen.queryByRole("img", { name: "Mirrored live body avatar" }),
     ).not.toBeInTheDocument();
     expect(currentRacingRuntime().playerCount).toBe(1);
 
@@ -617,7 +617,7 @@ describe("TV playfield", () => {
       frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
     });
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
@@ -651,7 +651,7 @@ describe("TV playfield", () => {
   it("keeps Exit available when the Racing runtime reports an initialization failure", async () => {
     racingRuntimeHarness.failureMessage = "Canvas initialization failed.";
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -684,7 +684,7 @@ describe("TV playfield", () => {
       frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
     });
     const renderPlayfield = (packet: PosePacket | null) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -720,7 +720,7 @@ describe("TV playfield", () => {
         screen.queryByRole("heading", { name: "Rotate phone to portrait" }),
       ).not.toBeInTheDocument(),
     );
-    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+    expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
       "data-playfield-view",
       "draw",
     );
@@ -743,7 +743,7 @@ describe("TV playfield", () => {
       return posePacket;
     };
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -764,7 +764,7 @@ describe("TV playfield", () => {
 
   it("disables every current action while a player-mode request is pending", () => {
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending
@@ -784,7 +784,7 @@ describe("TV playfield", () => {
   it("suspends repeated semantic actions immediately when a player-mode request starts", () => {
     const onPoseLimitRequest = vi.fn(() => new Promise<void>(() => undefined));
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -801,7 +801,7 @@ describe("TV playfield", () => {
     fireEvent.click(screen.getByRole("button", { name: "Background" }));
 
     expect(onPoseLimitRequest).toHaveBeenCalledOnce();
-    expect(view.container.querySelector(".tv-playfield")).toHaveAttribute(
+    expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
       "data-background-theme",
       "navy",
     );
@@ -812,7 +812,7 @@ describe("TV playfield", () => {
       throw new Error("Phone rejected the request.");
     });
     const renderPlayfield = (packet: PosePacket) => (
-      <TvPlayfield
+      <BodyPlayfield
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -826,7 +826,7 @@ describe("TV playfield", () => {
     fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
 
     await screen.findByText(
-      "Player mode could not be changed. 1-player mode remains active. Check the phone and restart body tracking if needed.",
+      "Player mode could not be changed. 1-player mode remains active. Restart body tracking to retry.",
     );
     expect(screen.getByRole("button", { name: "Switch to 2-player mode" })).toHaveTextContent(
       "Players: 1",

@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { roleUrl } from "../components/unsupported-panel";
+import { applicationModeUrl } from "../platform/application-mode";
 import { formatPairingKeyInput, type PairingKey, parsePairingKey } from "../session/credentials";
 
 interface PhonePairingPageProps {
@@ -62,7 +62,7 @@ export function PhonePairingPage({ initialError, onPair }: PhonePairingPageProps
         </form>
 
         <p class="pairing-alternative">You can still scan the QR code instead.</p>
-        <a class="text-button" href={roleUrl(null)}>
+        <a class="text-button" href={applicationModeUrl(null)}>
           Return to setup
         </a>
       </section>

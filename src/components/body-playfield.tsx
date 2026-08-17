@@ -37,7 +37,7 @@ import {
 import { AVATAR_ACCENT_PALETTE } from "../render/avatar";
 import { AvatarCanvas } from "./avatar-canvas";
 
-interface TvPlayfieldProps {
+interface BodyPlayfieldProps {
   packet: PosePacket | null;
   poseLimit: PoseLimit;
   poseLimitPending: boolean;
@@ -397,14 +397,14 @@ function toolScreenPoint(point: Point | null, frame: Size | null, viewport: Size
   );
 }
 
-export function TvPlayfield({
+export function BodyPlayfield({
   packet,
   poseLimit,
   poseLimitPending,
   cameraLayoutPending,
   onPoseLimitRequest,
   onCameraLayoutRequest,
-}: TvPlayfieldProps) {
+}: BodyPlayfieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [controlSession] = useState(
     () => new PoseControlSession<PlayfieldAction>(MAIN_ACTIONS, "overhead-row"),
@@ -559,7 +559,7 @@ export function TvPlayfield({
             .then(() => setAnnouncement(`${nextPoseLimit}-player mode is active.`))
             .catch(() => {
               setAnnouncement(
-                `Player mode could not be changed. ${poseLimit}-player mode remains active. Check the phone and restart body tracking if needed.`,
+                `Player mode could not be changed. ${poseLimit}-player mode remains active. Restart body tracking to retry.`,
               );
             })
             .finally(() => {
@@ -649,7 +649,7 @@ export function TvPlayfield({
           if (racingRuntimeState !== "ready") {
             setAnnouncement(
               racingRuntimeState === "failed"
-                ? "Racing is unavailable on this television."
+                ? "Racing is unavailable on this device."
                 : "Racing is still loading.",
             );
             break;
@@ -1005,7 +1005,7 @@ export function TvPlayfield({
   return (
     <div
       ref={containerRef}
-      class={`tv-playfield tv-playfield--${backgroundTheme}${view === "draw" ? " tv-playfield--draw" : ""}${view === "bubbles" ? " tv-playfield--bubbles" : ""}${view === "racing" ? " tv-playfield--racing" : ""}`}
+      class={`body-playfield body-playfield--${backgroundTheme}${view === "draw" ? " body-playfield--draw" : ""}${view === "bubbles" ? " body-playfield--bubbles" : ""}${view === "racing" ? " body-playfield--racing" : ""}`}
       data-background-theme={backgroundTheme}
       data-playfield-view={view}
       data-camera-layout={frame?.layout ?? "none"}
@@ -1046,8 +1046,8 @@ export function TvPlayfield({
       {view === "racing" ? null : (
         <AvatarCanvas
           packet={gamePacket}
-          label="Mirrored live body avatar from the paired phone"
-          className="avatar-canvas avatar-canvas--tv"
+          label="Mirrored live body avatar"
+          className="avatar-canvas avatar-canvas--playfield"
           mirrored
           appearance={view === "draw" ? "draw" : view === "bubbles" ? "bubbles" : "stage"}
         />
@@ -1147,7 +1147,7 @@ export function TvPlayfield({
             {racingRuntimeState === "loading"
               ? "Loading the race…"
               : racingRuntimeState === "failed"
-                ? "Racing is unavailable on this television."
+                ? "Racing is unavailable on this device."
                 : racing.readyToStart
                   ? "Drivers ready — press Start, then stand naturally for calibration."
                   : racing.playerCount === 1

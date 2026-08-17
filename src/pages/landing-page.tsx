@@ -1,10 +1,10 @@
-import { roleUrl } from "../components/unsupported-panel";
+import { applicationModeUrl } from "../platform/application-mode";
 
 export function LandingPage() {
   return (
     <main class="landing">
       <header class="landing__header">
-        <a class="brand" href={roleUrl(null)} aria-label="Jojixplay home">
+        <a class="brand" href={applicationModeUrl(null)} aria-label="Jojixplay home">
           <span class="brand__mark" aria-hidden="true">
             J
           </span>
@@ -23,46 +23,62 @@ export function LandingPage() {
           </p>
         </div>
 
-        <section class="role-grid" aria-labelledby="role-choice-title">
-          <h2 id="role-choice-title" class="visually-hidden">
-            Choose this device's role
+        <section class="mode-grid" aria-labelledby="mode-choice-title">
+          <h2 id="mode-choice-title" class="visually-hidden">
+            Choose how this device will run JojixPlay
           </h2>
-          <a class="role-card role-card--tv" href={roleUrl("tv")}>
-            <span class="role-card__number" aria-hidden="true">
+          <a class="mode-card mode-card--tv" href={applicationModeUrl("tv")}>
+            <span class="mode-card__number" aria-hidden="true">
               01
             </span>
-            <span class="role-card__icon" aria-hidden="true">
+            <span class="mode-card__icon" aria-hidden="true">
               ▰
             </span>
-            <span class="role-card__title">Open on the TV</span>
-            <span class="role-card__description">
+            <span class="mode-card__title">Open on the TV</span>
+            <span class="mode-card__description">
               Show the pairing QR and manual key, then render the live body avatar.
             </span>
-            <span class="role-card__action">
+            <span class="mode-card__action">
               Set up display <span aria-hidden="true">→</span>
             </span>
           </a>
 
-          <a class="role-card role-card--phone" href={roleUrl("phone")}>
-            <span class="role-card__number" aria-hidden="true">
+          <a class="mode-card mode-card--phone" href={applicationModeUrl("phone")}>
+            <span class="mode-card__number" aria-hidden="true">
               02
             </span>
-            <span class="role-card__icon role-card__icon--phone" aria-hidden="true">
+            <span class="mode-card__icon mode-card__icon--phone" aria-hidden="true">
               ▯
             </span>
-            <span class="role-card__title">Open on the phone</span>
-            <span class="role-card__description">
+            <span class="mode-card__title">Open on the phone</span>
+            <span class="mode-card__description">
               Scan the TV's QR code or enter its 20-character pairing key.
             </span>
-            <span class="role-card__action">
+            <span class="mode-card__action">
               Enter pairing key <span aria-hidden="true">→</span>
+            </span>
+          </a>
+
+          <a class="mode-card mode-card--local" href={applicationModeUrl("local")}>
+            <span class="mode-card__number" aria-hidden="true">
+              03
+            </span>
+            <span class="mode-card__icon mode-card__icon--local" aria-hidden="true">
+              ◉
+            </span>
+            <span class="mode-card__title">Play on this phone</span>
+            <span class="mode-card__description">
+              Run body tracking and the complete games here, with optional screen mirroring.
+            </span>
+            <span class="mode-card__action">
+              Start local play <span aria-hidden="true">→</span>
             </span>
           </a>
         </section>
       </section>
 
       <footer class="landing__footer">
-        <span>Static. Peer to peer. No account.</span>
+        <span>Static. Local or peer to peer. No account.</span>
         <span>Early greenfield prototype</span>
       </footer>
     </main>

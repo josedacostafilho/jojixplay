@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-17
 scope: User-visible contract and acceptance criteria for the first JojixPlay game
 ---
 
@@ -8,7 +8,7 @@ scope: User-visible contract and acceptance criteria for the first JojixPlay gam
 
 ## Outcome
 
-Draw is the first playable JojixPlay content. One temporarily claimed controller brings both hands together to activate a selected Pencil or Eraser, then draws with the lease's main hand until deliberately spreading both hands wide. Camera pixels remain on the phone; Draw consumes only the raw validated `PosePacket` landmarks from the phone-to-television prototype, never the avatar's display copy.
+Draw is the first playable JojixPlay content. One temporarily claimed controller brings both hands together to activate a selected Pencil or Eraser, then draws with the lease's main hand until deliberately spreading both hands wide. Camera pixels remain inside the phone inference path; Draw consumes only raw validated `PosePacket` landmarks from either paired delivery or direct local play, never the avatar's display copy.
 
 ## Navigation contract
 
@@ -31,9 +31,9 @@ Draw
 
 - Replacing a view replaces every body-control target in one operation. No hidden prior action remains active.
 - The controller lease survives navigation, while target hover, dwell, latch, and neutral arming restart for each new view.
-- Main Menu and Games show the normal body-avatar stage. Draw changes only the game presentation inside the television playfield.
-- Draw state is ephemeral. Artwork, selected tool, and active color survive navigation within the same mounted television session when Draw re-enters under the same camera layout, but not page reload, disconnect, a new session, or deliberate re-entry under the other layout. The grip never survives view exit or an orientation mismatch.
-- Draw supports portrait and landscape and captures its layout on entry. It does not hot-reflow an active canvas. A mismatched packet is withheld while the television asks the user to restore the entering layout.
+- Main Menu and Games show the normal body-avatar stage. Draw changes only the game presentation inside the shared playfield.
+- Draw state is ephemeral. Artwork, selected tool, and active color survive navigation within the same mounted playfield session when Draw re-enters under the same camera layout, but not page reload, paired disconnect, local stop, a new session, or deliberate re-entry under the other layout. The grip never survives view exit or an orientation mismatch.
+- Draw supports portrait and landscape and captures its layout on entry. It does not hot-reflow an active canvas. A mismatched packet is withheld while the playfield asks the user to restore the entering layout.
 
 ## Draw presentation
 
@@ -47,7 +47,7 @@ Draw
 
 - A path point is `{ x, y }` in normalized upright canonical phone-camera coordinates.
 - Paths are tagged as Pencil or Eraser. Pencil paths retain the color active when each command was created.
-- Pencil width and Eraser diameter scale from the projected camera frame's minimum dimension, not the television viewport or CSS pixels.
+- Pencil width and Eraser diameter scale from the projected camera frame's minimum dimension, not the playfield viewport or CSS pixels.
 - Rendering mirrors `x` at presentation time and never changes anatomical landmarks or the network packet.
 - Points closer than the accepted sampling distance are not retained. A main-hand gap or dropout, camera-basis epoch change, toolbar crossing, board exit, orientation mismatch, or implausible main-hand jump ends the current path rather than connecting across unknown motion. Supporting-hand loss alone does not interrupt a valid main-hand path.
 
@@ -90,7 +90,7 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 - A viewport resize releases the controller under the existing contract; normalized artwork is reprojected and retained.
 - Returning to the captured layout retains the existing art/tool/color but begins from fresh gesture, cursor, controller, and path history. Re-entering Draw from a menu in the other layout clears the old normalized canvas before accepting input.
 - Physical camera movement cannot be detected or compensated reliably from pose-only data. The phone is expected to remain stationary.
-- Draw never sends artwork, tool state, or pixels to the phone or a remote service.
+- Draw never sends artwork, tool state, or pixels across a peer connection or to a remote service.
 
 ## Acceptance criteria
 
