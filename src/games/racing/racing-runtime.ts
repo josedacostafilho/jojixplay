@@ -186,6 +186,21 @@ function drawLeanGauge(
   const headX = shoulderX + sine * extent * 0.38;
   const headY = shoulderY - cosine * extent * 0.38;
 
+  const scaleY = hipY + extent * 0.22;
+  graphics.lineStyle(Math.max(1, extent * 0.035), 0xf8fafc, prominent ? 0.28 : 0.17);
+  graphics.beginPath();
+  graphics.moveTo(centerX - extent * 0.8, scaleY);
+  graphics.lineTo(centerX + extent * 0.8, scaleY);
+  for (const tick of [-1, -0.5, 0, 0.5, 1]) {
+    const tickX = centerX + tick * extent * 0.8;
+    const tickHeight = tick === 0 ? extent * 0.13 : extent * 0.08;
+    graphics.moveTo(tickX, scaleY - tickHeight / 2);
+    graphics.lineTo(tickX, scaleY + tickHeight / 2);
+  }
+  graphics.strokePath();
+  graphics.fillStyle(color, alpha);
+  graphics.fillCircle(centerX + car.steering * extent * 0.8, scaleY, Math.max(2, extent * 0.07));
+
   graphics.lineStyle(Math.max(2, extent * 0.055), 0xf8fafc, prominent ? 0.24 : 0.14);
   graphics.beginPath();
   graphics.moveTo(centerX, hipY);
@@ -409,7 +424,7 @@ class RacingScene extends Phaser.Scene {
       }
     }
 
-    if (opponent !== null && opponent.distance > car.distance - 5) {
+    if (opponent !== null) {
       const projectedOpponent = projectRacingObject(
         car,
         opponent.distance,

@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PlayfieldAudio } from "../../src/audio/audio-engine";
 import { BodyPlayfield } from "../../src/components/body-playfield";
 import type { CameraLayout } from "../../src/domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
@@ -153,11 +154,24 @@ let nowMs = 0;
 let animationCallbacks: FrameRequestCallback[] = [];
 let canvasContext: CanvasRenderingContext2D;
 let requestCameraLayout: ReturnType<typeof vi.fn<(layout: CameraLayout) => Promise<void>>>;
+let audio: PlayfieldAudio;
 
 beforeEach(() => {
   nowMs = 0;
   animationCallbacks = [];
   requestCameraLayout = vi.fn(async () => undefined);
+  let muted = false;
+  audio = {
+    get muted() {
+      return muted;
+    },
+    setMuted: vi.fn((nextMuted: boolean) => {
+      muted = nextMuted;
+    }),
+    playCue: vi.fn(),
+    setDrawContact: vi.fn(),
+    setRacingCars: vi.fn(),
+  };
   racingRuntimeHarness.options = null;
   racingRuntimeHarness.destroyCount = 0;
   racingRuntimeHarness.failureMessage = null;
@@ -229,6 +243,7 @@ describe("body playfield", () => {
     const onPoseLimitRequest = vi.fn(async () => undefined);
     const renderPlayfield = (packet: PosePacket, poseLimit: 1 | 2 = 1) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={poseLimit}
         poseLimitPending={false}
@@ -245,19 +260,29 @@ describe("body playfield", () => {
     expect(playfield).toHaveAttribute("data-playfield-view", "main");
     expect(playfield).toHaveAttribute("data-background-theme", "navy");
     expect(cursor).toHaveStyle("--pose-cursor-color: #5eead4");
-    expect(screen.getByRole("button", { name: "Background" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to 2-player mode" })).toHaveTextContent(
       "Players: 1",
     );
     expect(screen.getByRole("button", { name: "Games" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
     expect(view.container.querySelector(".pose-control-targets")).toHaveAttribute(
       "data-control-placement",
       "left-column",
     );
     expect(screen.queryByRole("button", { name: "Circles" })).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(playfield).toHaveAttribute("data-playfield-view", "settings");
+    expect(screen.getByRole("button", { name: "Turn sound off" })).toHaveTextContent("Sound: On");
+    fireEvent.click(screen.getByRole("button", { name: "Turn sound off" }));
+    expect(audio.setMuted).toHaveBeenCalledWith(true);
+    expect(screen.getByRole("button", { name: "Turn sound on" })).toHaveTextContent("Sound: Off");
+    fireEvent.click(screen.getByRole("button", { name: "Turn sound on" }));
+    expect(audio.setMuted).toHaveBeenCalledWith(false);
     fireEvent.click(screen.getByRole("button", { name: "Background" }));
     expect(playfield).toHaveAttribute("data-background-theme", "plum");
+    fireEvent.click(screen.getByRole("button", { name: "Return to Main Menu" }));
+    expect(playfield).toHaveAttribute("data-playfield-view", "main");
     fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
     expect(onPoseLimitRequest).toHaveBeenCalledWith(2);
     await screen.findByText("2-player mode is active.");
@@ -277,7 +302,7 @@ describe("body playfield", () => {
       "data-control-placement",
       "left-column",
     );
-    expect(screen.queryByRole("button", { name: "Background" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Games" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Return to Main Menu" }));
     expect(playfield).toHaveAttribute("data-playfield-view", "main");
   });
@@ -293,6 +318,7 @@ describe("body playfield", () => {
     });
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -355,6 +381,7 @@ describe("body playfield", () => {
     expect(view.container.querySelector(".draw-tool-cursor--pencil")).toBeInTheDocument();
     animationCallbacks.at(-1)?.(0);
     expect(canvasContext.globalAlpha).toBe(0.24);
+    expect(audio.setDrawContact).toHaveBeenCalledWith("pencil");
 
     fireEvent.click(toolButton);
     expect(screen.getByText("Eraser selected.")).toBeInTheDocument();
@@ -362,12 +389,14 @@ describe("body playfield", () => {
       screen.getByRole("button", { name: "Switch to Pencil; current tool Eraser" }),
     ).toBeInTheDocument();
     expect(view.container.querySelector(".draw-tool-cursor--eraser")).toBeInTheDocument();
+    expect(audio.setDrawContact).toHaveBeenCalledWith("eraser");
     fireEvent.click(screen.getByRole("button", { name: /Change drawing color/ }));
     expect(
       screen.getByRole("button", { name: "Change drawing color; current color #2563eb" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Exit Draw" }));
     expect(playfield).toHaveAttribute("data-playfield-view", "games");
+    expect(audio.setDrawContact).toHaveBeenLastCalledWith(null);
     fireEvent.click(screen.getByRole("button", { name: "Draw" }));
     expect(
       screen.getByRole("button", { name: "Switch to Pencil; current tool Eraser" }),
@@ -382,6 +411,7 @@ describe("body playfield", () => {
   it("runs the Bubbles countdown, suspends controls, and exposes results", () => {
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -416,11 +446,13 @@ describe("body playfield", () => {
     expect(screen.getByTestId("bubbles-board")).toHaveAttribute("data-bubbles-phase", "starting");
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Exit Bubbles" })).not.toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "bubbles-countdown", count: 3 });
 
     nowMs = 3_400;
     runAnimationFrame(nowMs);
     expect(screen.getByTestId("bubbles-board")).toHaveAttribute("data-bubbles-phase", "playing");
     expect(screen.getByText("Go!")).toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "bubbles-go" });
     expect(view.container.querySelector(".bubbles-timer")).toHaveTextContent("1:00");
 
     nowMs = 4_400;
@@ -431,6 +463,7 @@ describe("body playfield", () => {
     runAnimationFrame(nowMs);
     expect(screen.getByTestId("bubbles-board")).toHaveAttribute("data-bubbles-phase", "finished");
     expect(screen.getByText("Final score: 0.")).toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "bubbles-finish" });
     expect(screen.getByRole("button", { name: "Play Bubbles again" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Exit Bubbles" })).toBeInTheDocument();
 
@@ -441,6 +474,7 @@ describe("body playfield", () => {
   it("shows identity-independent left and right Bubbles score slots in two-player mode", () => {
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
@@ -474,6 +508,7 @@ describe("body playfield", () => {
     });
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
@@ -513,6 +548,7 @@ describe("body playfield", () => {
   it("runs Racing from calibration through pause and finish, then destroys its lazy runtime", async () => {
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -544,6 +580,7 @@ describe("body playfield", () => {
     expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "starting");
     expect(screen.queryByRole("button", { name: "Exit Racing" })).not.toBeInTheDocument();
     expect(view.container.querySelector(".pose-cursor")).not.toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "racing-countdown", count: 3 });
 
     for (let sequence = 4; sequence <= 33; sequence += 1) {
       nowMs = sequence * 100;
@@ -553,12 +590,18 @@ describe("body playfield", () => {
     }
     expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "racing");
     expect(screen.getByText("Hold both hands above your head to pause")).toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "racing-go" });
+    expect(audio.setRacingCars).toHaveBeenCalledWith([
+      expect.objectContaining({ slot: "solo", trackingAvailable: true }),
+    ]);
 
     for (let sequence = 34; sequence <= 44; sequence += 1) {
       nowMs = sequence * 100;
       view.rerender(renderPlayfield(createRacingPausePacket(sequence)));
     }
     expect(screen.getByText("Race paused")).toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "racing-pause" });
+    expect(audio.setRacingCars).toHaveBeenLastCalledWith([]);
     for (let sequence = 45; sequence <= 48; sequence += 1) {
       nowMs = sequence * 100;
       view.rerender(renderPlayfield(createRaisedHandPacket(sequence)));
@@ -571,6 +614,7 @@ describe("body playfield", () => {
     fireEvent.click(screen.getByRole("button", { name: "Resume Racing" }));
     expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "racing");
     expect(screen.queryByRole("button", { name: "Resume Racing" })).not.toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "racing-resume" });
 
     let sequence = 49;
     let raceSnapshot = currentRacingRuntime().session.getSnapshot(nowMs);
@@ -584,6 +628,7 @@ describe("body playfield", () => {
     act(() => currentRacingRuntime().onSnapshot(raceSnapshot));
     expect(screen.getByTestId("racing-board")).toHaveAttribute("data-racing-phase", "finished");
     expect(screen.getByText(/^Finished in/u)).toBeInTheDocument();
+    expect(audio.playCue).toHaveBeenCalledWith({ type: "racing-finish" });
 
     for (let offset = 0; offset < 4; offset += 1) {
       nowMs += 100;
@@ -618,6 +663,7 @@ describe("body playfield", () => {
     });
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
@@ -652,6 +698,7 @@ describe("body playfield", () => {
     racingRuntimeHarness.failureMessage = "Canvas initialization failed.";
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -685,6 +732,7 @@ describe("body playfield", () => {
     });
     const renderPlayfield = (packet: PosePacket | null) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -744,6 +792,7 @@ describe("body playfield", () => {
     };
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -765,6 +814,7 @@ describe("body playfield", () => {
   it("disables every current action while a player-mode request is pending", () => {
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending
@@ -776,7 +826,7 @@ describe("body playfield", () => {
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
     claimControls(view, renderPlayfield);
 
-    expect(screen.getByRole("button", { name: "Background" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Switch to 2-player mode" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Games" })).toBeDisabled();
   });
@@ -785,6 +835,7 @@ describe("body playfield", () => {
     const onPoseLimitRequest = vi.fn(() => new Promise<void>(() => undefined));
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
@@ -798,12 +849,12 @@ describe("body playfield", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
     fireEvent.click(screen.getByRole("button", { name: "Switch to 2-player mode" }));
-    fireEvent.click(screen.getByRole("button", { name: "Background" }));
+    fireEvent.click(screen.getByRole("button", { name: "Games" }));
 
     expect(onPoseLimitRequest).toHaveBeenCalledOnce();
     expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
-      "data-background-theme",
-      "navy",
+      "data-playfield-view",
+      "main",
     );
   });
 
@@ -813,6 +864,7 @@ describe("body playfield", () => {
     });
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
+        audio={audio}
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}

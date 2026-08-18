@@ -1,12 +1,20 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: Sparse record of durable completed project milestones
 ---
 
 # Milestone log
 
 This file records meaningful changes to project capability or governance. It is not a commit log, release changelog, work diary, or substitute for version control. Newest entries go first, and each entry states the resulting durable truth.
+
+## 2026-08-18 — Analog Racing, stronger course, overtakes, and application sound implemented
+
+- Hard-cut Racing's discrete steering latch to a calibrated symmetric analog map with a `3°` dead zone, smooth partial steering through `15°` full scale, the retained `80 ms` response, exact analog gauge feedback, and unchanged `150 ms` dropout grace.
+- Replaced the mild eight-section course with one denser deterministic 19-section/`3,444 m` course whose strongest full-speed curve remains below full steering demand, while preserving fixed-step rules and continuous near-road coverage.
+- Made two-player opponent projection explicit in both chase views through approach, side-by-side overlap, passing, and just-overtaken depth, with tested curve, camera, and draw-distance boundaries.
+- Added one native procedural Web Audio runtime on the TV/local rendering host, trusted startup and partial-failure cleanup, bounded navigation/Draw/Bubbles/Racing cues and voices, background recovery, and a session-local Sound control under the new Settings menu. The paired phone, pure sessions, transport, and Phaser remain audio-free.
+- Added direct audio/runtime/component/page, analog mapping, course, and opponent regression coverage. The complete canonical suite passed with 186 unit/component tests and eight production Chromium journeys; real-device steering, course, overtaking, sound, and performance acceptance remains outstanding.
 
 ## 2026-08-17 — All-in-one phone play implemented
 

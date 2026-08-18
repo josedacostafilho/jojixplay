@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-15
+last_verified: 2026-08-18
 scope: Television navigation, first game lifecycle, Draw interaction, coordinates, and rendering
 ---
 
@@ -10,9 +10,9 @@ scope: Television navigation, first game lifecycle, Draw interaction, coordinate
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The Circles prototype action and circle-effect layer in [ADR-0005](0005-mirrored-tv-pose-controls.md), including the retained circle references in [ADR-0006](0006-session-player-limit-control.md)
-- **Superseded by:** [ADR-0011](0011-consumer-specific-pose-stability.md) for temporal-signal ownership; [ADR-0012](0012-two-hand-draw-grip.md) for Draw engagement, tool ownership, and toolbar placement; [ADR-0013](0013-identity-independent-bubbles-game.md) and [ADR-0016](0016-phaser-canvas-racing.md) for the expanded Games catalog; [ADR-0014](0014-procedural-body-avatar.md) for the reduced-opacity body layer; [ADR-0015](0015-canonical-camera-orientation.md) for canonical camera coordinates, frame epochs, and Draw's layout lock
+- **Superseded by:** [ADR-0011](0011-consumer-specific-pose-stability.md) for temporal-signal ownership; [ADR-0012](0012-two-hand-draw-grip.md) for Draw engagement, tool ownership, and toolbar placement; [ADR-0013](0013-identity-independent-bubbles-game.md) and [ADR-0016](0016-phaser-canvas-racing.md) for the expanded Games catalog; [ADR-0014](0014-procedural-body-avatar.md) for the reduced-opacity body layer; [ADR-0015](0015-canonical-camera-orientation.md) for canonical camera coordinates, frame epochs, and Draw's layout lock; [ADR-0020](0020-app-owned-procedural-audio.md) for the Main Menu action set and Settings
 
-> **Current-scope note:** The original three-view/action passages below are historical. Games now contains Draw, Bubbles, Racing, and Return; current Draw behavior remains governed by its successor records and product contract.
+> **Current-scope note:** The original three-view/action passages below are historical. Main Menu now contains Games, Players, and Settings; Settings contains Sound, Background, and Return; Games contains Draw, Bubbles, Racing, and Return. Current behavior is governed by the successor records and product contracts.
 
 ## Context
 

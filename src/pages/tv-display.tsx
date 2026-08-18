@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { AppAudioEngine, type AudioRuntimeState } from "../audio/audio-engine";
 import { StatusPill } from "../components/status-pill";
 import { BodyPlayfield } from "../components/body-playfield";
 import { UnsupportedPanel } from "../components/unsupported-panel";
@@ -41,6 +42,9 @@ function connectionLabel(state: PeerConnectionState): string {
 
 export function TvDisplay() {
   const capabilities = useMemo(inspectTvDisplayCapabilities, []);
+  const [audioState, setAudioState] = useState<AudioRuntimeState>("idle");
+  const [audio] = useState(() => new AppAudioEngine(setAudioState));
+  const [audioError, setAudioError] = useState<string | null>(null);
   const [tvMode, setTvMode] = useState<TvModeState>("ready");
   const [pairingKey, setPairingKey] = useState<PairingKey | null>(null);
   const pairingUrl = useMemo(
@@ -61,6 +65,7 @@ export function TvDisplay() {
   const poseLimitRequestTokenRef = useRef<symbol | null>(null);
   const cameraLayoutRequestTokenRef = useRef<symbol | null>(null);
   const startRequested = useRef(false);
+  const previousConnectionRef = useRef<PeerConnectionState>("connecting");
 
   const startTvMode = useCallback(() => {
     if (startRequested.current || !capabilities.supported) {
@@ -68,24 +73,58 @@ export function TvDisplay() {
     }
     startRequested.current = true;
     setTvMode("starting");
+    setAudioError(null);
 
     const beginPairing = () => {
+      audio.playCue({ type: "ui-success" });
       setPairingKey(createPairingKey());
       setTvMode("started");
     };
+    const audioStart = audio.start();
     const requestFullscreen = document.documentElement.requestFullscreen;
-    if (document.fullscreenElement || typeof requestFullscreen !== "function") {
-      beginPairing();
-      return;
+    let fullscreenAttempt = Promise.resolve();
+    if (!document.fullscreenElement && typeof requestFullscreen === "function") {
+      try {
+        fullscreenAttempt = Promise.resolve(
+          requestFullscreen.call(document.documentElement, { navigationUI: "hide" }),
+        ).catch(() => undefined);
+      } catch {
+        fullscreenAttempt = Promise.resolve();
+      }
     }
-    try {
-      void Promise.resolve(
-        requestFullscreen.call(document.documentElement, { navigationUI: "hide" }),
-      ).then(beginPairing, beginPairing);
-    } catch {
-      beginPairing();
+    void Promise.all([audioStart, fullscreenAttempt])
+      .then(beginPairing)
+      .catch(() => {
+        startRequested.current = false;
+        setTvMode("ready");
+        setAudioError("TV mode could not start sound. Allow audio playback and try again.");
+        void audio.stop();
+      });
+  }, [audio, capabilities.supported]);
+
+  const resumeAudio = useCallback(() => {
+    setAudioError(null);
+    void audio.resume().catch(() => {
+      setAudioError("Sound is suspended. Press Resume sound and allow audio playback.");
+    });
+  }, [audio]);
+
+  useEffect(
+    () => () => {
+      void audio.stop();
+    },
+    [audio],
+  );
+
+  useEffect(() => {
+    const previousConnection = previousConnectionRef.current;
+    previousConnectionRef.current = connection;
+    if (connection === "connected" && previousConnection !== "connected") {
+      audio.playCue({ type: "ui-success" });
+    } else if (connection === "error" && previousConnection !== "error") {
+      audio.playCue({ type: "ui-error" });
     }
-  }, [capabilities.supported]);
+  }, [audio, connection]);
 
   useEffect(() => {
     if (tvMode !== "ready") {
@@ -288,12 +327,20 @@ export function TvDisplay() {
           </span>
           <span>jojixplay</span>
         </a>
-        <StatusPill tone={tone}>{statusLabel}</StatusPill>
+        <div class="app-header__actions">
+          {tvMode === "started" && (audioState === "suspended" || audioState === "error") ? (
+            <button class="text-button" type="button" onClick={resumeAudio}>
+              Resume sound
+            </button>
+          ) : null}
+          <StatusPill tone={tone}>{statusLabel}</StatusPill>
+        </div>
       </header>
 
       <section class="tv-stage" aria-labelledby="tv-title">
         {connection === "connected" ? (
           <BodyPlayfield
+            audio={audio}
             packet={isLive ? packet : null}
             poseLimit={poseLimit}
             poseLimitPending={poseLimitPending}
@@ -308,9 +355,14 @@ export function TvDisplay() {
             <p class="eyebrow">Television display</p>
             <h1 id="tv-title">Make this screen the playground.</h1>
             <p>
-              Use the TV remote once to enter fullscreen and begin pairing. After your phone
-              connects, your body controls the on-screen actions.
+              Use the TV remote once to start sound, enter fullscreen, and begin pairing. After your
+              phone connects, your body controls the on-screen actions.
             </p>
+            {audioError === null ? null : (
+              <p class="inline-error" role="alert">
+                {audioError}
+              </p>
+            )}
             <button
               class="button button--primary tv-start-card__button"
               type="button"
@@ -319,7 +371,7 @@ export function TvDisplay() {
             >
               {tvMode === "starting" ? "Starting TV mode…" : "Start TV mode"}
             </button>
-            <span>Fullscreen is used when this television browser permits it.</span>
+            <span>Sound starts with this button. Fullscreen is used when supported.</span>
           </div>
         ) : showPairing ? (
           <div class="pairing-card">

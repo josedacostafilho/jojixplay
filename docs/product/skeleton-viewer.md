@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: First vertical slice contract, acceptance criteria, and implementation plan
 ---
 
@@ -32,6 +32,7 @@ The phone-to-television vertical slice is implemented. Its original stick-skelet
 | Draw game | [`src/games/draw/`](../../src/games/draw/) |
 | Bubbles game | [`src/games/bubbles/`](../../src/games/bubbles/) |
 | Racing game | [`src/games/racing/`](../../src/games/racing/) and [Racing game](racing-game.md) |
+| Rendering-host sound | [`src/audio/audio-engine.ts`](../../src/audio/audio-engine.ts) and [Application audio](audio.md) |
 | Production deployment | [`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) |
 
 ## Selected behavior
@@ -39,7 +40,7 @@ The phone-to-television vertical slice is implemented. Its original stick-skelet
 ### Television
 
 - The television selects exact application mode `mode=tv` from the static application.
-- It waits for one trusted television-side **Start TV mode** activation, requests fullscreen on a best-effort basis, and only then creates and joins a pairing session.
+- It waits for one trusted television-side **Start TV mode** activation, starts the required native audio output, requests fullscreen on a best-effort basis, and only then creates and joins a pairing session.
 - It creates a cryptographically random 20-character Crockford base32 pairing key with 100 bits of entropy and displays it in five readable groups.
 - It derives a 128-bit room value and 192-bit password representation from that key with purpose-separated SHA-256 inputs, then joins through Trystero's Nostr strategy.
 - It displays both a QR link carrying the key in its URL fragment and the same key for manual phone entry.
@@ -109,34 +110,34 @@ The sender retains at most one pending packet while an earlier send is in progre
 - Continuous one-pose display copies use the bounded presentation-only landmark, segment-length, and near-side stabilization in [Avatar renderer](avatar-renderer.md). Zero or multiple poses reset that history; multi-pose presentation uses only current-packet geometry.
 - A packet older than one second in television receive time is stale and must not remain presented as live.
 - Draw, Bubbles, and Racing consume the same validated pose-domain boundary. Draw/Bubbles own focused Canvas sessions; Racing lazy-loads one Phaser Canvas adapter without coupling the shell or other games to the engine.
-- Temporal processing remains consumer-specific: Draw path smoothing, two-hand grip evidence, Bubbles swept collision, Racing torso-lean hysteresis/response, button controls, and avatar presentation do not mutate or replace the canonical packet or consume one another's derived values.
+- Temporal processing remains consumer-specific: Draw path smoothing, two-hand grip evidence, Bubbles swept collision, Racing analog torso response, button controls, and avatar presentation do not mutate or replace the canonical packet or consume one another's derived values.
 
 ## Body-control contract
 
-- In portrait, a Main Menu control claim is available only when its complete reserved row can fit above the highest usable face landmark inside the projected camera viewport. Main Menu uses the compact left column in landscape. Games, Draw, and actionable Bubbles/Racing phases use the compact left column in either layout. Each layout/view pair has exactly one placement and no fallback.
+- In portrait, a Main Menu control claim is available only when its complete reserved row can fit above the highest usable face landmark inside the projected camera viewport. Main Menu uses the compact left column in landscape. Settings, Games, Draw, and actionable Bubbles/Racing phases use the compact left column in either layout. Each layout/view pair has exactly one placement and no fallback.
 - Buttons appear only after a temporary controller claim. Before that, an eligible single person is prompted to raise either hand with the whole hand visible; with multiple visible people, one person is prompted to raise both hands and keep one whole hand visible.
 - A single-person claim requires one wrist above its elbow for 300 ms. A multiperson claim requires both wrists above the shoulders for 500 ms.
 - The claim selects a controlling side. Raising and below-hips release use that side's wrist, while the direct mirrored pointer is the arithmetic center of its wrist, pinky, index, and thumb landmarks.
 - All four coarse-hand landmarks must be usable. A missing point hides the pointer and resets dwell instead of falling back to the wrist; a sustained loss releases the lease through the one-second loss bound.
 - The television uses short-lived nearest-torso continuity only to survive pose-array reordering. It creates no stable person or player identifier.
-- Portrait Main Menu uses a row centered on the shoulder midpoint, placed with a small gap above the highest usable face landmark, constrained wholly within the projected camera viewport, and frozen until release. Landscape Main Menu plus Games, Draw, Bubbles Ready/Finished, and Racing Ready/Paused/Finished use compact columns inside the projected frame's left edge, centered around the leased torso and frozen for the lease.
+- Portrait Main Menu uses a row centered on the shoulder midpoint, placed with a small gap above the highest usable face landmark, constrained wholly within the projected camera viewport, and frozen until release. Landscape Main Menu plus Settings, Games, Draw, Bubbles Ready/Finished, and Racing Ready/Paused/Finished use compact columns inside the projected frame's left edge, centered around the leased torso and frozen for the lease.
 - A new lease is body-unarmed. The coarse hand must be observed outside every target and its hover margin once before reaching into a button can begin dwell; semantic remote and accessibility activation remain available throughout.
 - A button activates after a 900 ms dwell, activates only once until the pointer leaves, and shows progress while dwelling.
 - Control releases after 600 ms with the selected wrist below the hips, one second without the controlling pose/hand, 600 ms materially displaced from the frozen layout, 15 seconds without coarse-hand activity, or a viewport change.
-- Main Menu buttons toggle a fixed background theme, request the opposite one-/two-player limit, or open Games. Games contains Draw, Bubbles, Racing, and Return. Draw contains Pencil/Eraser, Color, Clear, and Exit. Bubbles exposes Start/Exit before a round, no actions during its countdown or active round, and Play Again/Exit after results. Racing exposes Start/Exit while Ready, no actions during calibration or driving, Resume/Recenter/Restart/Exit while Paused, and Play Again/Exit after the finish.
+- Main Menu contains Games, the one-/two-player request, and Settings. Settings contains the session-local Sound toggle, Background theme, and Return. Games contains Draw, Bubbles, Racing, and Return. Draw contains Pencil/Eraser, Color, Clear, and Exit. Bubbles exposes Start/Exit before a round, no actions during its countdown or active round, and Play Again/Exit after results. Racing exposes Start/Exit while Ready, no actions during calibration or driving, Resume/Recenter/Restart/Exit while Paused, and Play Again/Exit after the finish.
 - Actionable Bubbles and Racing message panels remain near the top center and below the control target layer. Informational cards never cover the visible button surface; central countdown feedback appears only while actions are suspended.
 - While a player-limit or camera-layout request is pending, semantic and body actions cannot activate. A player-limit failure keeps the last acknowledged mode; success updates the dynamic **Players: 1** or **Players: 2** label.
 - Buttons remain semantic and remotely clickable. Body interactions are the canonical in-session path; the semantic path preserves television-remote and accessibility operation.
 - Draw receives both complete coarse hands plus aspect-corrected shoulder span from the leased pose. Separation at or below `0.75 ×` shoulder span immediately activates the selected main-hand tool; it remains active until separation reaches at least `1.25 ×` shoulder span or an existing safety boundary resets the interaction.
 - Starting Bubbles suspends control activation and uses both complete coarse hands from every currently usable pose independently of the lease. Finished controls are restored in a neutral-unarmed state.
-- Starting Racing suspends control activation, calibrates the aspect-corrected shoulder/hip torso angle for three seconds of fresh input, then maps `8°` lean to discrete full steering with a `3°` release threshold and runs automatic throttle through a deterministic `60 Hz` fixed-step simulation. Hands affect Racing only through a one-second two-hands-overhead pause hold. The procedural avatar and ordinary pose cursor remain absent while Racing.
+- Starting Racing suspends control activation, calibrates the aspect-corrected shoulder/hip torso angle for three seconds of fresh input, then maps lean through a symmetric `3°` dead zone and `15°` full-scale smoothstep target with an `80 ms` response. Automatic throttle runs through a deterministic `60 Hz` fixed-step simulation on the denser authored course, and every two-player viewport projects the other car while it remains in front of that chase camera. Hands affect Racing only through a one-second two-hands-overhead pause hold. The procedural avatar and ordinary pose cursor remain absent while Racing.
 - Draw and one-player Bubbles/Racing may enter under either camera layout; two-player Bubbles/Racing mounts only after landscape is acknowledged and a matching packet arrives. An active game locks its entering layout. Mismatched packets are withheld, controls release, Draw cancels grip/path while retaining art, and Bubbles/Racing freeze their full clocks and simulation until the captured layout returns with fresh temporal input.
 
-Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head portrait placement, coarse-hand pointing, and neutral arming originate in [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and the game boundary originate in [ADR-0010](../decisions/0010-menu-and-draw-game.md); current Draw behavior is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md) and the [Draw contract](draw-game.md), Bubbles by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md) and the [Bubbles contract](bubbles-game.md), and Racing by [ADR-0016](../decisions/0016-phaser-canvas-racing.md), [ADR-0017](../decisions/0017-coarse-torso-lean-racing.md), and the [Racing contract](racing-game.md). Unsmoothed-pose ownership remains governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md), while current visible presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), the [Avatar renderer contract](avatar-renderer.md), and [Pose quality](../engineering/pose-quality.md). Canonical rotation, frame epochs, layout requests, and game policies are governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md).
+Mirroring and lease rationale are governed by [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md). Player-limit semantics and acknowledgement are governed by [ADR-0006](../decisions/0006-session-player-limit-control.md). Above-head portrait placement, coarse-hand pointing, and neutral arming originate in [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md). Navigation and the game boundary originate in [ADR-0010](../decisions/0010-menu-and-draw-game.md); current Draw behavior is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md) and the [Draw contract](draw-game.md), Bubbles by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md) and the [Bubbles contract](bubbles-game.md), and Racing by [ADR-0016](../decisions/0016-phaser-canvas-racing.md), [ADR-0019](../decisions/0019-analog-torso-racing.md), and the [Racing contract](racing-game.md). Unsmoothed-pose ownership remains governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md), while current visible presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), the [Avatar renderer contract](avatar-renderer.md), and [Pose quality](../engineering/pose-quality.md). Canonical rotation, frame epochs, layout requests, and game policies are governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md). Rendering-host sound is governed by [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](audio.md).
 
 ## Capability baseline
 
-The phone must support secure-context camera capture, the Screen Orientation type/angle API, WebAssembly, WebGL 2, module workers, `createImageBitmap`, `requestVideoFrameCallback`, Web Crypto, WebSockets, WebRTC DataChannels, ResizeObserver, and Canvas 2D. The television must support ES modules, Web Crypto, WebSockets, WebRTC DataChannels, ResizeObserver, and Canvas 2D. WebGL 2 is part of the phone's MediaPipe baseline; avatar and game presentation intentionally require only Canvas 2D.
+The paired phone must support secure-context camera capture, the Screen Orientation type/angle API, WebAssembly, WebGL 2, module workers, `createImageBitmap`, `requestVideoFrameCallback`, Web Crypto, WebSockets, WebRTC DataChannels, ResizeObserver, and Canvas 2D. The television must support ES modules, Web Crypto, WebSockets, WebRTC DataChannels, ResizeObserver, Canvas 2D, and standard Web Audio. Local play requires the phone/camera baseline, Canvas 2D, ResizeObserver, and standard Web Audio but not WebSocket or WebRTC APIs. WebGL 2 is part of the phone's MediaPipe baseline; avatar and game presentation intentionally require only Canvas 2D.
 
 Unsupported capabilities produce a specific blocking message. The prototype does not add polyfills or alternate execution paths.
 
@@ -150,7 +151,7 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - No application telemetry or persistent storage is used.
 - Pose diagnostics retain only a bounded phone-memory window and expose aggregate rates, age, and pixel spread; they do not log, persist, or transmit coordinates.
 - User-facing errors must not include room credentials, raw SDP, ICE candidates, stack traces, or camera content.
-- Only the phone requests camera permission; audio is never requested.
+- Only a camera-running phone requests camera permission. No mode requests microphone permission; the television/local rendering host starts output-only Web Audio from its explicit activation.
 
 ## Acceptance criteria
 
@@ -164,12 +165,13 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 8. All camera, worker, room, and animation resources are released on stop or unmount.
 9. Canonical formatting, linting, type analysis, unit/component tests, end-to-end smoke tests, dependency audit, and production build checks pass.
 10. A real phone-and-television run confirms pairing, portrait and both landscape directions, camera framing, multiperson behavior where detectable, horizontal television mirroring, and acceptable perceived latency.
-11. The television requests fullscreen from its explicit start activation, mirrors every body-controlled layer, uses a portrait overhead row only for Main Menu and compact left columns for Games and actionable games, points with complete coarse hands without wrist fallback, neutral-arms each actionable view, and supports the Main Menu/Games/Draw/Bubbles/Racing hierarchy.
+11. The television starts sound and requests fullscreen from its explicit start activation, mirrors every body-controlled layer, uses a portrait overhead row only for Main Menu and compact left columns for Settings, Games, and actionable games, points with complete coarse hands without wrist fallback, neutral-arms each actionable view, and supports the Main Menu/Settings/Games/Draw/Bubbles/Racing hierarchy.
 12. Camera-paced single-flight inference, Draw presentation, two-hand tool engagement, path breaking, color, clearing, navigation, and ephemeral retention satisfy [Draw game](draw-game.md).
 13. Bubbles readiness, exact countdown/round timing, both-hand collision, identity-independent one-/two-player scoring, in-bounds procedural movement, results, and transient cleanup satisfy [Bubbles game](bubbles-game.md).
 14. Phone and television render only the procedural body avatar, apply the exact per-surface appearance profiles, keep its stabilization isolated from interaction, and satisfy [Avatar renderer](avatar-renderer.md).
 15. Strict orientation normalization, packet epochs, diagnostics, absolute layout acknowledgement, game policies, active-game locking, and pause/resume behavior satisfy [Camera orientation](camera-orientation.md).
-16. Racing torso-neutral calibration, coarse lean hysteresis, steering response, automatic throttle, continuous near-road projection, one-/two-player results, lazy forced-Canvas runtime, pause/recovery, and teardown satisfy [Racing game](racing-game.md).
+16. Racing torso-neutral calibration, analog lean mapping/response, denser course, opponent projection, automatic throttle, continuous near-road projection, one-/two-player results, lazy forced-Canvas runtime, pause/recovery, and teardown satisfy [Racing game](racing-game.md).
+17. Trusted startup, Main Menu Settings, bounded procedural cues/voices, mute, page suspension, and cleanup satisfy [Application audio](audio.md), while the paired camera phone remains silent.
 
 ## Implementation plan
 
@@ -189,7 +191,8 @@ Unsupported capabilities produce a specific blocking message. The prototype does
 - [x] Add identity-independent one-/two-player Bubbles with exact timed rounds, procedural radius-safe motion, swept both-hand collision, scores, results, and control suspension.
 - [x] Hard-cut the stick renderer to one faceless procedural body avatar with isolated one-player presentation stabilization and explicit menu/Draw/Bubbles/phone profiles.
 - [x] Hard-cut orientation-implicit packets and fixed menu placement to canonical portrait/landscape frames, epochs, strict layout requests, orientation-aware game policies, and active-game safety.
-- [x] Add lazy forced-Canvas Phaser Racing with pure input/simulation/projection modules, calibrated coarse torso-lean steering, automatic throttle, continuous near-road coverage, solo timing, landscape split-screen competition, pause controls, and complete lifecycle cleanup.
+- [x] Add lazy forced-Canvas Phaser Racing with pure input/simulation/projection modules, calibrated analog torso steering, a denser deterministic course, per-viewport opponent projection, automatic throttle, continuous near-road coverage, solo timing, landscape split-screen competition, pause controls, and complete lifecycle cleanup.
+- [x] Add one rendering-host procedural Web Audio runtime, trusted TV/local startup, Settings-owned sound control, per-game cues/voices, and complete cleanup while keeping the paired phone silent.
 - [x] Add automated tests, CI, and the GitHub Pages deployment workflow.
 - [x] Run all canonical validation and perform available production-browser smoke testing.
 - [x] Publish the original skeleton-viewer artifact from the remote repository; current publication state remains in [Project status](../project/status.md).

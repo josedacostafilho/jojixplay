@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: Product purpose, users, constraints, and first outcome
 ---
 
@@ -10,7 +10,7 @@ scope: Product purpose, users, constraints, and first outcome
 
 JojixPlay turns a phone into a private, camera-based body controller. A paired phone can send only pose landmarks to games rendered by a nearby television browser, or **Play on this phone** can run the complete playfield locally for direct use or operating-system screen mirroring. Camera pixels remain inside the phone capture/inference path in either topology.
 
-The current product proof is a live procedural body-avatar viewer plus Draw, Bubbles, and Racing. Together they validate camera capture, on-device pose estimation, optional pairing/peer transport, direct all-in-one execution, readable pose presentation, body-operated navigation, continuous and discrete two-hand input, identity-independent one-/two-player scoring, timed gameplay, deterministic fixed-step steering, split-screen presentation, focused shared renderers, and one concrete lazy game-engine boundary.
+The current product proof is a live procedural body-avatar viewer plus Draw, Bubbles, and Racing. Together they validate camera capture, on-device pose estimation, optional pairing/peer transport, direct all-in-one execution, readable pose presentation, body-operated navigation, continuous and discrete two-hand input, identity-independent one-/two-player scoring, timed gameplay, analog fixed-step steering, split-screen opponent presentation, focused shared renderers, one concrete lazy game-engine boundary, and one rendering-host procedural audio boundary.
 
 ## Primary users and setting
 
@@ -29,7 +29,7 @@ The application needs network access to load uncached static assets. Paired mode
 5. Leave space above the head, raise one hand to claim control, and move the coarse-hand cursor clear once to arm Main Menu.
 6. Open **Games** and select **Draw** to bring both hands together, activate Pencil or Eraser immediately, draw with the selected controller hand, and spread both hands wide to stop.
 7. Or select **Bubbles**, start a three-second countdown, then use either complete hand to pop procedurally moving bubbles during a 60-second one- or two-player round.
-8. Or select **Racing**, stand naturally through calibration, then lean left or right to steer an automatically accelerating car through a timed solo course or landscape split-screen race.
+8. Or select **Racing**, stand naturally through calibration, then lean by varying amounts to steer an automatically accelerating car through a timed solo course or landscape split-screen race with visible overtakes.
 
 ## Product invariants
 
@@ -45,7 +45,7 @@ The application needs network access to load uncached static assets. Paired mode
 
 ## Prototype non-goals
 
-- Accounts, saved artwork, scores, race times, a broad game catalogue, audio, obstacles, car collisions, or online competition.
+- Accounts, saved artwork, scores, race times, a broad game catalogue, music, obstacles, car collisions, or online competition.
 - Stable player identity, persistent/general-purpose cross-frame person tracking, profiles, or accounts; the temporary local control lease is the only bounded continuity exception.
 - Camera-pixel streaming, recording, upload, or persistence.
 - TURN service, relay transport, transport fallbacks, or offline peer discovery.
@@ -53,4 +53,4 @@ The application needs network access to load uncached static assets. Paired mode
 
 ## First-outcome success criteria
 
-The prototype succeeds when the journeys in [Phone-to-television specification](skeleton-viewer.md), [Play on this phone](local-play.md), [Avatar renderer](avatar-renderer.md), [Draw game](draw-game.md), [Bubbles game](bubbles-game.md), and [Racing game](racing-game.md) work on target devices; one or two detected bodies render continuously where intended; the one-person avatar is visibly steadier without unacceptable fast-motion lag; menus, continuous tools, collisions, and steering operate without unacceptable false activations or latency; timed scores and races remain legible and correct; the forced-Canvas Racing runtime sustains the selected playfield device; local inference-plus-rendering stays acceptable on the phone; failures are actionable; and inspection confirms that camera pixels neither cross the peer connection nor enter the local-play presentation.
+The prototype succeeds when the journeys in [Phone-to-television specification](skeleton-viewer.md), [Play on this phone](local-play.md), [Avatar renderer](avatar-renderer.md), [Draw game](draw-game.md), [Bubbles game](bubbles-game.md), [Racing game](racing-game.md), and [Application audio](audio.md) work on target devices; one or two detected bodies render continuously where intended; the one-person avatar is visibly steadier without unacceptable fast-motion lag; menus, continuous tools, collisions, analog steering, overtakes, and sound operate without unacceptable false activation, latency, or performance loss; timed scores and races remain legible and correct; the forced-Canvas Racing runtime sustains the selected playfield device; local inference-plus-rendering-plus-audio stays acceptable on the phone; failures are actionable; and inspection confirms that camera pixels neither cross the peer connection nor enter the local-play presentation.

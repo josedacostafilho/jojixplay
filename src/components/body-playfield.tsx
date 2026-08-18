@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import type { PlayfieldAudio } from "../audio/audio-engine";
 import type { CameraFrame, CameraLayout } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import { type PoseLimit, MAX_POSE_LIMIT } from "../domain/pose-limit";
@@ -16,6 +17,7 @@ import { RacingCanvas } from "../games/racing/racing-canvas";
 import { RacingInputSession } from "../games/racing/racing-input";
 import {
   type RacingResult,
+  RACING_OFF_ROAD_LATERAL_THRESHOLD,
   RacingSession,
   type RacingSnapshot,
 } from "../games/racing/racing-session";
@@ -38,6 +40,7 @@ import { AVATAR_ACCENT_PALETTE } from "../render/avatar";
 import { AvatarCanvas } from "./avatar-canvas";
 
 interface BodyPlayfieldProps {
+  audio: PlayfieldAudio;
   packet: PosePacket | null;
   poseLimit: PoseLimit;
   poseLimitPending: boolean;
@@ -47,11 +50,13 @@ interface BodyPlayfieldProps {
 }
 
 type BackgroundTheme = "navy" | "plum";
-type PlayfieldView = "main" | "games" | "draw" | "bubbles" | "racing";
+type PlayfieldView = "main" | "settings" | "games" | "draw" | "bubbles" | "racing";
 type RacingRuntimeState = "loading" | "ready" | "failed";
 type PlayfieldAction =
   | "background"
+  | "sound"
   | "players"
+  | "open-settings"
   | "open-games"
   | "open-draw"
   | "open-bubbles"
@@ -72,9 +77,15 @@ type PlayfieldAction =
   | "racing-exit";
 
 const MAIN_ACTIONS = [
-  { action: "background", label: "Background" },
-  { action: "players", label: "Players" },
   { action: "open-games", label: "Games" },
+  { action: "players", label: "Players" },
+  { action: "open-settings", label: "Settings" },
+] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
+
+const SETTINGS_ACTIONS = [
+  { action: "sound", label: "Sound" },
+  { action: "background", label: "Background" },
+  { action: "return-main", label: "Return" },
 ] as const satisfies readonly PoseControlActionDefinition<PlayfieldAction>[];
 
 const GAMES_ACTIONS = [
@@ -159,6 +170,11 @@ function controlsForView(view: PlayfieldView, layout: CameraLayout | null): View
         actions: GAMES_ACTIONS,
         placement: "left-column",
       };
+    case "settings":
+      return {
+        actions: SETTINGS_ACTIONS,
+        placement: "left-column",
+      };
     case "draw":
       return { actions: DRAW_ACTIONS, placement: "left-column" };
     case "bubbles":
@@ -174,6 +190,8 @@ function viewLabel(view: PlayfieldView): string {
       return "Main Menu";
     case "games":
       return "Games";
+    case "settings":
+      return "Settings";
     case "draw":
       return "Draw";
     case "bubbles":
@@ -326,6 +344,7 @@ function accessibleActionLabel(
   action: PlayfieldAction,
   poseLimit: PoseLimit,
   drawing: DrawSnapshot,
+  soundMuted: boolean,
 ): string {
   switch (action) {
     case "players":
@@ -336,6 +355,10 @@ function accessibleActionLabel(
       return `Switch to ${drawing.selectedTool === "pencil" ? "Eraser" : "Pencil"}; current tool ${drawing.selectedTool === "pencil" ? "Pencil" : "Eraser"}`;
     case "background":
       return "Background";
+    case "sound":
+      return soundMuted ? "Turn sound on" : "Turn sound off";
+    case "open-settings":
+      return "Settings";
     case "open-games":
       return "Games";
     case "open-draw":
@@ -376,12 +399,16 @@ function actionLabel(
   fallback: string,
   poseLimit: PoseLimit,
   drawing: DrawSnapshot,
+  soundMuted: boolean,
 ): string {
   if (action === "players") {
     return `Players: ${poseLimit}`;
   }
   if (action === "draw-tool") {
     return drawing.selectedTool === "pencil" ? "Pencil" : "Eraser";
+  }
+  if (action === "sound") {
+    return soundMuted ? "Sound: Off" : "Sound: On";
   }
   return fallback;
 }
@@ -398,6 +425,7 @@ function toolScreenPoint(point: Point | null, frame: Size | null, viewport: Size
 }
 
 export function BodyPlayfield({
+  audio,
   packet,
   poseLimit,
   poseLimitPending,
@@ -420,6 +448,11 @@ export function BodyPlayfield({
   const bubblesPlayerCountRef = useRef<PoseLimit>(poseLimit);
   const racingPlayerCountRef = useRef<PoseLimit>(poseLimit);
   const racingPhaseRef = useRef<RacingSnapshot["phase"]>("ready");
+  const bubblesAudioPhaseRef = useRef<BubblesSnapshot["phase"]>("ready");
+  const bubblesCountdownRef = useRef<number | null>(null);
+  const poppedBubbleIdsRef = useRef(new Set<number>());
+  const racingAudioPhaseRef = useRef<RacingSnapshot["phase"]>("ready");
+  const racingCountdownRef = useRef<number | null>(null);
   const playerModeRequestActiveRef = useRef(false);
   const orientationReturnRequestActiveRef = useRef(false);
   const orientationMismatchRef = useRef(false);
@@ -441,6 +474,7 @@ export function BodyPlayfield({
   );
   const [racingRuntimeState, setRacingRuntimeState] = useState<RacingRuntimeState>("loading");
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>("navy");
+  const [soundMuted, setSoundMuted] = useState(audio.muted);
   const [announcement, setAnnouncement] = useState("");
   const palette = AVATAR_ACCENT_PALETTE;
 
@@ -546,18 +580,56 @@ export function BodyPlayfield({
       if (poseLimitPending || cameraLayoutPending || playerModeRequestActiveRef.current) {
         return;
       }
+      if (action !== "sound") {
+        if (
+          action === "return-main" ||
+          action === "draw-exit" ||
+          action === "bubbles-exit" ||
+          action === "racing-exit"
+        ) {
+          audio.playCue({ type: "ui-back" });
+        } else if (action === "draw-tool") {
+          audio.playCue({
+            type: "draw-tool",
+            tool: drawing.selectedTool === "pencil" ? "eraser" : "pencil",
+          });
+        } else if (action === "draw-color") {
+          audio.playCue({ type: "draw-color" });
+        } else if (action === "draw-clear") {
+          audio.playCue({ type: "draw-clear" });
+        } else {
+          audio.playCue({ type: "ui-activate" });
+        }
+      }
       switch (action) {
         case "background":
           setBackgroundTheme((current) => (current === "navy" ? "plum" : "navy"));
           setAnnouncement("Background theme changed.");
           break;
+        case "sound": {
+          const nextMuted = !soundMuted;
+          if (nextMuted) {
+            audio.playCue({ type: "ui-back" });
+          }
+          audio.setMuted(nextMuted);
+          setSoundMuted(nextMuted);
+          if (!nextMuted) {
+            audio.playCue({ type: "ui-success" });
+          }
+          setAnnouncement(`Sound ${nextMuted ? "off" : "on"}.`);
+          break;
+        }
         case "players": {
           const nextPoseLimit: PoseLimit = poseLimit === 1 ? MAX_POSE_LIMIT : 1;
           playerModeRequestActiveRef.current = true;
           setAnnouncement(`Switching to ${nextPoseLimit}-player mode.`);
           void onPoseLimitRequest(nextPoseLimit)
-            .then(() => setAnnouncement(`${nextPoseLimit}-player mode is active.`))
+            .then(() => {
+              audio.playCue({ type: "ui-success" });
+              setAnnouncement(`${nextPoseLimit}-player mode is active.`);
+            })
             .catch(() => {
+              audio.playCue({ type: "ui-error" });
               setAnnouncement(
                 `Player mode could not be changed. ${poseLimit}-player mode remains active. Restart body tracking to retry.`,
               );
@@ -570,6 +642,9 @@ export function BodyPlayfield({
         case "open-games":
           transitionTo("games");
           break;
+        case "open-settings":
+          transitionTo("settings");
+          break;
         case "open-draw":
         case "open-bubbles":
         case "open-racing": {
@@ -578,6 +653,7 @@ export function BodyPlayfield({
           const nextView = game;
           const currentLayout = latestPacketRef.current?.frame.layout ?? null;
           if (currentLayout === null) {
+            audio.playCue({ type: "ui-error" });
             setAnnouncement("A live camera frame is required before opening a game.");
             break;
           }
@@ -594,6 +670,7 @@ export function BodyPlayfield({
           setSnapshot(controlSession.setControlsEnabled(false, nowMs).snapshot);
           setAnnouncement("");
           void onCameraLayoutRequest(requiredLayout).catch(() => {
+            audio.playCue({ type: "ui-error" });
             setOrientationGate(null);
             setSnapshot(controlSession.setControlsEnabled(true, performance.now()).snapshot);
             setAnnouncement(
@@ -630,6 +707,7 @@ export function BodyPlayfield({
           const started = bubblesSession.start(nowMs);
           setBubbles(started.snapshot);
           if (!started.started) {
+            audio.playCue({ type: "ui-error" });
             setAnnouncement(
               started.reason === "not-ready"
                 ? `Waiting for ${bubblesPlayerCountRef.current === 1 ? "one visible player" : "two visible players"}.`
@@ -647,6 +725,7 @@ export function BodyPlayfield({
           break;
         case "racing-start": {
           if (racingRuntimeState !== "ready") {
+            audio.playCue({ type: "ui-error" });
             setAnnouncement(
               racingRuntimeState === "failed"
                 ? "Racing is unavailable on this device."
@@ -658,6 +737,7 @@ export function BodyPlayfield({
           const started = racingSession.start(nowMs);
           setRacing(started.snapshot);
           if (!started.started) {
+            audio.playCue({ type: "ui-error" });
             setAnnouncement(
               racingPlayerCountRef.current === 1
                 ? "Keep your shoulders and hips visible before starting."
@@ -706,6 +786,7 @@ export function BodyPlayfield({
       }
     },
     [
+      audio,
       applyDrawing,
       bubblesSession,
       cameraLayoutPending,
@@ -718,6 +799,7 @@ export function BodyPlayfield({
       racingInputSession,
       racingRuntimeState,
       racingSession,
+      soundMuted,
       transitionTo,
     ],
   );
@@ -731,8 +813,9 @@ export function BodyPlayfield({
     ) {
       return;
     }
+    audio.playCue({ type: "ui-success" });
     transitionTo(orientationGate.view, orientationGate.requiredLayout);
-  }, [cameraLayoutPending, orientationGate, packet, transitionTo]);
+  }, [audio, cameraLayoutPending, orientationGate, packet, transitionTo]);
 
   useEffect(() => {
     const lockedLayout = activeGameLayoutRef.current;
@@ -876,13 +959,14 @@ export function BodyPlayfield({
   const handleRacingError = useCallback(
     (message: string) => {
       const nowMs = performance.now();
+      audio.playCue({ type: "ui-error" });
       setRacingRuntimeState("failed");
       setRacing(racingSession.setSystemPaused(true, nowMs));
       controlSession.setActions(RACING_ERROR_ACTIONS, "left-column", nowMs);
       setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
       setAnnouncement(message);
     },
-    [controlSession, racingSession],
+    [audio, controlSession, racingSession],
   );
 
   useEffect(() => {
@@ -910,7 +994,10 @@ export function BodyPlayfield({
       return;
     }
     const nowMs = performance.now();
-    if (gamePacket !== null && (viewRef.current === "main" || viewRef.current === "games")) {
+    if (
+      gamePacket !== null &&
+      (viewRef.current === "main" || viewRef.current === "settings" || viewRef.current === "games")
+    ) {
       const controls = controlsForView(viewRef.current, gamePacket.frame.layout);
       if (controls.placement !== controlPlacement) {
         controlSession.setActions(controls.actions, controls.placement, nowMs);
@@ -956,6 +1043,100 @@ export function BodyPlayfield({
       }
     };
   }, [bubbles.paused, bubbles.phase, bubblesSession, controlSession, view]);
+
+  useEffect(() => {
+    const tool =
+      view === "draw" && drawing.gripActive && !orientationMismatch ? drawing.selectedTool : null;
+    audio.setDrawContact(tool);
+    return () => audio.setDrawContact(null);
+  }, [audio, drawing.gripActive, drawing.selectedTool, orientationMismatch, soundMuted, view]);
+
+  useEffect(() => {
+    if (view !== "bubbles") {
+      bubblesAudioPhaseRef.current = "ready";
+      bubblesCountdownRef.current = null;
+      poppedBubbleIdsRef.current.clear();
+      return;
+    }
+
+    const previousPhase = bubblesAudioPhaseRef.current;
+    if (bubbles.phase === "starting") {
+      if (previousPhase !== "starting") {
+        bubblesCountdownRef.current = null;
+        poppedBubbleIdsRef.current.clear();
+      }
+      const count = Math.max(1, Math.ceil(bubbles.startingRemainingMs / 1_000));
+      if (count !== bubblesCountdownRef.current) {
+        bubblesCountdownRef.current = count;
+        audio.playCue({ type: "bubbles-countdown", count });
+      }
+    } else {
+      bubblesCountdownRef.current = null;
+    }
+
+    if (bubbles.phase === "playing" && previousPhase !== "playing") {
+      audio.playCue({ type: "bubbles-go" });
+    }
+    for (const bubble of bubbles.bubbles) {
+      if (bubble.state === "popping" && !poppedBubbleIdsRef.current.has(bubble.id)) {
+        poppedBubbleIdsRef.current.add(bubble.id);
+        audio.playCue({ type: "bubble-pop", radius: bubble.radius });
+      }
+    }
+    if (bubbles.phase === "finished" && previousPhase !== "finished") {
+      audio.playCue({ type: "bubbles-finish" });
+    }
+    bubblesAudioPhaseRef.current = bubbles.phase;
+  }, [audio, bubbles, view]);
+
+  useEffect(() => {
+    if (view !== "racing") {
+      racingAudioPhaseRef.current = "ready";
+      racingCountdownRef.current = null;
+      audio.setRacingCars([]);
+      return;
+    }
+
+    const previousPhase = racingAudioPhaseRef.current;
+    if (racing.phase === "starting") {
+      const count = Math.max(1, Math.ceil(racing.startingRemainingMs / 1_000));
+      if (count !== racingCountdownRef.current) {
+        racingCountdownRef.current = count;
+        audio.playCue({ type: "racing-countdown", count });
+      }
+    } else {
+      racingCountdownRef.current = null;
+    }
+    if (racing.phase === "racing" && previousPhase === "starting") {
+      audio.playCue({ type: "racing-go" });
+    } else if (racing.phase === "paused" && previousPhase === "racing") {
+      audio.playCue({ type: "racing-pause" });
+    } else if (racing.phase === "racing" && previousPhase === "paused") {
+      audio.playCue({ type: "racing-resume" });
+    } else if (racing.phase === "finished" && previousPhase !== "finished") {
+      audio.playCue({ type: "racing-finish" });
+    }
+    racingAudioPhaseRef.current = racing.phase;
+
+    audio.setRacingCars(
+      racing.phase === "racing" && !racing.paused
+        ? racing.cars.map((car) => ({
+            slot: car.slot,
+            speed: car.speed,
+            offRoad: Math.abs(car.lateral) > RACING_OFF_ROAD_LATERAL_THRESHOLD,
+            trackingAvailable: car.trackingAvailable,
+          }))
+        : [],
+    );
+  }, [audio, racing, soundMuted, view]);
+
+  useEffect(
+    () => () => {
+      audio.setDrawContact(null);
+      audio.setRacingCars([]);
+    },
+    [audio],
+  );
 
   useEffect(() => {
     if (announcement === "" || announcement.startsWith("Switching")) {
@@ -1216,7 +1397,7 @@ export function BodyPlayfield({
                 key={target.action}
                 class={`pose-control-button${hovered ? " pose-control-button--hovered" : ""}`}
                 type="button"
-                aria-label={accessibleActionLabel(target.action, poseLimit, drawing)}
+                aria-label={accessibleActionLabel(target.action, poseLimit, drawing, soundMuted)}
                 onClick={() => activateAction(target.action)}
                 disabled={
                   poseLimitPending ||
@@ -1227,7 +1408,7 @@ export function BodyPlayfield({
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
                 <span class="pose-control-button__label">
-                  {actionLabel(target.action, target.label, poseLimit, drawing)}
+                  {actionLabel(target.action, target.label, poseLimit, drawing, soundMuted)}
                   {target.action === "draw-color" ? (
                     <span
                       class="pose-control-button__swatch"

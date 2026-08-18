@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-13
+last_verified: 2026-08-18
 scope: Design, implementation, security, and maintainability expectations
 ---
 
@@ -16,7 +16,7 @@ The project is greenfield. Optimize for a clear current design, not historical b
 - Parse external values from `unknown` and return validated domain types. Network messages, URL fragments, worker messages, and browser capability state are trust boundaries.
 - Use Preact for UI state and lifecycle. Direct canvas drawing and video-frame scheduling must not run through component rerenders.
 - A worker owns MediaPipe. Television and shared rendering modules must not import the inference dependency.
-- Acquire camera access only after user activation, request no audio, and stop every owned media track during cleanup.
+- Acquire camera access only after user activation, request no microphone track, and stop every owned media track during cleanup. Rendering-host output audio follows [ADR-0020](../decisions/0020-app-owned-procedural-audio.md).
 - Use Web Crypto for session randomness. Never expose credentials through logs, query parameters, analytics, or error messages.
 - Prefer browser capability checks with explicit unsupported states over polyfills, browser sniffing, or alternate implementations.
 - Keep public-relay and peer failures terminal and actionable; do not silently switch transports.

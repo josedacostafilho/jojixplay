@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: Documentation system and navigation
 ---
 
@@ -15,7 +15,7 @@ Repository-wide agent instructions live in [`../AGENTS.md`](../AGENTS.md). That 
 | Goal | Read |
 | --- | --- |
 | Orient to the repository | [Project status](project/status.md), then [Stack](architecture/stack.md) |
-| Understand the product and current content | [Product brief](product/brief.md), [Phone-to-television specification](product/skeleton-viewer.md), [Play on this phone](product/local-play.md), [Camera orientation](product/camera-orientation.md), [Avatar renderer](product/avatar-renderer.md), [Draw game](product/draw-game.md), [Bubbles game](product/bubbles-game.md), then [Racing game](product/racing-game.md) |
+| Understand the product and current content | [Product brief](product/brief.md), [Phone-to-television specification](product/skeleton-viewer.md), [Play on this phone](product/local-play.md), [Camera orientation](product/camera-orientation.md), [Avatar renderer](product/avatar-renderer.md), [Draw game](product/draw-game.md), [Bubbles game](product/bubbles-game.md), [Racing game](product/racing-game.md), then [Application audio](product/audio.md) |
 | Implement or modify behavior | [Engineering standards](engineering/standards.md), [Testing strategy](engineering/testing.md), [Workflow](engineering/workflow.md) |
 | Measure pose stability or evaluate a pose model | [Pose quality](engineering/pose-quality.md), then [ADR-0011](decisions/0011-consumer-specific-pose-stability.md) |
 | Make an architectural choice | [Architecture overview](architecture/overview.md), [ADR index](decisions/README.md) |
@@ -36,7 +36,8 @@ docs/
 │   ├── avatar-renderer.md            # Live procedural body and presentation-smoothing contract
 │   ├── draw-game.md                  # Draw behavior and acceptance contract
 │   ├── bubbles-game.md               # Bubbles behavior and implementation contract
-│   └── racing-game.md                # Racing behavior, implementation, and acceptance contract
+│   ├── racing-game.md                # Racing behavior, implementation, and acceptance contract
+│   └── audio.md                      # Shared audio lifecycle, cue catalog, and acceptance contract
 ├── architecture/
 │   ├── overview.md                  # System shape, boundaries, and data flow
 │   └── stack.md                     # Exact technologies, versions, and commands
@@ -60,7 +61,9 @@ docs/
 │   ├── 0015-canonical-camera-orientation.md
 │   ├── 0016-phaser-canvas-racing.md
 │   ├── 0017-coarse-torso-lean-racing.md
-│   └── 0018-all-in-one-phone-play.md
+│   ├── 0018-all-in-one-phone-play.md
+│   ├── 0019-analog-torso-racing.md
+│   └── 0020-app-owned-procedural-audio.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: Architectural decision record process and index
 ---
 
@@ -28,8 +28,10 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0014](0014-procedural-body-avatar.md) | Accepted | Replace the visible stick skeleton with an isolated, presentation-smoothed procedural body avatar |
 | [0015](0015-canonical-camera-orientation.md) | Accepted | Normalize portrait/landscape camera frames before pose consumers and enforce explicit game layout policies |
 | [0016](0016-phaser-canvas-racing.md) | Accepted | Add Racing through a lazy, forced-Canvas Phaser runtime with application-owned simulation and pose steering |
-| [0017](0017-coarse-torso-lean-racing.md) | Accepted | Hard-cut Racing from a two-hand wheel to calibrated, hysteretic torso-lean steering |
+| [0017](0017-coarse-torso-lean-racing.md) | Superseded | Hard-cut Racing from a two-hand wheel to calibrated, hysteretic torso-lean steering |
 | [0018](0018-all-in-one-phone-play.md) | Accepted | Add direct all-in-one phone play through the shared body playfield with no preview or peer transport |
+| [0019](0019-analog-torso-racing.md) | Accepted | Hard-cut Racing to calibrated analog torso steering, a denser authored course, and explicit opponent projection |
+| [0020](0020-app-owned-procedural-audio.md) | Accepted | Add one rendering-host procedural Web Audio runtime with trusted activation and shared sound controls |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

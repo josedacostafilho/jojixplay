@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { AppAudioEngine, type AudioRuntimeState } from "../audio/audio-engine";
 import { BodyPlayfield } from "../components/body-playfield";
 import { StatusPill } from "../components/status-pill";
 import { UnsupportedPanel } from "../components/unsupported-panel";
@@ -14,6 +15,8 @@ const STALE_AFTER_MS = 1_000;
 export function LocalPlayPage() {
   const capabilities = useMemo(inspectLocalPlayCapabilities, []);
   const [immersiveSession] = useState(() => new LocalImmersiveSession());
+  const [audioState, setAudioState] = useState<AudioRuntimeState>("idle");
+  const [audio] = useState(() => new AppAudioEngine(setAudioState));
   const camera = useCameraPose();
   const {
     start: startCamera,
@@ -27,6 +30,8 @@ export function LocalPlayPage() {
   const [poseLimitPending, setPoseLimitPending] = useState(false);
   const [cameraLayoutPending, setCameraLayoutPending] = useState(false);
   const [stale, setStale] = useState(true);
+  const [sessionActive, setSessionActive] = useState(false);
+  const [startupError, setStartupError] = useState<string | null>(null);
 
   useEffect(() => {
     if (camera.state !== "tracking" || camera.packet === null) {
@@ -40,15 +45,19 @@ export function LocalPlayPage() {
 
   useEffect(() => {
     if (camera.state === "error") {
+      startRequested.current = false;
+      setSessionActive(false);
       void immersiveSession.stop();
+      void audio.stop();
     }
-  }, [camera.state, immersiveSession]);
+  }, [audio, camera.state, immersiveSession]);
 
   useEffect(
     () => () => {
       void immersiveSession.stop();
+      void audio.stop();
     },
-    [immersiveSession],
+    [audio, immersiveSession],
   );
 
   const startLocalPlay = useCallback(() => {
@@ -56,17 +65,33 @@ export function LocalPlayPage() {
       return;
     }
     startRequested.current = true;
+    setStartupError(null);
     if (camera.state === "error") {
       stopCamera({ resetPoseLimit: true });
     }
     immersiveSession.start();
-    void startCamera().then((started) => {
-      startRequested.current = false;
-      if (!started) {
+    const audioStart = audio.start();
+    void Promise.all([audioStart, startCamera()])
+      .then(([, cameraStarted]) => {
+        if (!cameraStarted) {
+          throw new Error("The camera did not start.");
+        }
+        setSessionActive(true);
+        audio.playCue({ type: "ui-success" });
+      })
+      .catch(() => {
+        setSessionActive(false);
+        stopCamera({ resetPoseLimit: true });
         void immersiveSession.stop();
-      }
-    });
-  }, [camera.state, capabilities.supported, immersiveSession, startCamera, stopCamera]);
+        void audio.stop();
+        setStartupError(
+          "Local play could not start its camera and sound. Check browser permissions and try again.",
+        );
+      })
+      .finally(() => {
+        startRequested.current = false;
+      });
+  }, [audio, camera.state, capabilities.supported, immersiveSession, startCamera, stopCamera]);
 
   const stopLocalPlay = useCallback(() => {
     poseLimitRequestActive.current = false;
@@ -74,9 +99,19 @@ export function LocalPlayPage() {
     setPoseLimitPending(false);
     setCameraLayoutPending(false);
     setStale(true);
+    setSessionActive(false);
+    setStartupError(null);
     stopCamera({ resetPoseLimit: true });
     void immersiveSession.stop();
-  }, [immersiveSession, stopCamera]);
+    void audio.stop();
+  }, [audio, immersiveSession, stopCamera]);
+
+  const resumeAudio = useCallback(() => {
+    setStartupError(null);
+    void audio.resume().catch(() => {
+      setStartupError("Sound is suspended. Press Resume sound and allow audio playback.");
+    });
+  }, [audio]);
 
   const requestPoseLimit = useCallback(
     async (poseLimit: PoseLimit) => {
@@ -117,7 +152,7 @@ export function LocalPlayPage() {
   }
 
   const livePacket = stale ? null : camera.packet;
-  const active = camera.state === "tracking";
+  const active = sessionActive && camera.state === "tracking";
   const statusLabel =
     camera.requestedCameraLayout !== null
       ? `Rotate to ${camera.requestedCameraLayout}`
@@ -154,14 +189,21 @@ export function LocalPlayPage() {
             {statusLabel}
           </StatusPill>
           {active ? (
-            <button
-              class="local-stop-button"
-              type="button"
-              aria-label="Stop local play"
-              onClick={stopLocalPlay}
-            >
-              Stop
-            </button>
+            <>
+              {audioState === "suspended" || audioState === "error" ? (
+                <button class="text-button" type="button" onClick={resumeAudio}>
+                  Resume sound
+                </button>
+              ) : null}
+              <button
+                class="local-stop-button"
+                type="button"
+                aria-label="Stop local play"
+                onClick={stopLocalPlay}
+              >
+                Stop
+              </button>
+            </>
           ) : null}
         </div>
       </header>
@@ -169,6 +211,7 @@ export function LocalPlayPage() {
       {active ? (
         <section class="local-play-stage" aria-label="Local body-control playground">
           <BodyPlayfield
+            audio={audio}
             packet={livePacket}
             poseLimit={camera.poseLimit}
             poseLimitPending={poseLimitPending}
@@ -188,21 +231,24 @@ export function LocalPlayPage() {
               settings if you want a larger display.
             </p>
             <p>Camera pixels stay on this device and are never shown, sent, recorded, or stored.</p>
-            {camera.errorMessage === null ? null : (
+            {camera.errorMessage === null && startupError === null ? null : (
               <p class="inline-error local-play-error" role="alert">
-                {camera.errorMessage}
+                {camera.errorMessage ?? startupError}
               </p>
             )}
             <button
               class="button button--primary local-play-start"
               type="button"
               onClick={startLocalPlay}
-              disabled={camera.state === "starting"}
+              disabled={camera.state === "starting" || audioState === "starting"}
             >
-              {camera.state === "starting" ? "Starting local play…" : "Start local play"}
+              {camera.state === "starting" || audioState === "starting"
+                ? "Starting local play…"
+                : "Start local play"}
             </button>
             <span class="local-play-setup__hint">
-              Fullscreen and keeping the display awake are used when your browser permits them.
+              Sound starts with this button. Fullscreen and keeping the display awake are used when
+              your browser permits them.
             </span>
           </div>
         </section>

@@ -8,19 +8,20 @@ import { RACING_TRACK, racingTrackCurveAt } from "./racing-track";
 export const RACING_COUNTDOWN_MS = 3_000;
 export const RACING_FIXED_STEP_MS = 1_000 / 60;
 export const RACING_INPUT_GRACE_MS = 150;
-export const RACING_LEAN_ENTER_RADIANS = (8 * Math.PI) / 180;
-export const RACING_LEAN_RELEASE_RADIANS = (3 * Math.PI) / 180;
+export const RACING_LEAN_DEAD_ZONE_RADIANS = (3 * Math.PI) / 180;
+export const RACING_LEAN_FULL_SCALE_RADIANS = (15 * Math.PI) / 180;
 
 const RACING_MAX_CATCH_UP_STEPS = 6;
 const RACING_FIXED_STEP_EPSILON_MS = 1e-7;
 const RACING_STEERING_TIME_CONSTANT_MS = 80;
 const RACING_CENTER_TIME_CONSTANT_MS = 120;
-const RACING_MAX_SPEED = 52;
+export const RACING_MAX_SPEED = 52;
 const RACING_OFF_ROAD_MAX_SPEED = 29;
 const RACING_ACCELERATION = 13;
 const RACING_OFF_ROAD_DECELERATION = 20;
-const RACING_STEERING_RATE = 1.15;
-const RACING_CURVE_DRIFT = 360;
+export const RACING_STEERING_RATE = 1.15;
+export const RACING_CURVE_DRIFT = 360;
+export const RACING_OFF_ROAD_LATERAL_THRESHOLD = 1;
 const RACING_MAX_LATERAL = 1.65;
 const RACING_CALIBRATION_INPUT_FRESH_MS = 250;
 
@@ -68,7 +69,6 @@ export interface RacingSnapshot {
 interface MutableInput {
   leanAngleRadians: number | null;
   lastLeanAtMs: number | null;
-  coarseSteering: -1 | 0 | 1;
   targetSteering: number;
 }
 
@@ -89,26 +89,19 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function steeringFromLean(relativeLean: number, current: -1 | 0 | 1): -1 | 0 | 1 {
-  if (current === 0) {
-    if (relativeLean >= RACING_LEAN_ENTER_RADIANS) {
-      return 1;
-    }
-    if (relativeLean <= -RACING_LEAN_ENTER_RADIANS) {
-      return -1;
-    }
+export function racingSteeringTargetFromLean(relativeLean: number): number {
+  const magnitude = Math.abs(relativeLean);
+  if (magnitude <= RACING_LEAN_DEAD_ZONE_RADIANS) {
     return 0;
   }
-  if (current === 1) {
-    if (relativeLean <= -RACING_LEAN_ENTER_RADIANS) {
-      return -1;
-    }
-    return relativeLean <= RACING_LEAN_RELEASE_RADIANS ? 0 : 1;
-  }
-  if (relativeLean >= RACING_LEAN_ENTER_RADIANS) {
-    return 1;
-  }
-  return relativeLean >= -RACING_LEAN_RELEASE_RADIANS ? 0 : -1;
+  const normalized = clamp(
+    (magnitude - RACING_LEAN_DEAD_ZONE_RADIANS) /
+      (RACING_LEAN_FULL_SCALE_RADIANS - RACING_LEAN_DEAD_ZONE_RADIANS),
+    0,
+    1,
+  );
+  const smoothMagnitude = normalized * normalized * (3 - 2 * normalized);
+  return Math.sign(relativeLean) * smoothMagnitude;
 }
 
 function createCar(slot: RacingPlayerSlot): MutableCar {
@@ -214,7 +207,6 @@ export class RacingSession {
         for (const input of this.inputs.values()) {
           input.leanAngleRadians = null;
           input.lastLeanAtMs = null;
-          input.coarseSteering = 0;
           input.targetSteering = 0;
         }
       }
@@ -289,7 +281,6 @@ export class RacingSession {
     const current = this.inputs.get(observation.slot) ?? {
       leanAngleRadians: null,
       lastLeanAtMs: null,
-      coarseSteering: 0 as const,
       targetSteering: 0,
     };
     current.leanAngleRadians = observation.leanAngleRadians;
@@ -304,11 +295,9 @@ export class RacingSession {
     } else if (this.corePhase === "racing") {
       const neutral = this.neutralAngles.get(observation.slot);
       if (neutral !== undefined) {
-        current.coarseSteering = steeringFromLean(
+        current.targetSteering = racingSteeringTargetFromLean(
           observation.leanAngleRadians - neutral,
-          current.coarseSteering,
         );
-        current.targetSteering = current.coarseSteering;
       }
     }
     this.inputs.set(observation.slot, current);
@@ -330,7 +319,6 @@ export class RacingSession {
     this.lastTickAtMs = nowMs;
     for (const input of this.inputs.values()) {
       input.lastLeanAtMs = null;
-      input.coarseSteering = 0;
       input.targetSteering = 0;
     }
     for (const car of this.cars.values()) {
@@ -350,7 +338,6 @@ export class RacingSession {
       );
       const input = this.inputs.get(slot);
       if (input !== undefined) {
-        input.coarseSteering = 0;
         input.targetSteering = 0;
       }
     }
@@ -388,7 +375,6 @@ export class RacingSession {
         input?.lastLeanAtMs !== undefined &&
         nowMs - input.lastLeanAtMs <= RACING_INPUT_GRACE_MS;
       if (!trackingAvailable && input !== undefined) {
-        input.coarseSteering = 0;
         input.targetSteering = 0;
       }
       const targetSteering = trackingAvailable ? (input?.targetSteering ?? 0) : 0;
@@ -405,7 +391,7 @@ export class RacingSession {
           curve * RACING_CURVE_DRIFT * speedRatio * speedRatio) *
         deltaSeconds;
       car.lateral = clamp(car.lateral, -RACING_MAX_LATERAL, RACING_MAX_LATERAL);
-      const offRoad = Math.abs(car.lateral) > 1;
+      const offRoad = Math.abs(car.lateral) > RACING_OFF_ROAD_LATERAL_THRESHOLD;
       const speedLimit = offRoad ? RACING_OFF_ROAD_MAX_SPEED : RACING_MAX_SPEED;
       if (car.speed < speedLimit) {
         car.speed = Math.min(speedLimit, car.speed + RACING_ACCELERATION * deltaSeconds);

@@ -1,6 +1,6 @@
 # JojixPlay
 
-JojixPlay is a greenfield static web application that turns a phone into a private body controller. It can pair a phone with a television browser over direct WebRTC, or run the complete mirrored playfield locally through **Play on this phone** for standalone use or operating-system screen mirroring. Draw, Bubbles, and Racing all use the same game implementations in both topologies.
+JojixPlay is a greenfield static web application that turns a phone into a private body controller. It can pair a phone with a television browser over direct WebRTC, or run the complete mirrored playfield locally through **Play on this phone** for standalone use or operating-system screen mirroring. Draw, Bubbles, and analog-steered Racing use the same game and procedural-sound implementations in both rendering topologies.
 
 Start with [`AGENTS.md`](AGENTS.md) and the [`docs/`](docs/README.md) knowledge base. The paired flow is defined in [Phone-to-television](docs/product/skeleton-viewer.md), while the direct flow is defined in [Play on this phone](docs/product/local-play.md).
 
@@ -32,7 +32,7 @@ Use `npm run validate` for the complete canonical quality suite. All commands an
 4. Press **Start local play** and use the same mirrored body controls and games directly. Local play shows no raw camera preview.
 5. Press **Stop** when finished to release the camera and local play resources.
 
-Camera access requires HTTPS or localhost. The application requests no audio and retains no session data. Paired mode sends only validated pose landmarks over the peer connection; local mode creates no peer connection and keeps its camera capture source hidden.
+Camera access requires HTTPS or localhost. The application requests no microphone and retains no session data. Output-only procedural sound starts on the television or local-play phone from its explicit Start action; the paired camera phone remains silent. Paired mode sends only validated pose landmarks over the peer connection; local mode creates no peer connection and keeps its camera capture source hidden.
 
 ## Deployment
 

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: User-visible behavior and implemented design for the Bubbles game
 ---
 
@@ -83,7 +83,7 @@ Bubbles — Finished
 - The associated score counter pulses. A replacement bubble fades/scales into its scheduled position.
 - The live procedural avatar remains above the arena with the `bubbles` profile at 16% opacity; brighter raw-input hand rings remain the clearest gameplay feedback.
 - Ready and result message panels sit near the top center and below the body-control button layer, so Start, Exit, and Play Again remain visually unobstructed even if projected geometry overlaps them.
-- No image, audio, font, or game-engine asset is added.
+- No image, font, audio file, or game-engine asset is added. The application-owned procedural audio runtime supplies countdown, Go, radius-pitched pop, and finish cues without entering Bubbles domain state.
 
 ## Failure and boundary behavior
 
@@ -120,8 +120,8 @@ Bubbles — Finished
 8. The finished state declares the sole score, the left/right winner, or a tie and exposes neutrally re-armed Play Again and Exit actions.
 9. Radius-aware clamp-and-reflect keeps the complete bubble visible through edge contact, corners, frame stalls, and same-layout aspect changes.
 10. One-player Bubbles accepts either layout, two-player Bubbles cannot mount before an acknowledged landscape packet, and an active mismatch resumes with no lost game time or bridge collision.
-11. Bubbles imports no external asset, backend, persistence, stable player identity, game engine, audio path, or avatar-stabilized display value.
+11. Bubbles imports no external asset, backend, persistence, stable player identity, game engine, owned audio context, or avatar-stabilized display value; it emits presentation events through the shared application-audio boundary.
 12. Ready and result message panels remain near the top and below actionable controls in the stacking order.
 13. Automated gates prove deterministic behavior; real-device acceptance measures hit tolerance, side attribution, orientation transitions, readability, sustained rendering, and perceived responsiveness.
 
-The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md), visible body presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), and camera layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md).
+The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md), visible body presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), camera layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md), and sound is governed by [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](audio.md).

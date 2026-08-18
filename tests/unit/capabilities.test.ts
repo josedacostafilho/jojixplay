@@ -22,6 +22,14 @@ describe("mode-specific capability checks", () => {
     vi.stubGlobal("Worker", class WorkerMock {});
     vi.stubGlobal("createImageBitmap", vi.fn());
     vi.stubGlobal("ResizeObserver", class ResizeObserverMock {});
+    vi.stubGlobal(
+      "AudioContext",
+      class AudioContextMock {
+        public createGain(): void {}
+        public createOscillator(): void {}
+        public createStereoPanner(): void {}
+      },
+    );
     vi.stubGlobal("WebSocket", undefined);
     vi.stubGlobal("RTCPeerConnection", undefined);
   });
@@ -43,5 +51,13 @@ describe("mode-specific capability checks", () => {
       supported: false,
       missing: expect.arrayContaining(["WebSockets", "WebRTC DataChannels"]),
     });
+  });
+
+  it("requires native Web Audio only on the rendering hosts", () => {
+    vi.stubGlobal("AudioContext", undefined);
+
+    expect(inspectPhoneControllerCapabilities().missing).not.toContain("Web Audio");
+    expect(inspectLocalPlayCapabilities().missing).toContain("Web Audio");
+    expect(inspectTvDisplayCapabilities().missing).toContain("Web Audio");
   });
 });

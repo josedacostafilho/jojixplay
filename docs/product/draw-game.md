@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: User-visible contract and acceptance criteria for the first JojixPlay game
 ---
 
@@ -14,9 +14,14 @@ Draw is the first playable JojixPlay content. One temporarily claimed controller
 
 ```text
 Main Menu
-├── Background
+├── Games
 ├── Players: 1 / Players: 2
-└── Games
+└── Settings
+    ├── Sound: On / Sound: Off
+    ├── Background
+    └── Return → Main Menu
+
+Games
     ├── Draw
     ├── Bubbles
     ├── Racing
@@ -91,10 +96,11 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 - Returning to the captured layout retains the existing art/tool/color but begins from fresh gesture, cursor, controller, and path history. Re-entering Draw from a menu in the other layout clears the old normalized canvas before accepting input.
 - Physical camera movement cannot be detected or compensated reliably from pose-only data. The phone is expected to remain stationary.
 - Draw never sends artwork, tool state, or pixels across a peer connection or to a remote service.
+- The rendering host supplies bounded Pencil/Eraser contact texture plus tool, color, and clear cues. Draw session state remains audio-free, and mute never changes paths or gesture behavior.
 
 ## Acceptance criteria
 
-1. Main Menu exposes Background, Players, and Games; Games exposes Draw, Bubbles, Racing, and Return.
+1. Main Menu exposes Games, Players, and Settings; Settings exposes Sound, Background, and Return; Games exposes Draw, Bubbles, Racing, and Return.
 2. Draw atomically exposes Pencil/Eraser, Color, Clear, and Exit in a smaller vertical column inside the projected frame's left edge.
 3. Draw shows a white board exactly matching the projected camera frame and dark non-drawable letterbox space.
 4. Bringing both complete hands within `0.75 ×` shoulder span immediately activates the selected tool without a timer.
@@ -106,4 +112,4 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 10. The procedural avatar remains useful but visually subordinate at 24% opacity, and its display-only stabilization never changes Draw input.
 11. Automated gates prove the threshold boundaries, hysteresis, main-hand ownership, one-cursor UI, and vertical layout; real-device acceptance records comfort, continuity, false activation/release, button reach, and perceived latency.
 
-The current Draw interaction is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md). The game boundary originates in [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md), unsmoothed-pose ownership and diagnostics remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md), avatar presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), and layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md).
+The current Draw interaction is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md). The game boundary originates in [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md), unsmoothed-pose ownership and diagnostics remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md), avatar presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md), and sound is governed by [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](audio.md).

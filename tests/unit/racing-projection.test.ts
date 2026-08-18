@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { projectRacingObject, projectRacingRoad } from "../../src/games/racing/racing-projection";
 import type { RacingCarSnapshot } from "../../src/games/racing/racing-session";
+import { RACING_CURVE_DRIFT, RACING_STEERING_RATE } from "../../src/games/racing/racing-session";
 import {
   RACING_TRACK,
   createRacingTrack,
@@ -23,8 +24,8 @@ function car(distance = 0, lateral = 0): RacingCarSnapshot {
 describe("Racing track and projection", () => {
   it("builds one finite monotonic point-to-point course", () => {
     const track = createRacingTrack();
-    expect(track.points.length).toBeGreaterThan(200);
-    expect(track.length).toBeGreaterThan(2_500);
+    expect(track.points.length).toBeGreaterThan(280);
+    expect(track.length).toBeGreaterThan(3_400);
     for (const [index, point] of track.points.entries()) {
       expect(Object.values(point).every(Number.isFinite)).toBe(true);
       if (index > 0) {
@@ -33,6 +34,25 @@ describe("Racing track and projection", () => {
     }
     expect(racingTrackPointAt(track, -1).distance).toBe(0);
     expect(racingTrackPointAt(track, track.length + 1).distance).toBe(track.length);
+  });
+
+  it("authors frequent balanced turns whose full-speed demand stays below full steering", () => {
+    const track = createRacingTrack();
+    const meaningfulCurves = track.points
+      .map(({ curve }) => curve)
+      .filter((curve) => Math.abs(curve) > 0.0001);
+    const signs = meaningfulCurves.map((curve) => Math.sign(curve));
+    const directionChanges = signs.reduce(
+      (count, sign, index) => count + (index > 0 && sign !== signs[index - 1] ? 1 : 0),
+      0,
+    );
+    const maximumCurve = Math.max(...meaningfulCurves.map(Math.abs));
+
+    expect(directionChanges).toBeGreaterThanOrEqual(7);
+    expect(Math.min(...meaningfulCurves)).toBeLessThan(-0.0024);
+    expect(Math.max(...meaningfulCurves)).toBeGreaterThan(0.0025);
+    expect(maximumCurve).toBeLessThanOrEqual(0.00265);
+    expect((maximumCurve * RACING_CURVE_DRIFT) / RACING_STEERING_RATE).toBeLessThan(0.85);
   });
 
   it.each([
@@ -70,13 +90,44 @@ describe("Racing track and projection", () => {
     expect(nearestSlice?.far.y).toBeLessThan(nearestSlice?.near.y ?? 0);
   });
 
-  it("projects an opponent ahead and rejects one behind the chase camera", () => {
+  it("projects opponents through approach, side-by-side, and overtake depth", () => {
     const viewport = { width: 640, height: 720 };
     const cameraCar = car(400, 0);
-    const ahead = projectRacingObject(cameraCar, 440, 0.2, viewport);
-    const behind = projectRacingObject(cameraCar, 380, 0, viewport);
-    expect(ahead.visible).toBe(true);
-    expect(ahead.scale).toBeGreaterThan(0);
-    expect(behind.visible).toBe(false);
+    const farAhead = projectRacingObject(cameraCar, 440, 0.2, viewport);
+    const approaching = projectRacingObject(cameraCar, 408, 0.2, viewport);
+    const alongsideLeft = projectRacingObject(cameraCar, 400, -0.45, viewport);
+    const alongsideRight = projectRacingObject(cameraCar, 400, 0.45, viewport);
+    const justOvertaken = projectRacingObject(cameraCar, 396, 0.2, viewport);
+    const behindCamera = projectRacingObject(cameraCar, 390, 0, viewport);
+
+    expect(farAhead.visible).toBe(true);
+    expect(approaching.visible).toBe(true);
+    expect(approaching.scale).toBeGreaterThan(farAhead.scale);
+    expect(alongsideLeft.visible).toBe(true);
+    expect(alongsideRight.visible).toBe(true);
+    expect(alongsideLeft.x).toBeLessThan(alongsideRight.x);
+    expect(justOvertaken.visible).toBe(true);
+    expect(behindCamera.visible).toBe(false);
+  });
+
+  it("keeps an opponent finite and visible while both cars enter a strong curve", () => {
+    const viewport = { width: 640, height: 720 };
+    const strongestPoint = RACING_TRACK.points.reduce((strongest, point) =>
+      Math.abs(point.curve) > Math.abs(strongest.curve) ? point : strongest,
+    );
+    const cameraCar = car(Math.max(20, strongestPoint.distance - 24), 0.3);
+    const opponent = projectRacingObject(cameraCar, strongestPoint.distance, -0.35, viewport);
+
+    expect(opponent.visible).toBe(true);
+    expect([opponent.x, opponent.y, opponent.scale, opponent.depth].every(Number.isFinite)).toBe(
+      true,
+    );
+    expect(opponent.scale).toBeGreaterThan(0);
+  });
+
+  it("rejects an opponent beyond the forward draw distance", () => {
+    const viewport = { width: 640, height: 720 };
+    const opponent = projectRacingObject(car(400, 0), 2_000, 0, viewport);
+    expect(opponent.visible).toBe(false);
   });
 });

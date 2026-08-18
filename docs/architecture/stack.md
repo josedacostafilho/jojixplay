@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -21,6 +21,7 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Lite model and generated runtime assets |
 | Peer rendezvous/transport | Trystero default Nostr strategy / WebRTC | 0.25.3 | `npm ls trystero` |
 | Racing runtime and renderer | Phaser forced to Canvas | 4.2.1 | `npm ls phaser` and the lazy production Racing chunk |
+| Rendering-host sound | Standard Web Audio API | Browser-native | `src/audio/audio-engine.ts` and mode-specific capability tests |
 | QR generation | `qrcode` | 1.5.4 | TV-only dynamic import |
 | Formatter | Biome | 2.5.8 | `npm run format` |
 | Linter | Biome | 2.5.8 | `npm run lint` |
@@ -64,6 +65,13 @@ These commands are executable and are the only canonical paths for their concern
 - Racing always constructs `Phaser.CANVAS`. `AUTO`, WebGL, runtime renderer selection, and renderer fallbacks are forbidden by [ADR-0016](../decisions/0016-phaser-canvas-racing.md).
 - Preact owns navigation and semantic controls; pure TypeScript owns Racing input, simulation, track, and projection; Phaser owns the mounted canvas lifecycle, view cameras, frame callback, and drawing only.
 - As measured on 2026-08-15, the separate minified Racing chunk is approximately `1.38 MB` (`361 kB` gzip) and triggers Vite's generic `500 kB` advisory. The advisory is intentionally not suppressed: lazy loading keeps the cost off every other route, while target-TV startup, memory, and sustained cadence remain explicit acceptance risks.
+
+## Audio boundary
+
+- [`src/audio/audio-engine.ts`](../../src/audio/audio-engine.ts) is the sole sound implementation. It uses the standard browser `AudioContext` directly and synthesizes every current cue; there is no audio package, downloaded sound asset, HTML Audio path, prefixed API, or Phaser sound manager.
+- Television and local modes require Web Audio and create their one context only from the existing trusted Start action. The paired camera phone neither requires nor constructs audio.
+- `BodyPlayfield` consumes the narrow injected audio interface. Pure game sessions, pose code, transport, and the Phaser runtime do not import or own Web Audio state.
+- [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](../product/audio.md) define activation, mute, voice bounds, visibility, failure, and cleanup behavior.
 
 ## Static artifact and deployment
 

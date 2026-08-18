@@ -23,14 +23,25 @@ export interface RacingTrack {
 }
 
 const TRACK_SECTIONS = [
-  { segments: 28, targetCurve: 0, elevationDelta: 0 },
-  { segments: 34, targetCurve: 0.00125, elevationDelta: 12 },
-  { segments: 22, targetCurve: 0, elevationDelta: -5 },
-  { segments: 42, targetCurve: -0.00155, elevationDelta: 3 },
-  { segments: 26, targetCurve: 0, elevationDelta: 15 },
-  { segments: 32, targetCurve: 0.0017, elevationDelta: -20 },
-  { segments: 38, targetCurve: -0.0011, elevationDelta: 7 },
-  { segments: 30, targetCurve: 0, elevationDelta: -12 },
+  { segments: 14, targetCurve: 0, elevationDelta: 0 },
+  { segments: 18, targetCurve: 0.0013, elevationDelta: 5 },
+  { segments: 16, targetCurve: 0.00245, elevationDelta: 7 },
+  { segments: 10, targetCurve: 0.00245, elevationDelta: -4 },
+  { segments: 12, targetCurve: 0, elevationDelta: -6 },
+  { segments: 22, targetCurve: -0.00165, elevationDelta: 6 },
+  { segments: 14, targetCurve: -0.00255, elevationDelta: 8 },
+  { segments: 12, targetCurve: 0, elevationDelta: -5 },
+  { segments: 15, targetCurve: 0.0022, elevationDelta: -6 },
+  { segments: 18, targetCurve: -0.00235, elevationDelta: 3 },
+  { segments: 10, targetCurve: 0, elevationDelta: 4 },
+  { segments: 24, targetCurve: 0.00145, elevationDelta: 12 },
+  { segments: 12, targetCurve: 0.00265, elevationDelta: -4 },
+  { segments: 12, targetCurve: 0, elevationDelta: -8 },
+  { segments: 20, targetCurve: -0.00185, elevationDelta: -8 },
+  { segments: 10, targetCurve: -0.00185, elevationDelta: 2 },
+  { segments: 14, targetCurve: 0.00245, elevationDelta: 5 },
+  { segments: 14, targetCurve: -0.00245, elevationDelta: -5 },
+  { segments: 20, targetCurve: 0, elevationDelta: 0 },
 ] as const satisfies readonly RacingTrackSection[];
 
 function smoothStep(value: number): number {

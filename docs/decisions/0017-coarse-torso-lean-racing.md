@@ -1,16 +1,16 @@
 ---
-status: Active
-last_verified: 2026-08-15
+status: Superseded
+last_verified: 2026-08-18
 scope: Racing steering signal, calibration, hysteresis, dropout, and player feedback
 ---
 
 # ADR-0017: Hard-cut Racing steering to coarse torso lean
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-15
 - **Decision owners:** Project owner
 - **Supersedes:** The two-hand wheel steering and wheel-feedback portions of [ADR-0016](0016-phaser-canvas-racing.md); its runtime, simulation, course, layout, lease, pause, and teardown decisions remain active
-- **Superseded by:** None
+- **Superseded by:** [ADR-0019](0019-analog-torso-racing.md)
 
 ## Context
 

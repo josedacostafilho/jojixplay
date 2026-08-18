@@ -56,6 +56,18 @@ function playfieldChecks(): Array<[string, boolean]> {
   ];
 }
 
+function audioChecks(): Array<[string, boolean]> {
+  return [
+    [
+      "Web Audio",
+      typeof AudioContext === "function" &&
+        typeof AudioContext.prototype.createGain === "function" &&
+        typeof AudioContext.prototype.createOscillator === "function" &&
+        typeof AudioContext.prototype.createStereoPanner === "function",
+    ],
+  ];
+}
+
 export function inspectPhoneControllerCapabilities(): CapabilityReport {
   return report([
     ...secureContextChecks(),
@@ -66,9 +78,19 @@ export function inspectPhoneControllerCapabilities(): CapabilityReport {
 }
 
 export function inspectLocalPlayCapabilities(): CapabilityReport {
-  return report([...secureContextChecks(), ...cameraChecks(), ...playfieldChecks()]);
+  return report([
+    ...secureContextChecks(),
+    ...cameraChecks(),
+    ...playfieldChecks(),
+    ...audioChecks(),
+  ]);
 }
 
 export function inspectTvDisplayCapabilities(): CapabilityReport {
-  return report([...secureContextChecks(), ...peerChecks(), ...playfieldChecks()]);
+  return report([
+    ...secureContextChecks(),
+    ...peerChecks(),
+    ...playfieldChecks(),
+    ...audioChecks(),
+  ]);
 }

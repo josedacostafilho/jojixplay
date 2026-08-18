@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-17
+last_verified: 2026-08-18
 scope: Current system shape, boundaries, and architectural constraints
 ---
 
@@ -8,9 +8,9 @@ scope: Current system shape, boundaries, and architectural constraints
 
 ## Current state
 
-The runtime architecture is one static three-mode client. Television display plus paired phone controller use decentralized rendezvous and direct WebRTC pose delivery; **Play on this phone** sends the same camera controller's validated packets directly to the same mirrored `BodyPlayfield` without a peer layer. Both topologies share phone-local orientation normalization and inference, orientation-aware body navigation, one procedural avatar renderer, focused playfield-local Canvas renderers for Draw and Bubbles, and one lazy forced-Canvas Phaser adapter for Racing. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
+The runtime architecture is one static three-mode client. Television display plus paired phone controller use decentralized rendezvous and direct WebRTC pose delivery; **Play on this phone** sends the same camera controller's validated packets directly to the same mirrored `BodyPlayfield` without a peer layer. Both topologies share phone-local orientation normalization and inference, orientation-aware body navigation, one procedural avatar renderer, focused playfield-local Canvas renderers for Draw and Bubbles, one lazy forced-Canvas Phaser adapter for analog-steered Racing, and one native procedural Web Audio runtime on the rendering host. No application backend or persistence exists. Complete real-device acceptance remains outstanding.
 
-See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), [ADR-0006](../decisions/0006-session-player-limit-control.md), [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md), [ADR-0009](../decisions/0009-camera-paced-inference.md), [ADR-0010](../decisions/0010-menu-and-draw-game.md), [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md), [ADR-0012](../decisions/0012-two-hand-draw-grip.md), [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md), [ADR-0014](../decisions/0014-procedural-body-avatar.md), [ADR-0015](../decisions/0015-canonical-camera-orientation.md), [ADR-0016](../decisions/0016-phaser-canvas-racing.md), [ADR-0017](../decisions/0017-coarse-torso-lean-racing.md), [ADR-0018](../decisions/0018-all-in-one-phone-play.md), and the current product contracts in [`../product/`](../product/).
+See [ADR-0002](../decisions/0002-static-peer-to-peer-runtime.md), [ADR-0003](../decisions/0003-client-stack-and-renderer-boundary.md), [ADR-0005](../decisions/0005-mirrored-tv-pose-controls.md), [ADR-0006](../decisions/0006-session-player-limit-control.md), [ADR-0008](../decisions/0008-above-head-coarse-hand-controls.md), [ADR-0009](../decisions/0009-camera-paced-inference.md), [ADR-0010](../decisions/0010-menu-and-draw-game.md), [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md), [ADR-0012](../decisions/0012-two-hand-draw-grip.md), [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md), [ADR-0014](../decisions/0014-procedural-body-avatar.md), [ADR-0015](../decisions/0015-canonical-camera-orientation.md), [ADR-0016](../decisions/0016-phaser-canvas-racing.md), [ADR-0018](../decisions/0018-all-in-one-phone-play.md), [ADR-0019](../decisions/0019-analog-torso-racing.md), [ADR-0020](../decisions/0020-app-owned-procedural-audio.md), and the current product contracts in [`../product/`](../product/).
 
 ## System flow
 
@@ -30,6 +30,8 @@ GitHub Pages static application
               hidden capture source → normalization → same MediaPipe worker
                                                     ↓ direct in-memory PosePacket
                                               shared BodyPlayfield
+                                                    ↓
+                                          host-owned Canvas + Web Audio
 ```
 
 Camera pixels flow only through the phone camera element, transient `ImageBitmap`, and phone worker. The paired controller intentionally shows its own preview; local play does not. Pixels never enter `BodyPlayfield`, Trystero, WebRTC, persistence, or logs.
@@ -56,10 +58,10 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Concern | Current state | Canonical detail |
 | --- | --- | --- |
 | System context | Implemented | One static application with television display, paired phone controller, and all-in-one local play; public rendezvous applies only to the paired topology |
-| Runtime components | Implemented | Strict application-mode router, Preact pages, shared camera lifecycle, camera-orientation contract, MediaPipe worker, player-limit/game-policy contracts, optional peer room, `BodyPlayfield`, pose controls, isolated avatar presentation sessions, focused Draw/Bubbles Canvas renderers, and a lazy Phaser Canvas Racing adapter |
-| Data flow | Implemented | Camera bitmap + Screen Orientation → phone-owned quarter-turn normalization → MediaPipe → strict unsmoothed canonical PosePacket; paired mode validates/transfers it through WebRTC, while local mode delivers it directly in memory; both feed consumer-specific controls/Draw/Bubbles/Racing plus an isolated avatar display copy → owned Canvas renderer. Absolute player/layout changes are considered applied only after camera-controller success, with an exact peer acknowledgement where transport exists |
+| Runtime components | Implemented | Strict application-mode router, Preact pages, shared camera lifecycle, camera-orientation contract, MediaPipe worker, player-limit/game-policy contracts, optional peer room, `BodyPlayfield`, pose controls, isolated avatar presentation sessions, focused Draw/Bubbles Canvas renderers, a lazy Phaser Canvas Racing adapter, and one rendering-host Web Audio engine |
+| Data flow | Implemented | Camera bitmap + Screen Orientation → phone-owned quarter-turn normalization → MediaPipe → strict unsmoothed canonical PosePacket; paired mode validates/transfers it through WebRTC, while local mode delivers it directly in memory; both feed consumer-specific controls/Draw/Bubbles/Racing plus an isolated avatar display copy → owned Canvas renderer. Presentation transitions and continuous Draw/Racing state feed only the host audio boundary. Absolute player/layout changes are considered applied only after camera-controller success, with an exact peer acknowledgement where transport exists |
 | Persistence | None | Sessions and pose data are memory-only and ephemeral |
-| External integrations | Active | GitHub Pages workflow, Nostr relays through Trystero, browser WebRTC, MediaPipe runtime |
+| External integrations | Active | GitHub Pages workflow, Nostr relays through Trystero, browser WebRTC, MediaPipe runtime, and native Web Audio output |
 | Authentication/authorization | Mode-specific | Paired sessions use one 100-bit key and opposite phone/TV peer roles; local play creates no remote trust boundary or credential |
 | Deployment topology | Published | One static production artifact at `https://josedacostafilho.github.io/jojixplay/` |
 | Observability | Local only | User-visible state plus bounded phone-local cadence, processing-age, and motion-spread aggregates; no telemetry service |
@@ -82,18 +84,19 @@ These constraints supplement the invariants in [`../../AGENTS.md`](../../AGENTS.
 | Avatar presentation | Produce one immutable display copy per canvas; adaptively stabilize only continuous one-pose input and reset on zero/multiple poses or discontinuity | Presentation-local state; never an interaction or identity source |
 | Avatar renderer | Synthesize the sole faceless body view from bounded procedural head, torso, limb, joint, complete-hand, and complete-foot primitives | Canvas 2D only; no assets, engine, or stick-skeleton fallback |
 | Pose controls | Claim through wrist gestures, expose both coarse hands plus aspect-corrected shoulder span, freeze portrait overhead rows or compact left columns, reset on frame epochs, neutral-arm, emit action-specific dwell events, and suspend activation during active games | Validated playfield-local canonical pose input only |
-| Body playfield | Own mirrored Main Menu/Games/Draw/Bubbles/Racing navigation, orientation gates and active-game locks, phase-specific action surfaces, shared control projection, and each game's preserve/reset/pause policy | Shared Preact lifecycle, game-policy, and semantic-control boundary mounted by television or local play |
+| Body playfield | Own mirrored Main Menu/Settings/Games/Draw/Bubbles/Racing navigation, orientation gates and active-game locks, phase-specific action surfaces, shared control projection, presentation-audio events, and each game's preserve/reset/pause policy | Shared Preact lifecycle, game-policy, semantic-control, and injected-audio boundary mounted by television or local play |
 | Draw session | Own the Pencil/Eraser selection, immediate two-hand grip hysteresis, responsive main-hand path smoothing, and path-breaking rules in normalized camera coordinates | Pure playfield-local game domain |
 | Draw renderer | Incrementally render mirrored Pencil/Eraser paths inside the projected white camera board | Canvas 2D only |
 | Bubbles input adapter | Derive mirrored complete hands and current left/right screen slots from validated poses without creating identity | Pure current-packet domain transformation |
 | Bubbles session | Own readiness, exact round deadlines, normalized bubble simulation, swept collisions, side scores, pop lifecycle, and results | Pure playfield-local game domain with injected randomness for tests |
 | Bubbles renderer | Procedurally draw bubble bodies, bounded pop effects, score feedback, and hand hit rings inside the projected camera arena | Canvas 2D only; no downloaded assets |
 | Racing input | Derive mirrored aspect-corrected shoulder/hip torso lean, separate overhead pause gestures, and bounded temporary Solo/Left/Right leases from raw canonical poses | Pure playfield-local input; no avatar values or stable identity |
-| Racing session | Own valid-input calibration, automatic throttle, fixed-step car rules, pause/recenter/restart, active elapsed time, and finish results | Pure deterministic TypeScript domain; no Preact, Phaser, transport, or browser dependency |
-| Racing track/projection | Build one deterministic segmented course and project bounded road/object geometry, including an explicit near sample that covers the viewport bottom, for full or half playfield viewports | Pure immutable TypeScript geometry shared only with Racing |
+| Racing session | Own valid-input calibration, symmetric analog lean mapping, automatic throttle, fixed-step car rules, pause/recenter/restart, active elapsed time, and finish results | Pure deterministic TypeScript domain; no Preact, Phaser, transport, audio, or browser dependency |
+| Racing track/projection | Build the denser deterministic segmented course and project bounded road/opponent geometry, including an explicit near sample that covers the viewport bottom, for full or half playfield viewports | Pure immutable TypeScript geometry shared only with Racing |
 | Racing runtime | Lazy-load one Phaser instance, force Canvas, own one/two view cameras, procedural road/car/HUD drawing, resize, visibility pause, errors, and complete teardown | Racing-only vendor adapter; consumes the pure session and projection, never pose packets or transport objects |
-| TV display | Enter TV mode, create QR/manual-key session, receive packets, own acknowledged TV mode, and present connection freshness | User-visible session lifecycle |
-| Local play | Start camera from trusted activation, own best-effort fullscreen/wake lock, enforce one-second packet freshness, invoke reconfiguration directly, mount `BodyPlayfield`, hide the capture source, and release all local resources on stop/unmount | No peer, credential, transport, persistence, or visible camera-preview path |
+| Audio engine | Own one standard `AudioContext`, category/master gain graph, procedural one-shots, one Draw contact voice, at most one engine voice per car, mute, visibility handling, and teardown | Rendering host only; no paired-phone, game-domain, Phaser, transport, asset, or persistence ownership |
+| TV display | From one trusted activation, start required audio, request best-effort fullscreen, create the QR/manual-key session, receive packets, own acknowledged TV mode, and present connection freshness | User-visible paired rendering-host lifecycle |
+| Local play | From one trusted activation, start required audio and camera, own best-effort fullscreen/wake lock, enforce one-second packet freshness, invoke reconfiguration directly, mount `BodyPlayfield`, hide the capture source, and release all local resources on stop/unmount | No peer, credential, transport, persistence, or visible camera-preview path |
 
 ## Required component documentation
 
