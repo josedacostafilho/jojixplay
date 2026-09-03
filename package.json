@@ -30,7 +30,7 @@
     "phaser": "4.2.1",
     "preact": "10.29.8",
     "qrcode": "1.5.4",
-    "trystero": "0.25.3"
+    "trystero": "0.25.4"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",
