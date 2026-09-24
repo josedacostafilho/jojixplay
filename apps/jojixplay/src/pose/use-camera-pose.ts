@@ -90,7 +90,11 @@ export function useCameraPose(): CameraPoseLifecycle {
       if (mounted.current && cameraController.current === controller) {
         cameraController.current = null;
         setState("error");
-        setErrorMessage(error instanceof Error ? error.message : "Body tracking could not start.");
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível iniciar o reconhecimento de movimentos.",
+        );
       }
       return false;
     }
@@ -99,11 +103,11 @@ export function useCameraPose(): CameraPoseLifecycle {
   const setPoseLimit = useCallback(async (nextPoseLimit: PoseLimit): Promise<void> => {
     const controller = cameraController.current;
     if (controller === null) {
-      throw new Error("Body tracking is not active.");
+      throw new Error("O reconhecimento de movimentos não está ativo.");
     }
     await controller.setPoseLimit(nextPoseLimit);
     if (cameraController.current !== controller) {
-      throw new Error("Body tracking stopped before player mode changed.");
+      throw new Error("O reconhecimento parou antes da mudança de pessoas.");
     }
     poseLimitRef.current = nextPoseLimit;
     setPoseLimitState(nextPoseLimit);

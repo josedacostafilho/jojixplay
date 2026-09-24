@@ -33,7 +33,7 @@ afterEach(() => {
 
 it("mounts play only in landscape and stops it immediately on portrait rotation", () => {
   render(<App />);
-  expect(screen.getByRole("heading", { name: "Rotate your phone" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Vire o celular" })).toBeInTheDocument();
   expect(lifecycle.mount).not.toHaveBeenCalled();
   act(() => {
     landscape = true;
@@ -56,7 +56,7 @@ it.each(["?mode=tv", "?mode=phone", "?mode=local", "#key=removed"])(
   (suffix) => {
     history.replaceState(null, "", `/${suffix}`);
     render(<App />);
-    expect(screen.getByRole("alert")).toHaveTextContent("This link is invalid");
+    expect(screen.getByRole("alert")).toHaveTextContent("Este link é inválido");
     expect(lifecycle.mount).not.toHaveBeenCalled();
   },
 );

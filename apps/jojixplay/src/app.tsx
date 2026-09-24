@@ -26,10 +26,10 @@ export function App() {
     return (
       <main class="page page--centered">
         <section class="panel">
-          <h1>Open JojixPlay on your phone.</h1>
-          <p role="alert">This link is invalid. Open the website without a query or fragment.</p>
+          <h1>Abra o JojixPlay no seu celular.</h1>
+          <p role="alert">Este link é inválido. Abra o site pelo endereço principal.</p>
           <a class="button button--primary" href={import.meta.env.BASE_URL}>
-            Open JojixPlay
+            Abrir o JojixPlay
           </a>
         </section>
       </main>
@@ -45,9 +45,9 @@ export function App() {
         <span class="rotate-phone" aria-hidden="true">
           ↻
         </span>
-        <h1 id="rotate-title">Rotate your phone</h1>
-        <p>Turn your phone sideways to landscape to play. Keep screen rotation enabled.</p>
-        <p>Mirror your phone screen to your TV for a bigger playground.</p>
+        <h1 id="rotate-title">Vire o celular</h1>
+        <p>Deixe o celular deitado para brincar. Mantenha a rotação automática ativada.</p>
+        <p>Espelhe a tela do celular na TV para brincar em uma tela maior.</p>
       </section>
     </main>
   );

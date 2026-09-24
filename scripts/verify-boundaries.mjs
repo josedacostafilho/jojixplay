@@ -45,14 +45,20 @@ for (const [directory, manifest] of manifests) {
         const dependency = specifier.startsWith("@")
           ? specifier.split("/").slice(0, 2).join("/")
           : specifier.split("/")[0];
-        if (!manifest.dependencies?.[dependency])
+        if (
+          !manifest.dependencies?.[dependency] &&
+          !(
+            (file.includes("/tests/") || file.endsWith(".config.ts")) &&
+            manifest.devDependencies?.[dependency]
+          )
+        )
           throw new Error(`${file}: undeclared dependency ${dependency}`);
         if (dependency.startsWith("@jojixplay/")) {
           const target = [...manifests].find(([, value]) => value.name === dependency)?.[0];
           if (
             !target ||
             target.startsWith("apps/") ||
-            target.startsWith("games/") ||
+            (target.startsWith("games/") && !directory.startsWith("apps/")) ||
             target === "packages/game-dev" ||
             dependency !== specifier
           )

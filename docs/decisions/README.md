@@ -33,8 +33,9 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0019](0019-analog-torso-racing.md) | Superseded | Hard-cut Racing to calibrated analog torso steering, a denser authored course, and explicit opponent projection |
 | [0020](0020-app-owned-procedural-audio.md) | Superseded | Add one rendering-host procedural Web Audio runtime with trusted activation and shared sound controls |
 | [0021](0021-landscape-phone-only.md) | Accepted | Run exclusively on the phone in landscape with external screen mirroring |
-
 | [0022](0022-independent-3d-platform.md) | Accepted | Isolate the new 3D platform, retire games and accept independent partial-body input |
+
+| [0023](0023-portuguese-desenhar.md) | Accepted | Use Brazilian Portuguese and introduce isolated one-/two-person Desenhar |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

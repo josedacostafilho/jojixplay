@@ -15,6 +15,7 @@ Vitest, Testing Library, Playwright, Biome, TypeScript, production building, and
 - Unit tests cover canonical orientation, packet validation, independent visible joints, freshness, visual smoothing resets, worker GPU configuration, camera single-flight inference, player reconfiguration and resource cleanup.
 - Component tests cover landscape gating and invalid links.
 - Production Chromium tests cover landscape entry, real Full GPU worker output, hidden capture, no peer APIs and stop/portrait cleanup.
+- Desenhar has its own isolated rules suite for solo/duo ownership, missing input, continuity, undo, handedness and bounded paint. Production browser coverage verifies both live-camera game entries and the standalone game's visible paint, tracking loss, clear cancellation and clear confirmation.
 - The independent input lab exercises full-body, cropped legs, upper-body, a single hand, missing input and unequal-height two-person observations.
 - Actual phones must pass [tracking acceptance](pose-quality.md). Automation is not hardware acceptance.
 

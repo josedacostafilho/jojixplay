@@ -443,3 +443,101 @@ a {
   padding-left: max(5vw, env(safe-area-inset-left));
   padding-right: max(5vw, env(safe-area-inset-right));
 }
+.draw-entry {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.draw-entry .start-button {
+  font-size: 15px;
+  padding: 12px 16px;
+  margin: 0;
+  gap: 8px;
+}
+.draw-entry .secondary-button {
+  font-size: 13px;
+}
+.playroom--drawing {
+  height: 100svh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  gap: 12px;
+}
+.playroom--drawing .room-header {
+  flex-shrink: 0;
+}
+.game-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.game-mount {
+  height: 100%;
+}
+.game-loading {
+  position: absolute;
+  inset: 40% 0;
+  text-align: center;
+}
+.game-back {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  border: 1px solid #c8d0c4;
+  border-radius: 18px;
+  background: #fffdf3;
+  color: #294b4b;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.playroom--live:not(.playroom--drawing) .welcome h1 {
+  font-size: clamp(30px, 4vw, 60px);
+}
+@media (max-height: 540px) and (orientation: landscape) {
+  .playroom--live:not(.playroom--drawing) .welcome-copy {
+    padding: 4px 0;
+  }
+  .playroom--live:not(.playroom--drawing) .welcome h1 {
+    font-size: 28px;
+    margin: 6px 0;
+  }
+  .playroom--live:not(.playroom--drawing) .welcome-copy > p {
+    margin: 4px 0;
+    font-size: 11px;
+  }
+  .playroom--live .draw-entry .start-button {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .playroom--live .draw-entry .secondary-button {
+    padding: 8px;
+    font-size: 11px;
+  }
+  .playroom--live .draw-entry {
+    gap: 7px;
+  }
+  .playroom--live .tracking-note {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+  .playroom--live:not(.playroom--drawing) .room-footer {
+    display: none;
+  }
+  .playroom--drawing {
+    gap: 8px;
+  }
+  .playroom--drawing .brand {
+    font-size: 22px;
+  }
+  .game-back {
+    top: 8px;
+    font-size: 12px;
+  }
+}

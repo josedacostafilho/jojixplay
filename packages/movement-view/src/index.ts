@@ -37,7 +37,7 @@ export function mountMovementView(container: HTMLElement): Experience {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.setClearColor(0xffffff, 0);
-  renderer.domElement.setAttribute("aria-label", "Live movement visualization");
+  renderer.domElement.setAttribute("aria-label", "Visualização dos movimentos");
   container.append(renderer.domElement);
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-4, 4, 2.5, -2.5, 0.1, 40);

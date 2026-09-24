@@ -7,6 +7,7 @@
     "@jojixplay/game-sdk": "*",
     "@jojixplay/movement-view": "*",
     "@mediapipe/tasks-vision": "1.0.1",
-    "preact": "10.29.8"
+    "preact": "10.29.8",
+    "@jojixplay/desenhar": "*"
   }
 }

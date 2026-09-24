@@ -8,15 +8,17 @@ last_verified: 2026-09-24
 ## Implemented
 
 - Phone-only landscape entry and teardown; external screen mirroring only.
-- New children's playroom UI and adult-assisted movement check.
+- Brazilian Portuguese product UI, adult-assisted movement check and Desenhar entry.
 - npm workspace isolation with a renderer-independent named-joint SDK and independent synthetic input lab.
 - Three.js WebGL2 diagnostic/toy scene. All previous games, Canvas renderers, Phaser, game audio and body-menu controls removed.
 - MediaPipe Full GPU replaces Lite; one worker, one estimate in flight, local hidden capture.
 - Independent per-joint availability, capture-age expiry and presentation-only jitter filtering. No whole-body prerequisite.
 
-## Deferred by the owner
+## First game
 
-No games ship in this foundation. A newly designed Draw will test drive it later. The owner chooses all game designs. Blender-authored game assets begin when an actual game calls for them.
+Desenhar supports solo and shared two-person painting. It uses isolated rules, bounded instanced Three.js paint, independent colors/widths/hand preference, wrist hover or touch controls, undo and confirmed clear. See [Desenhar](../product/desenhar.md). Future games remain the owner's choice.
+
+The owner reports tracking works on the Galaxy S22. This confirms their movement check; new game ergonomics and sustained two-person painting still need phone acceptance.
 
 ## Unknown / acceptance risks
 
@@ -28,4 +30,4 @@ GitHub Pages deploys validated `main` pushes to [JojixPlay](https://josedacostaf
 
 ## Validation
 
-The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, both production builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory; the audit reports two existing moderate development-tool advisories in Vitest/mocker.
+The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, all three production builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory; the audit reports two existing moderate development-tool advisories in Vitest/mocker.

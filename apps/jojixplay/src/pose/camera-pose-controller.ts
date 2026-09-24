@@ -36,7 +36,7 @@ function assetUrl(path: string): string {
 
 function cameraErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.startsWith("The pose")) {
-    return error.message;
+    return "O reconhecimento de movimentos falhou. Encerre o teste e tente novamente.";
   }
   if (
     error instanceof Error &&
@@ -48,20 +48,20 @@ function cameraErrorMessage(error: unknown): string {
       error.message.startsWith("Pose tracking") ||
       error.message.startsWith("Square camera"))
   ) {
-    return `${error.message} Keep screen rotation enabled and restart body tracking.`;
+    return "Não foi possível ajustar a câmera. Deixe o celular deitado, ative a rotação automática e reinicie o teste.";
   }
   if (error instanceof DOMException) {
     if (error.name === "NotAllowedError" || error.name === "SecurityError") {
-      return "Camera access was denied. Allow camera access and try again.";
+      return "O acesso à câmera foi negado. Permita o acesso e tente novamente.";
     }
     if (error.name === "NotFoundError") {
-      return "No usable camera was found on this device.";
+      return "Não encontramos uma câmera disponível neste aparelho.";
     }
     if (error.name === "NotReadableError") {
-      return "The camera is busy or could not be opened.";
+      return "A câmera está sendo usada ou não pôde ser aberta. Feche outros aplicativos e tente novamente.";
     }
   }
-  return "Camera and pose tracking could not start on this device.";
+  return "Não foi possível iniciar a câmera e o reconhecimento de movimentos. Tente novamente.";
 }
 
 export class CameraPoseController {
@@ -138,10 +138,10 @@ export class CameraPoseController {
 
   public async setPoseLimit(poseLimit: PoseLimit): Promise<void> {
     if (!this.active) {
-      throw new Error("Body tracking is not active.");
+      throw new Error("O reconhecimento de movimentos não está ativo.");
     }
     if (this.changingPoseLimit) {
-      throw new Error("Player mode is already changing.");
+      throw new Error("A mudança de pessoas já está em andamento.");
     }
     if (poseLimit === this.poseLimit) {
       return;
@@ -151,16 +151,18 @@ export class CameraPoseController {
     try {
       await this.processingPromise;
       if (!this.active) {
-        throw new Error("Body tracking stopped before player mode changed.");
+        throw new Error("O reconhecimento parou antes da mudança de pessoas.");
       }
       await this.estimator.setPoseLimit(poseLimit);
       this.poseLimit = poseLimit;
     } catch {
       if (this.active) {
-        this.options.onError("Player mode could not be changed. Restart body tracking to retry.");
+        this.options.onError(
+          "Não foi possível mudar o número de pessoas. Reinicie o teste para tentar novamente.",
+        );
         this.stop();
       }
-      throw new Error("Player mode could not be changed.");
+      throw new Error("Não foi possível mudar o número de pessoas.");
     } finally {
       this.changingPoseLimit = false;
     }

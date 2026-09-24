@@ -10,9 +10,9 @@ Before changing code, read relevant material in this order: [status](docs/projec
 
 ## Product and architecture
 
-The owner selects games. All old games are retired. New Draw is deferred. The audience is ages 4–7 with an adult nearby or playing together. Use a playful, colorful, readable interface without marketing-page scaffolding. Setup is touch operated by an adult.
+The owner selects games. All old games are retired. The first new game, Desenhar, supports one or two people. All product copy is Brazilian Portuguese (pt-BR); engineering documentation and development conversation remain English. The audience is ages 4–7 with an adult nearby or playing together. Use a playful, colorful, readable interface without marketing-page scaffolding. Setup is touch operated by an adult.
 
-[ADR-0022](docs/decisions/0022-independent-3d-platform.md) governs the workspace cutover. Application code lives in `apps/jojixplay`; public contracts in `packages/game-sdk`; a diagnostic Three.js scene in `packages/movement-view`; independent synthetic development in `packages/game-dev`. Future games own their rules, assets, tests and builds, and may not import the app or another game. Do not build unneeded game systems before games exist.
+[ADR-0022](docs/decisions/0022-independent-3d-platform.md) governs the workspace cutover. Application code lives in `apps/jojixplay`; public contracts in `packages/game-sdk`; a diagnostic Three.js scene in `packages/movement-view`; independent synthetic development in `packages/game-dev`. `games/desenhar` owns its rules, Three.js paint rendering, controls, tests and independent development build. Games own their rules, assets, tests and builds, and may not import the app or another game. Do not build unneeded game systems before games exist.
 
 ## Invariants
 
@@ -27,6 +27,7 @@ The owner selects games. All old games are retired. New Draw is deferred. The au
 - A session starts with one-person inference. Two-person mode is displayed only after the camera successfully applies it.
 - Stale observations must disappear. Stop, error, portrait and unmount release workers, media tracks, scene resources and owned immersive state.
 - Three.js WebGL2 is the only rendering path. Preact owns UI. No Canvas 2D, Phaser or renderer fallback. Future authored 3D assets use Blender-to-GLB.
+- Desenhar uses explicit one-/two-person mode selected before mount. Two-person brush ownership uses separate screen-side shoulder zones, not array order. Missing or stale joints break strokes without deleting art; clear and exit require confirmation.
 - Game input and lifecycle contracts stay narrow. Games own interpretation and effects. The host owns permissions and session resources.
 - Target-phone tracking quality, heat and mirroring latency require real-device measurement; browser tests cannot establish them.
 

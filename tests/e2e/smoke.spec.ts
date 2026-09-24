@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test";
 test("requires landscape before exposing camera activation", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Rotate your phone" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vire o celular" })).toBeVisible();
   await expect(page.locator("video")).toHaveCount(0);
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.getByRole("button", { name: "Let’s get ready" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
 });
 
 test("phone play reaches a real local pose packet without preview or peer transport", async ({
@@ -66,7 +66,7 @@ test("phone play reaches a real local pose packet without preview or peer transp
   });
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Ready, set… wiggle!" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Preparar… brincar!" })).toBeVisible();
   await expect(page.getByRole("img", { name: /QR code/i })).toHaveCount(0);
   await expect(page.getByLabel("TV pairing key")).toHaveCount(0);
   await expect(page.getByLabel(/camera preview/i)).toHaveCount(0);
@@ -74,13 +74,15 @@ test("phone play reaches a real local pose packet without preview or peer transp
   await expect(captureSource).toHaveAttribute("aria-hidden", "true");
   await expect(captureSource).toHaveCSS("opacity", "0");
 
-  await page.getByRole("button", { name: "Let’s get ready" }).click();
-  await expect(page.getByRole("button", { name: "Finish movement check" })).toBeVisible({
+  await page.getByRole("button", { name: "Vamos começar" }).click();
+  await expect(page.getByRole("button", { name: "Encerrar o teste" })).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByRole("button", { name: "For grown-ups" }).click();
-  await expect(page.locator(".diagnostic")).toContainText(/ms since capture/, { timeout: 30_000 });
-  await page.getByRole("button", { name: "Close grown-up settings" }).click();
+  await page.getByRole("button", { name: "Para os adultos" }).click();
+  await expect(page.locator(".diagnostic")).toContainText(/ms desde a captura/, {
+    timeout: 30_000,
+  });
+  await page.getByRole("button", { name: "Fechar orientações" }).click();
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, "__jojixplayFullscreenRequested")))
     .toBe(true);
@@ -91,18 +93,29 @@ test("phone play reaches a real local pose packet without preview or peer transp
     })),
   ).toEqual({ webSocket: "undefined", peerConnection: "undefined" });
 
-  await page.getByRole("button", { name: "Finish movement check" }).click();
-  await expect(page.getByRole("heading", { name: "Ready, set… wiggle!" })).toBeVisible();
+  await page.getByRole("button", { name: "✎ Desenhar sozinho" }).click();
+  await expect(page.getByRole("heading", { name: "Desenhar", exact: true })).toBeVisible();
+  await expect(page.locator("canvas")).toHaveCount(1);
+  await expect(page.getByText("Suas cores", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "← Voltar" }).click();
+  await page.getByRole("button", { name: "Sair e apagar" }).click();
+  await page.getByRole("button", { name: "✎ Desenhar em dupla" }).click();
+  await expect(page.getByText("Lado esquerdo", { exact: true })).toBeVisible();
+  await expect(page.getByText("Lado direito", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "← Voltar" }).click();
+  await page.getByRole("button", { name: "Sair e apagar" }).click();
+  await page.getByRole("button", { name: "Encerrar o teste" }).click();
+  await expect(page.getByRole("heading", { name: "Preparar… brincar!" })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayTrackStopCount"))))
     .toBeGreaterThan(0);
   await expect
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayWakeReleaseCount"))))
     .toBeGreaterThan(0);
-  await page.getByRole("button", { name: "Let’s get ready" }).click();
-  await expect(page.getByRole("button", { name: "Finish movement check" })).toBeVisible();
+  await page.getByRole("button", { name: "Vamos começar" }).click();
+  await expect(page.getByRole("button", { name: "Encerrar o teste" })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("heading", { name: "Rotate your phone" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vire o celular" })).toBeVisible();
   await expect(page.locator("video")).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayTrackStopCount"))))
@@ -111,5 +124,5 @@ test("phone play reaches a real local pose packet without preview or peer transp
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayWakeReleaseCount"))))
     .toBeGreaterThan(1);
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.getByRole("button", { name: "Let’s get ready" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
 });

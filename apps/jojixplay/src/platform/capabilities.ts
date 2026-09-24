@@ -19,19 +19,19 @@ function report(checks: Array<[string, boolean]>): CapabilityReport {
 }
 
 function secureContextChecks(): Array<[string, boolean]> {
-  return [["a secure browsing context", window.isSecureContext]];
+  return [["conexão segura", window.isSecureContext]];
 }
 
 function cameraChecks(): Array<[string, boolean]> {
   return [
-    ["camera access", typeof navigator.mediaDevices?.getUserMedia === "function"],
+    ["acesso à câmera", typeof navigator.mediaDevices?.getUserMedia === "function"],
     ["WebAssembly", typeof WebAssembly !== "undefined"],
     ["WebGL 2", hasWebGl2()],
-    ["module workers", typeof Worker !== "undefined"],
-    ["ImageBitmap transfer", typeof createImageBitmap === "function"],
-    ["video-frame callbacks", "requestVideoFrameCallback" in HTMLVideoElement.prototype],
+    ["processamento em segundo plano", typeof Worker !== "undefined"],
+    ["transferência de imagens", typeof createImageBitmap === "function"],
+    ["sincronização da câmera", "requestVideoFrameCallback" in HTMLVideoElement.prototype],
     [
-      "screen orientation",
+      "orientação da tela",
       typeof window.screen.orientation?.type === "string" &&
         typeof window.screen.orientation?.angle === "number",
     ],
@@ -40,8 +40,8 @@ function cameraChecks(): Array<[string, boolean]> {
 
 function playfieldChecks(): Array<[string, boolean]> {
   return [
-    ["responsive scene sizing", typeof ResizeObserver !== "undefined"],
-    ["worker GPU canvas", typeof OffscreenCanvas !== "undefined"],
+    ["ajuste da cena à tela", typeof ResizeObserver !== "undefined"],
+    ["gráficos em segundo plano", typeof OffscreenCanvas !== "undefined"],
   ];
 }
 

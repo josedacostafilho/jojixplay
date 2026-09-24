@@ -280,7 +280,9 @@ describe("camera pose controller player limit", () => {
 
     frameCallbacks[3]?.(1_600, {} as VideoFrameCallbackMetadata);
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
-    expect(onError).toHaveBeenCalledWith(expect.stringContaining("inconsistent"));
+    expect(onError).toHaveBeenCalledWith(
+      expect.stringContaining("Não foi possível ajustar a câmera"),
+    );
     expect(trackStop).toHaveBeenCalledOnce();
   });
 });

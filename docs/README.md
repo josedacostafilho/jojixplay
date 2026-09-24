@@ -8,6 +8,7 @@ Current truth lives in these documents. Historical decisions may describe retire
 - [Stack and commands](architecture/stack.md)
 - [Architecture and workspace boundaries](architecture/overview.md)
 - [Phone playroom](product/local-play.md)
+- [Desenhar](product/desenhar.md)
 - [Camera coordinates](product/camera-orientation.md)
 - [Tracking quality and device acceptance](engineering/pose-quality.md)
 - [Engineering standards](engineering/standards.md)

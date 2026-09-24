@@ -1,0 +1,228 @@
+.draw-game {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  color: #294b4b;
+  font-family: inherit;
+  background: #fbf8ef;
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 1px #e4dfd1;
+}
+.draw-paper {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(#c3c7b740 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.draw-paper canvas {
+  display: block;
+}
+.draw-heading {
+  position: absolute;
+  top: 18px;
+  left: 26px;
+  pointer-events: none;
+}
+.draw-heading > span {
+  font-size: 9px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: #7b8270;
+}
+.draw-heading h1 {
+  font-size: 30px;
+  letter-spacing: -1px;
+  margin: 3px 0;
+}
+.draw-tools {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 42px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+.draw-palette {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: #fffdf8f5;
+  border: 1px solid #e3dfcf;
+  border-radius: 20px;
+  box-shadow: 0 5px 20px #535c4812;
+  pointer-events: auto;
+}
+.draw-player {
+  position: absolute;
+  top: -20px;
+  left: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.draw-tools button {
+  position: relative;
+  border: 1px solid #c8d0c4;
+  border-radius: 14px;
+  background: linear-gradient(0deg, #f5d37b var(--dwell, 0%), #fffdf8 var(--dwell, 0%));
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  color: #294b4b;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.draw-tools button:focus-visible {
+  outline: 3px solid #294b4b;
+  outline-offset: 3px;
+}
+.draw-tools .draw-color {
+  background: var(--paint);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px #d7dbcf;
+}
+.draw-color span {
+  color: white;
+  font-size: 21px;
+  visibility: hidden;
+  text-shadow: 0 1px 3px #243e4e;
+}
+.draw-color[aria-pressed="true"] {
+  box-shadow: 0 0 0 3px #294b4b;
+}
+.draw-color[aria-pressed="true"] span {
+  visibility: visible;
+}
+.draw-color::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 17px;
+  background: conic-gradient(#294b4b var(--dwell, 0%), transparent 0);
+  pointer-events: none;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  padding: 3px;
+}
+.draw-tools .draw-clear {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+.draw-clear > span:first-child {
+  font-size: 23px;
+}
+.draw-hint {
+  position: absolute;
+  bottom: 7px;
+  left: 10px;
+  right: 10px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  color: #506761;
+  pointer-events: none;
+}
+.draw-dialog {
+  border: 1px solid #dfd7c5;
+  border-radius: 24px;
+  background: #fff9ed;
+  color: #294b4b;
+  max-width: 400px;
+  padding: 25px;
+  font-family: inherit;
+}
+.draw-dialog::backdrop {
+  background: #23443d66;
+}
+.draw-dialog button {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f5cc65;
+  color: #294b4b;
+  margin: 4px;
+  font: inherit;
+  min-height: 44px;
+}
+.draw-dialog h2 {
+  margin: 0;
+  font-size: 26px;
+}
+.draw-dialog p {
+  font-size: 15px;
+}
+@media (max-width: 1000px) {
+  .draw-tools {
+    gap: 8px;
+    bottom: 40px;
+  }
+  .draw-palette {
+    gap: 5px;
+    padding: 7px;
+    flex-wrap: wrap;
+    width: 245px;
+    justify-content: center;
+  }
+  .draw-game:has(.draw-palette:nth-child(2)) .draw-palette {
+    width: 235px;
+  }
+  .draw-game:has(.draw-palette:nth-child(2)) .draw-tools button {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+  }
+  .draw-game:has(.draw-palette:nth-child(2)) .draw-clear {
+    width: auto;
+  }
+  .draw-heading {
+    top: 12px;
+    left: 20px;
+  }
+  .draw-heading h1 {
+    font-size: 24px;
+  }
+  .draw-hint {
+    font-size: 10px;
+  }
+  .draw-game:not(:has(.draw-palette:nth-child(2))) .draw-palette {
+    width: auto;
+  }
+  .draw-game:not(:has(.draw-palette:nth-child(2))) .draw-tools button {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+  .draw-game:not(:has(.draw-palette:nth-child(2))) .draw-clear {
+    width: auto;
+  }
+}
+
+.draw-tools .draw-clear {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 14px);
+}
+.draw-game:has(.draw-palette:nth-child(2)) .draw-palette {
+  flex: 1;
+  min-width: 0;
+  max-width: 235px;
+}

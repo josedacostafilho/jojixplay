@@ -40,6 +40,8 @@ These commands are executable and are the only canonical paths for their concern
 | --- | --- |
 | Install dependencies | `npm ci` |
 | Start local development | `npm run dev` |
+| Independent Desenhar development | `npm run dev:draw` |
+| Desenhar unit tests | `npm test --workspace @jojixplay/desenhar` |
 | Independent input lab | `npm run dev:game` |
 | Workspace import boundaries | `npm run verify:boundaries` |
 | Format | `npm run format` |
@@ -60,7 +62,7 @@ These commands are executable and are the only canonical paths for their concern
 
 ## Rendering and game development
 
-Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:game` opens the independent synthetic input lab; its separate build is included in `npm run build`. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. No Blender tooling is required for current procedural toy forms.
+Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:game` opens the independent synthetic input lab; its separate build is included in `npm run build`. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run build` also builds this standalone game page. `npm test` runs both platform and isolated game suites. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. No Blender tooling is required for current procedural toy forms.
 
 The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. It is not suppressed; target-phone startup and memory remain acceptance risks.
 
