@@ -96,28 +96,28 @@ afterEach(() => {
 });
 
 describe("Avatar canvas", () => {
-  it("renders event-driven camera and stage profiles with an accessible label", () => {
+  it("renders event-driven stage profiles with an accessible label", () => {
     const view = render(
       <AvatarCanvas
         packet={packet(1)}
         label="Local live body avatar"
-        className="avatar-canvas avatar-canvas--camera"
-        appearance="camera"
+        className="avatar-canvas avatar-canvas--playfield"
+        appearance="stage"
       />,
     );
     flushAnimationFrames();
 
     const canvas = screen.getByRole("img", { name: "Local live body avatar" });
-    expect(canvas).toHaveClass("avatar-canvas--camera");
+    expect(canvas).toHaveClass("avatar-canvas--playfield");
     expect(canvas).toHaveAttribute("width", "640");
     expect(canvas).toHaveAttribute("height", "360");
-    expect(context.globalAlpha).toBe(AVATAR_APPEARANCES.camera.opacity);
+    expect(context.globalAlpha).toBe(AVATAR_APPEARANCES.stage.opacity);
 
     view.rerender(
       <AvatarCanvas
         packet={packet(1)}
         label="Local live body avatar"
-        className="avatar-canvas avatar-canvas--camera"
+        className="avatar-canvas avatar-canvas--playfield"
         appearance="stage"
       />,
     );
@@ -127,11 +127,11 @@ describe("Avatar canvas", () => {
   });
 
   it("clears the canvas when pose input disappears", () => {
-    const view = render(<AvatarCanvas packet={packet(1)} label="Avatar" appearance="camera" />);
+    const view = render(<AvatarCanvas packet={packet(1)} label="Avatar" appearance="stage" />);
     flushAnimationFrames();
     vi.mocked(context.clearRect).mockClear();
 
-    view.rerender(<AvatarCanvas packet={null} label="Avatar" appearance="camera" />);
+    view.rerender(<AvatarCanvas packet={null} label="Avatar" appearance="stage" />);
     flushAnimationFrames();
 
     expect(context.clearRect).toHaveBeenCalledWith(0, 0, 640, 360);

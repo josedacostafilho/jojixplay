@@ -10,38 +10,11 @@ scope: Repeatable one-player pose stability and latency measurement protocol
 
 This protocol turns subjective shaking into comparable one-player evidence without collecting video or pose coordinates. [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) owns the signal architecture and model-selection rationale. This document owns how contributors measure the current implementation and evaluate a replacement.
 
-## Current measurement surface
+## Measurement procedure
 
-While phone tracking is active, expand **Pose diagnostics** below the camera preview. The panel reports a rolling two-second window:
+The removed paired-phone preview and diagnostics panel are not part of the phone-only product. Numeric inference/hand-spread baselines remain unmeasured; do not claim requested camera FPS as achieved inference cadence.
 
-| Metric | Meaning | Interpretation |
-| --- | --- | --- |
-| Camera callbacks | Frames presented by the browser per second | Camera/browser delivery ceiling |
-| Orientation normalization | Screen type/angle, source dimensions, applied quarter-turn, canonical layout/dimensions, and epoch | Evidence that the phone and MediaPipe share one upright basis |
-| Inference submissions | Frames accepted by the single-flight estimator per second | Work offered after busy-frame dropping |
-| Inference completions | Pose packets completed per second | Achieved model cadence |
-| Processing age, median / p95 | Completion time minus the camera callback timestamp | Bitmap, worker, and MediaPipe delay on the phone |
-| Coarse-hand p95 spread | 95th-percentile radial distance from the rolling median hand center | Motion plus estimation noise; it represents jitter only while the hand is intentionally still |
-| Worst coarse landmark | Largest wrist/pinky/index/thumb p95 spread | Identifies whether one constituent dominates the hand center |
-
-All values are local, aggregate, bounded, and ephemeral. They are not telemetry and are not sent to the television.
-
-## Baseline procedure
-
-Run each measurement with exactly one player selected.
-
-1. Record the phone model, operating system, browser and version, canonical layout/dimensions, screen type/angle, source dimensions, applied rotation, epoch, lighting, and approximate person-to-camera distance.
-2. Mount the phone in its intended position. Keep the full body visible and make each hand large and unobstructed enough for all four coarse landmarks.
-3. Start tracking and allow at least 30 seconds of warm-up.
-4. Record camera, submission, completion, and processing-age values over a sustained 60-second run. Note temperature, visible throttling, and battery impact.
-5. Hold the left hand still for at least five seconds and record its coarse-hand and worst-landmark spread after the two-second window is fully stationary. Repeat three times.
-6. Repeat for the right hand.
-7. Enter Draw and record perceived cursor delay, immediate close-hand activation, wide-hand release, false activation/release, grip continuity, and visible Pencil/Eraser path quality while making slow curves and fast direction changes.
-8. Observe the phone and television avatars at rest, during slow movement, during fast direction changes, after a brief landmark dropout, and after leaving/re-entering frame. Record visible rest shimmer, overshoot, fast-motion lag, limb-length distortion, missing-part behavior, and recovery.
-9. Repeat a shorter run in portrait, landscape-primary, and landscape-secondary. Confirm the phone video/avatar agree, the television mirror remains horizontally intuitive, achieved cadence and processing age remain acceptable, and each committed transition increments the epoch without a temporal bridge.
-10. Keep the exact camera position, lighting, distance, warm-up, and motions for every model comparison.
-
-Do not interpret a rolling spread captured during movement as model jitter. Do not report a requested 30 FPS ceiling as achieved inference cadence.
+On each target phone, record device/browser, both landscape directions, lighting, camera distance, warm-up, battery/thermal behavior, and external-mirroring method. Use browser performance tooling for frame cadence and sustained workload; never save camera pixels or landmark coordinates. Compare stationary avatar shimmer, slow movement, fast reversals, dropout recovery, Draw grip/path continuity, Bubbles hit behavior, and Racing steering comfort. Repeat identical motion and camera placement across model experiments. A future numeric pose-quality experiment must collect only bounded aggregate measurements and remove its instrumentation after analysis.
 
 ## Model replacement experiment
 
@@ -62,7 +35,7 @@ The procedural avatar now owns one isolated presentation filter per canvas under
 
 Evaluate that display path separately from raw interaction:
 
-- compare a stationary avatar with the phone's coarse-hand spread, but do not treat the avatar as a diagnostic measurement source;
+- compare stationary avatar shimmer with raw interaction stability, but do not treat the avatar as a diagnostic measurement source;
 - compare slow motion and fast reversals for a meaningful reduction in shimmer without objectionable lag, overshoot, or rubber-limb behavior;
 - verify that landmark loss omits affected anatomy instead of holding stale geometry and that reappearance starts from the current observation;
 - verify that one-to-two, two-to-one, pose loss, frame-layout/epoch changes, and re-entry do not carry one person's display history onto another; and

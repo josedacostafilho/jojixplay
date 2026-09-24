@@ -3,10 +3,8 @@ import { AppAudioEngine, type AudioRuntimeState } from "../audio/audio-engine";
 import { BodyPlayfield } from "../components/body-playfield";
 import { StatusPill } from "../components/status-pill";
 import { UnsupportedPanel } from "../components/unsupported-panel";
-import type { CameraLayout } from "../domain/camera";
 import type { PoseLimit } from "../domain/pose-limit";
 import { inspectLocalPlayCapabilities } from "../platform/capabilities";
-import { applicationModeUrl } from "../platform/application-mode";
 import { LocalImmersiveSession } from "../platform/local-immersive-session";
 import { useCameraPose } from "../pose/use-camera-pose";
 
@@ -18,17 +16,10 @@ export function LocalPlayPage() {
   const [audioState, setAudioState] = useState<AudioRuntimeState>("idle");
   const [audio] = useState(() => new AppAudioEngine(setAudioState));
   const camera = useCameraPose();
-  const {
-    start: startCamera,
-    stop: stopCamera,
-    setPoseLimit: setCameraPoseLimit,
-    requestCameraLayout: requestCameraLayoutFromController,
-  } = camera;
+  const { start: startCamera, stop: stopCamera, setPoseLimit: setCameraPoseLimit } = camera;
   const startRequested = useRef(false);
   const poseLimitRequestActive = useRef(false);
-  const cameraLayoutRequestActive = useRef(false);
   const [poseLimitPending, setPoseLimitPending] = useState(false);
-  const [cameraLayoutPending, setCameraLayoutPending] = useState(false);
   const [stale, setStale] = useState(true);
   const [sessionActive, setSessionActive] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
@@ -67,7 +58,7 @@ export function LocalPlayPage() {
     startRequested.current = true;
     setStartupError(null);
     if (camera.state === "error") {
-      stopCamera({ resetPoseLimit: true });
+      stopCamera();
     }
     immersiveSession.start();
     const audioStart = audio.start();
@@ -81,11 +72,11 @@ export function LocalPlayPage() {
       })
       .catch(() => {
         setSessionActive(false);
-        stopCamera({ resetPoseLimit: true });
+        stopCamera();
         void immersiveSession.stop();
         void audio.stop();
         setStartupError(
-          "Local play could not start its camera and sound. Check browser permissions and try again.",
+          "Play could not start its camera and sound. Check browser permissions and try again.",
         );
       })
       .finally(() => {
@@ -95,13 +86,11 @@ export function LocalPlayPage() {
 
   const stopLocalPlay = useCallback(() => {
     poseLimitRequestActive.current = false;
-    cameraLayoutRequestActive.current = false;
     setPoseLimitPending(false);
-    setCameraLayoutPending(false);
     setStale(true);
     setSessionActive(false);
     setStartupError(null);
-    stopCamera({ resetPoseLimit: true });
+    stopCamera();
     void immersiveSession.stop();
     void audio.stop();
   }, [audio, immersiveSession, stopCamera]);
@@ -130,41 +119,21 @@ export function LocalPlayPage() {
     [setCameraPoseLimit],
   );
 
-  const requestCameraLayout = useCallback(
-    async (layout: CameraLayout) => {
-      if (cameraLayoutRequestActive.current) {
-        throw new Error("Camera layout is already changing.");
-      }
-      cameraLayoutRequestActive.current = true;
-      setCameraLayoutPending(true);
-      try {
-        await requestCameraLayoutFromController(layout);
-      } finally {
-        cameraLayoutRequestActive.current = false;
-        setCameraLayoutPending(false);
-      }
-    },
-    [requestCameraLayoutFromController],
-  );
-
   if (!capabilities.supported) {
-    return <UnsupportedPanel device="phone" missing={capabilities.missing} />;
+    return <UnsupportedPanel missing={capabilities.missing} />;
   }
 
   const livePacket = stale ? null : camera.packet;
   const active = sessionActive && camera.state === "tracking";
-  const statusLabel =
-    camera.requestedCameraLayout !== null
-      ? `Rotate to ${camera.requestedCameraLayout}`
-      : !active
-        ? camera.state === "starting"
-          ? "Starting camera"
-          : "Ready for local play"
-        : stale || camera.packet === null
-          ? "Looking for body"
-          : camera.packet.poses.length === 0
-            ? "Step into frame"
-            : `${camera.packet.poses.length} ${camera.packet.poses.length === 1 ? "player" : "players"} visible`;
+  const statusLabel = !active
+    ? camera.state === "starting"
+      ? "Starting camera"
+      : "Ready to play"
+    : stale || camera.packet === null
+      ? "Looking for body"
+      : camera.packet.poses.length === 0
+        ? "Step into frame"
+        : `${camera.packet.poses.length} ${camera.packet.poses.length === 1 ? "player" : "players"} visible`;
 
   return (
     <main class={`local-play-page${active ? " local-play-page--active" : ""}`}>
@@ -178,7 +147,7 @@ export function LocalPlayPage() {
       />
 
       <header class="local-play-header">
-        <a class="brand" href={applicationModeUrl(null)} aria-label="Jojixplay home">
+        <a class="brand" href={import.meta.env.BASE_URL} aria-label="Jojixplay home">
           <span class="brand__mark" aria-hidden="true">
             J
           </span>
@@ -198,7 +167,7 @@ export function LocalPlayPage() {
               <button
                 class="local-stop-button"
                 type="button"
-                aria-label="Stop local play"
+                aria-label="Stop playing"
                 onClick={stopLocalPlay}
               >
                 Stop
@@ -209,26 +178,23 @@ export function LocalPlayPage() {
       </header>
 
       {active ? (
-        <section class="local-play-stage" aria-label="Local body-control playground">
+        <section class="local-play-stage" aria-label="Body-control playground">
           <BodyPlayfield
             audio={audio}
             packet={livePacket}
             poseLimit={camera.poseLimit}
             poseLimitPending={poseLimitPending}
-            cameraLayoutPending={cameraLayoutPending}
             onPoseLimitRequest={requestPoseLimit}
-            onCameraLayoutRequest={requestCameraLayout}
           />
         </section>
       ) : (
         <section class="local-play-setup" aria-labelledby="local-play-title">
           <div>
-            <p class="eyebrow">All-in-one mode</p>
+            <p class="eyebrow">Your phone is the playground</p>
             <h1 id="local-play-title">Play right here on your phone.</h1>
             <p>
-              Prop up this phone so the selfie camera can see your full body. JojixPlay will run
-              tracking and the complete games here; you can mirror this screen with your device
-              settings if you want a larger display.
+              Mirror this screen to your TV using your phone settings or a cable. Prop up the phone
+              so the selfie camera can see your full body. The games run entirely on your phone.
             </p>
             <p>Camera pixels stay on this device and are never shown, sent, recorded, or stored.</p>
             {camera.errorMessage === null && startupError === null ? null : (
@@ -243,8 +209,8 @@ export function LocalPlayPage() {
               disabled={camera.state === "starting" || audioState === "starting"}
             >
               {camera.state === "starting" || audioState === "starting"
-                ? "Starting local play…"
-                : "Start local play"}
+                ? "Starting play…"
+                : "Start playing"}
             </button>
             <span class="local-play-setup__hint">
               Sound starts with this button. Fullscreen and keeping the display awake are used when

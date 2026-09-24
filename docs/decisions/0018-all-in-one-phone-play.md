@@ -1,16 +1,16 @@
 ---
-status: Accepted
+status: Superseded
 last_verified: 2026-08-17
 scope: All-in-one phone execution, shared playfield ownership, and optional immersive browser behavior
 ---
 
 # ADR-0018: Run an all-in-one play mode directly on the phone
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-17
 - **Decision owners:** Project owner and maintainers
 - **Supersedes:** The two-role-only application-shell scope in ADR-0002 and the television-only game-runtime scope in ADR-0003
-- **Superseded by:** None
+- **Superseded by:** [ADR-0021](0021-landscape-phone-only.md)
 
 ## Context
 
@@ -86,3 +86,5 @@ Rejected by the product owner. The avatar, game feedback, status text, and orien
 
 - Complete the target-phone and external-screen-mirroring acceptance pass in [Project status](../project/status.md).
 - Change no quality setting or game renderer until that measurement identifies the actual bottleneck.
+
+Superseded by [ADR-0021](0021-landscape-phone-only.md).

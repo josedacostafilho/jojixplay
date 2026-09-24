@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptIncreasingSequence, parsePosePacket, type PosePacket } from "../../src/domain/pose";
+import { parsePosePacket, type PosePacket } from "../../src/domain/pose";
 
 function validPacket(): PosePacket {
   return {
@@ -65,7 +65,7 @@ describe("pose packet parser", () => {
     const missingEpoch = validPacket() as unknown as { frame: Record<string, unknown> };
     delete missingEpoch.frame.epoch;
     const inconsistent = validPacket();
-    inconsistent.frame.layout = "portrait";
+    Object.assign(inconsistent.frame, { width: 720, height: 1280, layout: "portrait" });
     const square = validPacket();
     square.frame = { width: 720, height: 720, layout: "landscape", epoch: 0 };
 
@@ -98,14 +98,5 @@ describe("pose packet parser", () => {
     const nonFinite = validPacket();
     nonFinite.capturedAtMs = Number.NaN;
     expect(parsePosePacket(nonFinite).ok).toBe(false);
-  });
-});
-
-describe("pose packet ordering", () => {
-  it("accepts only a strictly increasing sequence", () => {
-    expect(acceptIncreasingSequence(-1, 0)).toBe(0);
-    expect(acceptIncreasingSequence(8, 9)).toBe(9);
-    expect(acceptIncreasingSequence(8, 8)).toBeNull();
-    expect(acceptIncreasingSequence(8, 7)).toBeNull();
   });
 });

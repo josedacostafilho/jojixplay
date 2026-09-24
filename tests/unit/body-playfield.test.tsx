@@ -2,7 +2,6 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlayfieldAudio } from "../../src/audio/audio-engine";
 import { BodyPlayfield } from "../../src/components/body-playfield";
-import type { CameraLayout } from "../../src/domain/camera";
 import type { DetectedPose, PoseLandmark, PosePacket } from "../../src/domain/pose";
 import type { RacingSession, RacingSnapshot } from "../../src/games/racing/racing-session";
 
@@ -153,13 +152,11 @@ class ImmediateResizeObserver {
 let nowMs = 0;
 let animationCallbacks: FrameRequestCallback[] = [];
 let canvasContext: CanvasRenderingContext2D;
-let requestCameraLayout: ReturnType<typeof vi.fn<(layout: CameraLayout) => Promise<void>>>;
 let audio: PlayfieldAudio;
 
 beforeEach(() => {
   nowMs = 0;
   animationCallbacks = [];
-  requestCameraLayout = vi.fn(async () => undefined);
   let muted = false;
   audio = {
     get muted() {
@@ -247,9 +244,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={poseLimit}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={onPoseLimitRequest}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -310,11 +305,11 @@ describe("body playfield", () => {
   it("uses a compact left Draw toolbar and retains its tool and color across Exit", () => {
     const createPortraitPacket = (sequence: number): PosePacket => ({
       ...createRaisedHandPacket(sequence),
-      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
+      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 0 },
     });
     const createClosePortraitPacket = (sequence: number): PosePacket => ({
       ...createCloseHandsPacket(sequence),
-      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
+      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 0 },
     });
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
@@ -322,16 +317,14 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createPortraitPacket(0)));
     claimControls(view, renderPlayfield, createPortraitPacket);
     expect(view.container.querySelector(".pose-control-targets")).toHaveAttribute(
       "data-control-placement",
-      "overhead-row",
+      "left-column",
     );
     fireEvent.click(screen.getByRole("button", { name: "Games" }));
     animationCallbacks = [];
@@ -340,9 +333,9 @@ describe("body playfield", () => {
     const playfield = view.container.querySelector<HTMLElement>(".body-playfield");
     expect(playfield).toHaveAttribute("data-playfield-view", "draw");
     expect(screen.getByTestId("draw-board")).toHaveStyle({
-      left: "437.5px",
+      left: "0px",
       top: "0px",
-      width: "405px",
+      width: "1280px",
       height: "720px",
     });
     expect(screen.getByRole("img", { name: "Your Draw artwork" })).toBeInTheDocument();
@@ -415,9 +408,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -478,9 +469,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={2}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createTwoPlayerPacket(0)));
@@ -497,54 +486,6 @@ describe("body playfield", () => {
     expect(screen.getByRole("button", { name: "Start Bubbles" })).toBeEnabled();
   });
 
-  it("gates two-player Bubbles until a matching landscape packet arrives", async () => {
-    const portraitPacket = (sequence: number): PosePacket => ({
-      ...createTwoPlayerPacket(sequence),
-      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
-    });
-    const landscapePacket = (sequence: number): PosePacket => ({
-      ...createTwoPlayerPacket(sequence),
-      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
-    });
-    const renderPlayfield = (packet: PosePacket) => (
-      <BodyPlayfield
-        audio={audio}
-        packet={packet}
-        poseLimit={2}
-        poseLimitPending={false}
-        cameraLayoutPending={false}
-        onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
-      />
-    );
-    const view = render(renderPlayfield(portraitPacket(0)));
-    for (const sequence of [1, 2, 3, 4, 5]) {
-      nowMs = sequence * 100;
-      view.rerender(renderPlayfield(portraitPacket(sequence)));
-    }
-    fireEvent.click(screen.getByRole("button", { name: "Games" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bubbles" }));
-
-    expect(requestCameraLayout).toHaveBeenCalledWith("landscape");
-    expect(screen.getByRole("heading", { name: "Rotate phone to landscape" })).toBeInTheDocument();
-    expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
-      "data-playfield-view",
-      "games",
-    );
-    expect(screen.queryByTestId("bubbles-board")).not.toBeInTheDocument();
-
-    nowMs = 600;
-    view.rerender(renderPlayfield(landscapePacket(6)));
-    expect(await screen.findByTestId("bubbles-board")).toBeInTheDocument();
-    expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
-      "data-playfield-view",
-      "bubbles",
-    );
-    expect(
-      screen.queryByRole("heading", { name: "Rotate phone to landscape" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("runs Racing from calibration through pause and finish, then destroys its lazy runtime", async () => {
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
@@ -552,9 +493,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -652,48 +591,6 @@ describe("body playfield", () => {
     expect(screen.queryByRole("button", { name: "Play Racing again" })).not.toBeInTheDocument();
   });
 
-  it("gates two-player Racing on landscape before mounting its split-screen runtime", async () => {
-    const portraitPacket = (sequence: number): PosePacket => ({
-      ...createTwoPlayerPacket(sequence),
-      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
-    });
-    const landscapePacket = (sequence: number): PosePacket => ({
-      ...createTwoPlayerPacket(sequence),
-      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
-    });
-    const renderPlayfield = (packet: PosePacket) => (
-      <BodyPlayfield
-        audio={audio}
-        packet={packet}
-        poseLimit={2}
-        poseLimitPending={false}
-        cameraLayoutPending={false}
-        onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
-      />
-    );
-    const view = render(renderPlayfield(portraitPacket(0)));
-    for (const sequence of [1, 2, 3, 4, 5]) {
-      nowMs = sequence * 100;
-      view.rerender(renderPlayfield(portraitPacket(sequence)));
-    }
-    fireEvent.click(screen.getByRole("button", { name: "Games" }));
-    fireEvent.click(screen.getByRole("button", { name: "Racing" }));
-
-    expect(requestCameraLayout).toHaveBeenCalledWith("landscape");
-    expect(screen.getByRole("heading", { name: "Rotate phone to landscape" })).toBeInTheDocument();
-    expect(screen.queryByTestId("racing-board")).not.toBeInTheDocument();
-    expect(racingRuntimeHarness.options).toBeNull();
-
-    nowMs = 600;
-    view.rerender(renderPlayfield(landscapePacket(6)));
-    expect(await screen.findByTestId("racing-board")).toBeInTheDocument();
-    expect(
-      await screen.findByRole("img", { name: "Split-screen pseudo-3D Racing course and cars" }),
-    ).toBeInTheDocument();
-    await vi.waitFor(() => expect(currentRacingRuntime().playerCount).toBe(2));
-  });
-
   it("keeps Exit available when the Racing runtime reports an initialization failure", async () => {
     racingRuntimeHarness.failureMessage = "Canvas initialization failed.";
     const renderPlayfield = (packet: PosePacket) => (
@@ -702,9 +599,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -721,96 +616,6 @@ describe("body playfield", () => {
     expect(screen.queryByRole("button", { name: "Start Racing" })).not.toBeInTheDocument();
   });
 
-  it("locks an active Draw session to its entering layout and releases pose controls", async () => {
-    const portraitPacket = (sequence: number, epoch = 0): PosePacket => ({
-      ...createRaisedHandPacket(sequence),
-      frame: { width: 720, height: 1_280, layout: "portrait", epoch },
-    });
-    const landscapePacket = (sequence: number): PosePacket => ({
-      ...createRaisedHandPacket(sequence),
-      frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
-    });
-    const renderPlayfield = (packet: PosePacket | null) => (
-      <BodyPlayfield
-        audio={audio}
-        packet={packet}
-        poseLimit={1}
-        poseLimitPending={false}
-        cameraLayoutPending={false}
-        onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
-      />
-    );
-    const view = render(renderPlayfield(portraitPacket(0)));
-    claimControls(view, renderPlayfield, portraitPacket);
-    fireEvent.click(screen.getByRole("button", { name: "Games" }));
-    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
-    requestCameraLayout.mockClear();
-
-    nowMs = 400;
-    view.rerender(renderPlayfield(landscapePacket(4)));
-    expect(
-      await screen.findByRole("heading", { name: "Rotate phone to portrait" }),
-    ).toBeInTheDocument();
-    expect(requestCameraLayout).toHaveBeenCalledWith("portrait");
-    expect(screen.getByTestId("draw-board")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Exit Draw" })).not.toBeInTheDocument();
-
-    nowMs = 450;
-    view.rerender(renderPlayfield(null));
-    expect(screen.getByRole("heading", { name: "Rotate phone to portrait" })).toBeInTheDocument();
-    expect(requestCameraLayout).toHaveBeenCalledTimes(1);
-
-    nowMs = 500;
-    view.rerender(renderPlayfield(portraitPacket(5, 2)));
-    await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("heading", { name: "Rotate phone to portrait" }),
-      ).not.toBeInTheDocument(),
-    );
-    expect(view.container.querySelector(".body-playfield")).toHaveAttribute(
-      "data-playfield-view",
-      "draw",
-    );
-  });
-
-  it("asks for overhead framing and withholds controls when the head is too high", () => {
-    const noHeadroomPacket = (sequence: number) => {
-      const posePacket = createRaisedHandPacket(sequence);
-      const face = posePacket.poses[0]?.landmarks[0];
-      if (face === undefined) {
-        throw new Error("Expected a face landmark.");
-      }
-      face.y = 0.04;
-      posePacket.frame = {
-        width: 720,
-        height: 1_280,
-        layout: "portrait",
-        epoch: 0,
-      };
-      return posePacket;
-    };
-    const renderPlayfield = (packet: PosePacket) => (
-      <BodyPlayfield
-        audio={audio}
-        packet={packet}
-        poseLimit={1}
-        poseLimitPending={false}
-        cameraLayoutPending={false}
-        onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
-      />
-    );
-    const view = render(renderPlayfield(noHeadroomPacket(0)));
-    for (const sequence of [1, 2, 3]) {
-      nowMs = sequence * 100;
-      view.rerender(renderPlayfield(noHeadroomPacket(sequence)));
-    }
-
-    expect(screen.getByText("Step back and leave clear space above your head")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Background" })).not.toBeInTheDocument();
-  });
-
   it("disables every current action while a player-mode request is pending", () => {
     const renderPlayfield = (packet: PosePacket) => (
       <BodyPlayfield
@@ -818,9 +623,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending
-        cameraLayoutPending={false}
         onPoseLimitRequest={vi.fn(async () => undefined)}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -839,9 +642,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={onPoseLimitRequest}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));
@@ -868,9 +669,7 @@ describe("body playfield", () => {
         packet={packet}
         poseLimit={1}
         poseLimitPending={false}
-        cameraLayoutPending={false}
         onPoseLimitRequest={onPoseLimitRequest}
-        onCameraLayoutRequest={requestCameraLayout}
       />
     );
     const view = render(renderPlayfield(createRaisedHandPacket(0)));

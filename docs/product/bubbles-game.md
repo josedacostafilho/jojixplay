@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-18
+last_verified: 2026-09-24
 scope: User-visible behavior and implemented design for the Bubbles game
 ---
 
@@ -8,7 +8,7 @@ scope: User-visible behavior and implemented design for the Bubbles game
 
 ## Outcome
 
-Bubbles is a timed one- or two-player game. Procedurally rendered soap bubbles drift inside the reachable phone-camera projection, and every complete coarse hand can pop them. The mounted `BodyPlayfield` owns simulation, collision, score, animation, and results; it receives only validated pose landmarks through paired delivery or direct local play.
+Bubbles is a timed one- or two-player game. Procedurally rendered soap bubbles drift inside the reachable phone-camera projection, and every complete coarse hand can pop them. The mounted `BodyPlayfield` owns simulation, collision, score, animation, and results; it receives only validated pose landmarks directly in phone memory.
 
 ## Navigation and round contract
 
@@ -32,11 +32,10 @@ Bubbles — Finished
 └── Exit → Games
 ```
 
-- Ready requires at least the acknowledged number of usable players: one torso in one-player mode or two torsos in two-player mode.
+- Ready requires at least the applied number of usable players: one torso in one-player mode or two torsos in two-player mode.
 - Start hides and suspends body controls, shows `3`, `2`, `1`, then begins a full 60-second round with `Go!` feedback.
-- Bubbles captures the acknowledged player count on entry, before readiness is evaluated. No player-mode switch exists inside Bubbles, so that count remains fixed through every round until Exit.
-- One-player Bubbles supports portrait and landscape. Two-player Bubbles requires landscape and remains behind a rotation gate until the phone acknowledges landscape and a matching canonical packet arrives.
-- Bubbles captures its camera layout on entry. A later mismatch freezes the complete countdown/round clock, movement, pop/respawn effects, score, and result timing until the captured layout returns; ordinary pose loss still never pauses time.
+- Bubbles captures the applied player count on entry, before readiness is evaluated. No player-mode switch exists inside Bubbles, so that count remains fixed through every round until Exit.
+- Both one- and two-player Bubbles use landscape.
 - The countdown derives from a monotonic deadline and appears at the lower-right. It displays `1:00` at round start and reaches `0:00` exactly when scoring closes.
 - Pose loss never pauses the timer. Leaving Bubbles resets its transient round, score, and simulation state.
 
@@ -91,7 +90,6 @@ Bubbles — Finished
 - A temporary missing hand cannot pop; other currently usable hands continue normally.
 - A stale packet creates no swept path. The game continues its timer and bubble simulation without pose input.
 - A camera-basis epoch change clears every hand history before accepting a new swept collision. A same-layout dimension/aspect change retains normalized bubble positions and clamps them into the new radius-safe bounds.
-- A different layout is withheld by the shell rather than hot-reflowed. The session pauses at the mismatch boundary, exposes no hands, and resumes with shifted deadlines plus fresh collision history when the captured layout returns.
 - A viewport resize reprojects the normalized arena without changing round time, score, or game coordinates.
 - Frame stalls cannot move a bubble outside the arena or extend the round.
 - The game sends, stores, and persists no scores, bubble state, hand coordinates, identifiers, or pixels.
@@ -106,22 +104,22 @@ Bubbles — Finished
 - [x] Add semantic score/timer/result surfaces, projected arena styling, accessible status updates, and reduced-opacity avatar presentation.
 - [x] Add deterministic domain, input, renderer, and component regression tests.
 - [x] Update canonical architecture, product, status, backlog, milestone, testing, and agent documentation and run the full canonical validation suite.
-- [x] Integrate the typed camera-layout policy, landscape-only two-player gate, frame epochs, and full-state pause/resume behavior.
+- [x] Use landscape frames and reset input on camera epoch changes.
 
 ## Acceptance criteria
 
 1. Games exposes Draw, Bubbles, Racing, and Return with no hidden or stale action path.
 2. Ready shows Start and Exit and prevents a round until the selected number of usable players is visible.
-3. Start suspends controls, shows a three-second countdown, then runs exactly 60 seconds without timer drift; only an active-game layout mismatch freezes that duration.
+3. Start suspends controls, shows a three-second countdown, then runs exactly 60 seconds without timer drift. Ordinary pose loss does not pause the clock.
 4. Six one-player or eight two-player bubbles remain fully inside the projected camera arena while varying in accepted radius, speed, position, and smooth drift.
 5. Both complete hands can pop through point or fresh swept collision; incomplete and stale input creates no phantom segment.
 6. A bubble scores once, plays the complete bounded pop effect, and schedules one replacement in the accepted delay range.
 7. One-player scoring uses the top-right counter. Two-player screen-side scoring uses both top corners and remains independent of pose-array ordering.
 8. The finished state declares the sole score, the left/right winner, or a tie and exposes neutrally re-armed Play Again and Exit actions.
 9. Radius-aware clamp-and-reflect keeps the complete bubble visible through edge contact, corners, frame stalls, and same-layout aspect changes.
-10. One-player Bubbles accepts either layout, two-player Bubbles cannot mount before an acknowledged landscape packet, and an active mismatch resumes with no lost game time or bridge collision.
+10. Portrait ends the run and clears the game through the application gate.
 11. Bubbles imports no external asset, backend, persistence, stable player identity, game engine, owned audio context, or avatar-stabilized display value; it emits presentation events through the shared application-audio boundary.
 12. Ready and result message panels remain near the top and below actionable controls in the stacking order.
 13. Automated gates prove deterministic behavior; real-device acceptance measures hit tolerance, side attribution, orientation transitions, readability, sustained rendering, and perceived responsiveness.
 
-The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md), visible body presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), camera layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md), and sound is governed by [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](audio.md).
+The architecture is governed by [ADR-0013](../decisions/0013-identity-independent-bubbles-game.md). Shared pose, player-limit, mirroring, and shell constraints remain governed by the earlier decisions in the [ADR index](../decisions/README.md), visible body presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), camera layout behavior is governed by [ADR-0021](../decisions/0021-landscape-phone-only.md) and [Camera orientation](camera-orientation.md), and sound is governed by [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](audio.md).

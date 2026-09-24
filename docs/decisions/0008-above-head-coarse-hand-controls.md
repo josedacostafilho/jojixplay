@@ -1,16 +1,16 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-15
 scope: Television control placement, coarse-hand pointing, framing eligibility, and post-claim arming
 ---
 
 # ADR-0008: Above-head coarse-hand controls
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The torso-relative target row, direct wrist pointer, and immediately armed lease portions of [ADR-0005](0005-mirrored-tv-pose-controls.md)
-- **Superseded by:** [ADR-0015](0015-canonical-camera-orientation.md) for landscape placement and [ADR-0016](0016-phaser-canvas-racing.md) for the Games menu in portrait; only portrait Main Menu retains the above-head row
+- **Superseded by:** [ADR-0021](0021-landscape-phone-only.md)
 
 ## Context
 
@@ -82,3 +82,5 @@ Rejected because the row could overlap the head and silently violate the design 
 ## Follow-up
 
 - Replace the coarse pose hand with a detailed hand model only when an accepted game supplies concrete gesture and performance requirements.
+
+Superseded by [ADR-0021](0021-landscape-phone-only.md).

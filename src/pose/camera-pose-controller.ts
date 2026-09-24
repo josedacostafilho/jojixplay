@@ -1,17 +1,11 @@
 import {
   type CameraFrameNormalization,
-  type CameraLayout,
   parseScreenCameraOrientation,
   resolveCameraFrameNormalization,
   sameCameraFrameNormalization,
 } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import type { PoseLimit } from "../domain/pose-limit";
-import {
-  POSE_DIAGNOSTICS_PUBLISH_INTERVAL_MS,
-  PoseDiagnosticsMonitor,
-  type PoseDiagnosticsSnapshot,
-} from "./pose-diagnostics";
 import { PoseEstimator } from "./pose-estimator";
 import { POSE_MODEL } from "./pose-model";
 
@@ -19,9 +13,7 @@ interface CameraPoseControllerOptions {
   video: HTMLVideoElement;
   initialPoseLimit: PoseLimit;
   onPacket: (packet: PosePacket) => void;
-  onDiagnostics: (diagnostics: PoseDiagnosticsSnapshot) => void;
   onCameraFrame: (frame: CameraFrameNormalization | null) => void;
-  onRequestedCameraLayout: (layout: CameraLayout | null) => void;
   onError: (message: string) => void;
 }
 
@@ -35,16 +27,8 @@ interface PendingFrameNormalizationError {
   observedAtMs: number;
 }
 
-interface PendingCameraLayoutRequest {
-  layout: CameraLayout;
-  resolve: () => void;
-  reject: (error: Error) => void;
-  timeoutId: number;
-}
-
 export const CAMERA_FRAME_STABILITY_MS = 400;
 export const CAMERA_FRAME_INVALID_TIMEOUT_MS = 1_500;
-export const CAMERA_LAYOUT_REQUEST_TIMEOUT_MS = 30_000;
 
 function assetUrl(path: string): string {
   return new URL(`${import.meta.env.BASE_URL}${path}`, window.location.origin).toString();
@@ -57,6 +41,7 @@ function cameraErrorMessage(error: unknown): string {
   if (
     error instanceof Error &&
     (error.message.startsWith("Screen orientation") ||
+      error.message.startsWith("Rotate your phone") ||
       error.message.startsWith("Camera frame") ||
       error.message.startsWith("Camera pixels") ||
       error.message.startsWith("Camera rotation") ||
@@ -81,7 +66,6 @@ function cameraErrorMessage(error: unknown): string {
 
 export class CameraPoseController {
   private readonly estimator = new PoseEstimator();
-  private readonly diagnostics = new PoseDiagnosticsMonitor();
   private stream: MediaStream | null = null;
   private frameCallbackId: number | null = null;
   private sequence = 0;
@@ -89,11 +73,9 @@ export class CameraPoseController {
   private changingPoseLimit = false;
   private poseLimit: PoseLimit;
   private active = false;
-  private lastDiagnosticsPublishedAtMs: number | null = null;
   private activeNormalization: CameraFrameNormalization | null = null;
   private pendingNormalization: PendingFrameNormalization | null = null;
   private pendingNormalizationError: PendingFrameNormalizationError | null = null;
-  private pendingLayoutRequest: PendingCameraLayoutRequest | null = null;
 
   public constructor(private readonly options: CameraPoseControllerOptions) {
     this.poseLimit = options.initialPoseLimit;
@@ -104,8 +86,6 @@ export class CameraPoseController {
       return;
     }
     this.active = true;
-    this.diagnostics.reset();
-    this.lastDiagnosticsPublishedAtMs = null;
     this.activeNormalization = null;
     this.pendingNormalization = null;
     this.pendingNormalizationError = null;
@@ -175,11 +155,6 @@ export class CameraPoseController {
       }
       await this.estimator.setPoseLimit(poseLimit);
       this.poseLimit = poseLimit;
-      this.diagnostics.reset();
-      if (this.activeNormalization !== null) {
-        this.diagnostics.recordCameraNormalization(this.activeNormalization);
-      }
-      this.lastDiagnosticsPublishedAtMs = null;
     } catch {
       if (this.active) {
         this.options.onError("Player mode could not be changed. Restart body tracking to retry.");
@@ -189,31 +164,6 @@ export class CameraPoseController {
     } finally {
       this.changingPoseLimit = false;
     }
-  }
-
-  public requestCameraLayout(layout: CameraLayout): Promise<void> {
-    if (!this.active) {
-      return Promise.reject(new Error("Body tracking is not active."));
-    }
-    if (this.pendingLayoutRequest !== null) {
-      return Promise.reject(new Error("A camera-layout request is already active."));
-    }
-    if (this.activeNormalization?.frame.layout === layout) {
-      return Promise.resolve();
-    }
-
-    this.options.onRequestedCameraLayout(layout);
-    return new Promise<void>((resolve, reject) => {
-      const timeoutId = window.setTimeout(() => {
-        if (this.pendingLayoutRequest?.layout !== layout) {
-          return;
-        }
-        this.pendingLayoutRequest = null;
-        this.options.onRequestedCameraLayout(null);
-        reject(new Error(`The phone was not rotated to ${layout} in time.`));
-      }, CAMERA_LAYOUT_REQUEST_TIMEOUT_MS);
-      this.pendingLayoutRequest = { layout, resolve, reject, timeoutId };
-    });
   }
 
   public stop(): void {
@@ -229,14 +179,10 @@ export class CameraPoseController {
     this.options.video.pause();
     this.options.video.srcObject = null;
     this.estimator.close();
-    this.rejectPendingLayoutRequest(new Error("Body tracking stopped before layout changed."));
-    this.diagnostics.reset();
-    this.lastDiagnosticsPublishedAtMs = null;
     this.activeNormalization = null;
     this.pendingNormalization = null;
     this.pendingNormalizationError = null;
     this.options.onCameraFrame(null);
-    this.options.onRequestedCameraLayout(null);
   }
 
   private scheduleFrame(): void {
@@ -249,16 +195,13 @@ export class CameraPoseController {
         return;
       }
       this.scheduleFrame();
-      this.diagnostics.recordCameraFrame(now);
       if (
         this.processingPromise !== null ||
         this.changingPoseLimit ||
         this.options.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
-        this.publishDiagnostics(now);
         return;
       }
-      this.publishDiagnostics(now);
       const processingPromise = this.processFrame(now);
       this.processingPromise = processingPromise;
       void processingPromise.finally(() => {
@@ -281,7 +224,6 @@ export class CameraPoseController {
       if (normalization === null) {
         return;
       }
-      this.diagnostics.recordInferenceSubmission(capturedAtMs);
       const estimate = this.estimator.estimate(
         frame,
         capturedAtMs,
@@ -292,9 +234,6 @@ export class CameraPoseController {
       ownedFrame = null;
       const packet = await estimate;
       if (this.active) {
-        const completedAtMs = performance.now();
-        this.diagnostics.recordInferenceCompletion(packet, completedAtMs, this.poseLimit);
-        this.publishDiagnostics(completedAtMs);
         this.options.onPacket(packet);
       }
     } catch (error) {
@@ -356,7 +295,6 @@ export class CameraPoseController {
         frame: { ...candidate.frame, epoch: this.activeNormalization.frame.epoch },
       };
       this.activeNormalization = current;
-      this.diagnostics.recordCameraNormalization(current);
       return current;
     }
 
@@ -382,40 +320,8 @@ export class CameraPoseController {
   ): CameraFrameNormalization {
     this.activeNormalization = normalization;
     this.pendingNormalization = null;
-    this.diagnostics.reset();
-    this.diagnostics.recordCameraNormalization(normalization);
-    this.lastDiagnosticsPublishedAtMs = null;
     this.options.onCameraFrame(normalization);
 
-    const request = this.pendingLayoutRequest;
-    if (request !== null && request.layout === normalization.frame.layout) {
-      window.clearTimeout(request.timeoutId);
-      this.pendingLayoutRequest = null;
-      this.options.onRequestedCameraLayout(null);
-      request.resolve();
-    }
     return normalization;
-  }
-
-  private rejectPendingLayoutRequest(error: Error): void {
-    const request = this.pendingLayoutRequest;
-    if (request === null) {
-      return;
-    }
-    window.clearTimeout(request.timeoutId);
-    this.pendingLayoutRequest = null;
-    this.options.onRequestedCameraLayout(null);
-    request.reject(error);
-  }
-
-  private publishDiagnostics(nowMs: number): void {
-    if (
-      this.lastDiagnosticsPublishedAtMs !== null &&
-      nowMs - this.lastDiagnosticsPublishedAtMs < POSE_DIAGNOSTICS_PUBLISH_INTERVAL_MS
-    ) {
-      return;
-    }
-    this.lastDiagnosticsPublishedAtMs = nowMs;
-    this.options.onDiagnostics(this.diagnostics.snapshot(nowMs));
   }
 }

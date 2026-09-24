@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-18
+last_verified: 2026-09-24
 scope: Design, implementation, security, and maintainability expectations
 ---
 
@@ -15,11 +15,9 @@ The project is greenfield. Optimize for a clear current design, not historical b
 - Keep TypeScript strict, including unchecked-index and exact-optional-property checks. Do not use `any`, non-null assertions, or blanket suppressions to bypass a boundary.
 - Parse external values from `unknown` and return validated domain types. Network messages, URL fragments, worker messages, and browser capability state are trust boundaries.
 - Use Preact for UI state and lifecycle. Direct canvas drawing and video-frame scheduling must not run through component rerenders.
-- A worker owns MediaPipe. Television and shared rendering modules must not import the inference dependency.
+- A worker owns MediaPipe. Playfield rendering modules must not import the inference dependency.
 - Acquire camera access only after user activation, request no microphone track, and stop every owned media track during cleanup. Rendering-host output audio follows [ADR-0020](../decisions/0020-app-owned-procedural-audio.md).
-- Use Web Crypto for session randomness. Never expose credentials through logs, query parameters, analytics, or error messages.
 - Prefer browser capability checks with explicit unsupported states over polyfills, browser sniffing, or alternate implementations.
-- Keep public-relay and peer failures terminal and actionable; do not silently switch transports.
 
 ## Design
 
@@ -59,7 +57,6 @@ The project is greenfield. Optimize for a clear current design, not historical b
 - Use safe parameterization and context-appropriate encoding; never construct executable queries or markup from untrusted strings.
 - Avoid collecting or logging data that is not needed. Define retention and deletion before persisting sensitive data.
 - Review dependencies and generated artifacts for supply-chain and secret-exposure risks.
-- Enforce authorization at the authoritative runtime boundary, never through hidden UI state alone. In this serverless prototype, possession of the ephemeral 100-bit pairing key-derived secret plus the opposite-role peer handshake is the authorization boundary.
 
 ## Dependencies and generated code
 

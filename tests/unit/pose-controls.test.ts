@@ -24,7 +24,7 @@ const TEST_ACTIONS = [
 ] as const satisfies readonly PoseControlActionDefinition<TestAction>[];
 
 function createSession(): PoseControlSession<TestAction> {
-  return new PoseControlSession<TestAction>(TEST_ACTIONS, "overhead-row");
+  return new PoseControlSession<TestAction>(TEST_ACTIONS);
 }
 
 function hiddenLandmark(): PoseLandmark {
@@ -109,8 +109,8 @@ function moveLeftHandToScreen(pose: DetectedPose, point: Point): DetectedPose {
   return moved;
 }
 
-describe("television pose controls", () => {
-  it("freezes targets above the visible head and points from the coarse hand center", () => {
+describe("phone playfield controls", () => {
+  it("freezes targets in the left column and points from the coarse hand center", () => {
     const session = createSession();
     const pose = createPose();
 
@@ -125,8 +125,7 @@ describe("television pose controls", () => {
     if (middleTarget === undefined) {
       throw new Error("Expected the middle control target.");
     }
-    expect(targetCenter(middleTarget).x).toBeCloseTo(640);
-    expect(middleTarget.rect.y + middleTarget.rect.height).toBeLessThan(0.16 * VIEWPORT.height);
+    expect(targetCenter(middleTarget).x).toBeLessThan(160);
     expect(claimed.snapshot.pointer?.x).toBeCloseTo(768);
     expect(claimed.snapshot.pointer?.y).toBeCloseTo(131.4);
     expect(claimed.snapshot.hands).toMatchObject({
@@ -146,33 +145,13 @@ describe("television pose controls", () => {
     expect(moved.snapshot.controlsArmed).toBe(true);
   });
 
-  it("requires visible headroom before a control claim can begin", () => {
-    const session = createSession();
-    const pose = createPose();
-    setLandmark(pose, 0, 0.5, 0.04);
-
-    for (const timeMs of [0, 100, 200, 300]) {
-      expect(session.updatePacket(packet([pose]), timeMs, VIEWPORT).snapshot).toMatchObject({
-        phase: "needs-headroom",
-        claimProgress: 0,
-        targets: [],
-      });
-    }
-
-    setLandmark(pose, 0, 0.5, 0.16);
-    expect(session.updatePacket(packet([pose]), 400, VIEWPORT).snapshot.phase).toBe("claiming");
-  });
-
   it("allows a left-column claim without overhead headroom", () => {
-    const session = new PoseControlSession<TestAction>(
-      [
-        { action: "draw", label: "Tool" },
-        { action: "background", label: "Color" },
-        { action: "clear", label: "Clear" },
-        { action: "return", label: "Exit" },
-      ],
-      "left-column",
-    );
+    const session = new PoseControlSession<TestAction>([
+      { action: "draw", label: "Tool" },
+      { action: "background", label: "Color" },
+      { action: "clear", label: "Clear" },
+      { action: "return", label: "Exit" },
+    ]);
     const pose = createPose();
     setLandmark(pose, 0, 0.5, 0.04);
 
@@ -282,7 +261,6 @@ describe("television pose controls", () => {
         { action: "draw", label: "Draw" },
         { action: "return", label: "Return" },
       ],
-      "overhead-row",
       360,
     );
 
@@ -294,7 +272,6 @@ describe("television pose controls", () => {
     });
     expect(transitioned.snapshot.targets).not.toBe(originalTargets);
     expect(transitioned.snapshot.targets.map(({ action }) => action)).toEqual(["draw", "return"]);
-    expect(transitioned.snapshot.targets[0]?.rect.y).toBe(originalTargets[0]?.rect.y);
     expect(session.tick(365).snapshot.controlsArmed).toBe(false);
     expect(session.updatePacket(packet([pose]), 370, VIEWPORT).snapshot.controlsArmed).toBe(true);
   });
@@ -330,7 +307,7 @@ describe("television pose controls", () => {
     const session = createSession();
     const pose = createPose();
     claimSinglePerson(session, pose);
-    session.setActions([{ action: "clear", label: "Clear", dwellMs: 1_500 }], "overhead-row", 310);
+    session.setActions([{ action: "clear", label: "Clear", dwellMs: 1_500 }], 310);
     session.updatePacket(packet([pose]), 350, VIEWPORT);
     const target = session.tick(351).snapshot.targets[0];
     if (target === undefined) {
@@ -345,37 +322,26 @@ describe("television pose controls", () => {
   });
 
   it("rejects empty, duplicate, oversized, and invalid-duration action sets", () => {
-    expect(() => new PoseControlSession<TestAction>([], "overhead-row")).toThrow(
-      /require 1 to 3 actions for overhead-row placement/,
-    );
+    expect(() => new PoseControlSession<TestAction>([])).toThrow(/require 1 to 4 actions/);
     expect(
       () =>
-        new PoseControlSession<TestAction>(
-          [
-            { action: "draw", label: "Draw" },
-            { action: "draw", label: "Again" },
-          ],
-          "overhead-row",
-        ),
+        new PoseControlSession<TestAction>([
+          { action: "draw", label: "Draw" },
+          { action: "draw", label: "Again" },
+        ]),
     ).toThrow(/Duplicate pose-control action/);
     expect(
       () =>
-        new PoseControlSession<TestAction>(
-          [
-            { action: "background", label: "Background" },
-            { action: "players", label: "Players" },
-            { action: "games", label: "Games" },
-            { action: "draw", label: "Draw" },
-          ],
-          "overhead-row",
-        ),
-    ).toThrow(/require 1 to 3 actions for overhead-row placement/);
+        new PoseControlSession<TestAction>([
+          { action: "background", label: "Background" },
+          { action: "players", label: "Players" },
+          { action: "games", label: "Games" },
+          { action: "draw", label: "Draw" },
+          { action: "clear", label: "Clear" },
+        ]),
+    ).toThrow(/require 1 to 4 actions/);
     expect(
-      () =>
-        new PoseControlSession<TestAction>(
-          [{ action: "clear", label: "Clear", dwellMs: 0 }],
-          "overhead-row",
-        ),
+      () => new PoseControlSession<TestAction>([{ action: "clear", label: "Clear", dwellMs: 0 }]),
     ).toThrow(/invalid dwell time/);
   });
 
@@ -383,7 +349,7 @@ describe("television pose controls", () => {
     const session = createSession();
     const pose = createPose();
     const claimed = claimSinglePerson(session, pose);
-    const overheadWidth = claimed.snapshot.targets[0]?.rect.width ?? 0;
+    const menuWidth = claimed.snapshot.targets[0]?.rect.width ?? 0;
 
     const transitioned = session.setActions(
       [
@@ -392,7 +358,6 @@ describe("television pose controls", () => {
         { action: "clear", label: "Clear" },
         { action: "return", label: "Exit" },
       ],
-      "left-column",
       360,
     );
     const targets = transitioned.snapshot.targets;
@@ -402,7 +367,7 @@ describe("television pose controls", () => {
     expect(targets.map(({ rect }) => rect.y)).toEqual(
       [...targets].map(({ rect }) => rect.y).sort((left, right) => left - right),
     );
-    expect(targets[0]?.rect.width).toBeLessThan(overheadWidth);
+    expect(targets[0]?.rect.width).toBe(menuWidth);
     expect(targets[0]?.rect.x).toBeGreaterThanOrEqual(0);
     expect((targets.at(-1)?.rect.y ?? 0) + (targets.at(-1)?.rect.height ?? 0)).toBeLessThanOrEqual(
       VIEWPORT.height,
@@ -497,7 +462,7 @@ describe("television pose controls", () => {
 
     claimSinglePerson(session, pose, 2_000);
     const resized = session.updatePacket(packet([pose]), 2_400, { width: 1_000, height: 700 });
-    expect(resized.snapshot.phase).toBe("needs-headroom");
+    expect(resized.snapshot.phase).toBe("claiming");
     expect(resized.snapshot.targets).toHaveLength(0);
   });
 

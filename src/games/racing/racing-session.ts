@@ -53,7 +53,6 @@ export interface RacingSnapshot {
   playerCount: 1 | 2;
   phase: RacingPhase;
   paused: boolean;
-  orientationPaused: boolean;
   systemPaused: boolean;
   readyToStart: boolean;
   visibleDrivers: number;
@@ -120,7 +119,6 @@ export class RacingSession {
   private playerCount: 1 | 2 = 1;
   private corePhase: Exclude<RacingPhase, "paused"> = "ready";
   private userPaused = false;
-  private orientationPaused = false;
   private systemPaused = false;
   private calibrationPurpose: RacingCalibrationPurpose | null = null;
   private calibrationElapsedMs = 0;
@@ -198,22 +196,6 @@ export class RacingSession {
     return this.snapshot(nowMs);
   }
 
-  public setOrientationPaused(paused: boolean, nowMs: number): RacingSnapshot {
-    if (this.orientationPaused !== paused) {
-      this.orientationPaused = paused;
-      this.lastTickAtMs = nowMs;
-      this.accumulatorMs = 0;
-      if (paused) {
-        for (const input of this.inputs.values()) {
-          input.leanAngleRadians = null;
-          input.lastLeanAtMs = null;
-          input.targetSteering = 0;
-        }
-      }
-    }
-    return this.snapshot(nowMs);
-  }
-
   public setSystemPaused(paused: boolean, nowMs: number): RacingSnapshot {
     if (this.systemPaused !== paused) {
       this.systemPaused = paused;
@@ -230,7 +212,7 @@ export class RacingSession {
     }
     const elapsedSinceTick = Math.max(0, nowMs - this.lastTickAtMs);
     this.lastTickAtMs = nowMs;
-    if (!this.enabled || this.userPaused || this.orientationPaused || this.systemPaused) {
+    if (!this.enabled || this.userPaused || this.systemPaused) {
       this.accumulatorMs = 0;
       return this.snapshot(nowMs);
     }
@@ -455,7 +437,6 @@ export class RacingSession {
   private resetRound(nowMs: number): void {
     this.corePhase = "ready";
     this.userPaused = false;
-    this.orientationPaused = false;
     this.systemPaused = false;
     this.calibrationPurpose = null;
     this.calibrationElapsedMs = 0;
@@ -471,7 +452,7 @@ export class RacingSession {
   }
 
   private snapshot(nowMs: number): RacingSnapshot {
-    const paused = this.userPaused || this.orientationPaused || this.systemPaused;
+    const paused = this.userPaused || this.systemPaused;
     const phase: RacingPhase = this.userPaused ? "paused" : this.corePhase;
     const cars = slotsFor(this.playerCount).map((slot): RacingCarSnapshot => {
       const car = this.cars.get(slot) ?? createCar(slot);
@@ -505,7 +486,6 @@ export class RacingSession {
       playerCount: this.playerCount,
       phase,
       paused,
-      orientationPaused: this.orientationPaused,
       systemPaused: this.systemPaused,
       readyToStart: this.readyToStart(),
       visibleDrivers: this.visibleDrivers,

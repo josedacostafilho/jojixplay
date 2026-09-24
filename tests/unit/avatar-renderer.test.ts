@@ -199,7 +199,7 @@ describe("Avatar renderer", () => {
   it("clears without drawing when no presentation frame is available", () => {
     const { context } = contextHarness();
 
-    drawAvatar(context, null, 640, 360, { mirrored: false, appearance: "camera" });
+    drawAvatar(context, null, 640, 360, { mirrored: false, appearance: "stage" });
 
     expect(context.clearRect).toHaveBeenCalledWith(0, 0, 640, 360);
     expect(context.fill).not.toHaveBeenCalled();

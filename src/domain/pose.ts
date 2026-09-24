@@ -24,13 +24,6 @@ export interface PosePacket {
 
 export type PosePacketParseResult = { ok: true; value: PosePacket } | { ok: false; error: string };
 
-export function acceptIncreasingSequence(
-  currentSequence: number,
-  incomingSequence: number,
-): number | null {
-  return incomingSequence > currentSequence ? incomingSequence : null;
-}
-
 const POSE_PACKET_KEYS = ["sequence", "capturedAtMs", "frame", "poses"];
 const POSE_KEYS = ["landmarks"];
 const LANDMARK_KEYS = ["x", "y", "z", "visibility"];

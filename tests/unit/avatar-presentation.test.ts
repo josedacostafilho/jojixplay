@@ -27,7 +27,7 @@ function packet(
     frame: {
       width,
       height,
-      layout: width >= height ? "landscape" : "portrait",
+      layout: "landscape",
       epoch,
     },
     poses,

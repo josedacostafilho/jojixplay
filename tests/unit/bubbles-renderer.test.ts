@@ -24,7 +24,6 @@ function contextMock(): CanvasRenderingContext2D {
 describe("Bubbles renderer", () => {
   it("draws procedural active/pop bubbles, bounded effects, labels, and hand rings", () => {
     const snapshot: BubblesSnapshot = {
-      paused: false,
       phase: "playing",
       playerCount: 2,
       visiblePlayers: 2,
@@ -80,7 +79,6 @@ describe("Bubbles renderer", () => {
 
   it("does not render gameplay hand rings before or after a round", () => {
     const snapshot: BubblesSnapshot = {
-      paused: false,
       phase: "ready",
       playerCount: 1,
       visiblePlayers: 1,

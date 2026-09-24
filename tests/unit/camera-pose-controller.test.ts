@@ -87,9 +87,7 @@ describe("camera pose controller player limit", () => {
       video,
       initialPoseLimit: 1,
       onPacket,
-      onDiagnostics: vi.fn(),
       onCameraFrame: vi.fn(),
-      onRequestedCameraLayout: vi.fn(),
       onError: vi.fn(),
     });
 
@@ -131,14 +129,11 @@ describe("camera pose controller player limit", () => {
   it("submits consecutive eligible camera callbacks without an elapsed-time gate", async () => {
     estimator.estimate.mockResolvedValue(EMPTY_PACKET);
     const onPacket = vi.fn();
-    const onDiagnostics = vi.fn();
     const controller = new CameraPoseController({
       video,
       initialPoseLimit: 1,
       onPacket,
-      onDiagnostics,
       onCameraFrame: vi.fn(),
-      onRequestedCameraLayout: vi.fn(),
       onError: vi.fn(),
     });
     await controller.start();
@@ -164,7 +159,6 @@ describe("camera pose controller player limit", () => {
       EMPTY_PACKET.frame,
       0,
     );
-    expect(onDiagnostics).toHaveBeenCalled();
     controller.stop();
   });
 
@@ -180,9 +174,7 @@ describe("camera pose controller player limit", () => {
       video,
       initialPoseLimit: 1,
       onPacket,
-      onDiagnostics: vi.fn(),
       onCameraFrame: vi.fn(),
-      onRequestedCameraLayout: vi.fn(),
       onError: vi.fn(),
     });
     await controller.start();
@@ -201,7 +193,7 @@ describe("camera pose controller player limit", () => {
     controller.stop();
   });
 
-  it("commits a stable layout change, resets MediaPipe tracking, and acknowledges the request", async () => {
+  it("commits a stable landscape source change and resets MediaPipe tracking", async () => {
     estimator.estimate.mockImplementation(
       async (
         _frame: ImageBitmap,
@@ -212,14 +204,11 @@ describe("camera pose controller player limit", () => {
     );
     const onPacket = vi.fn();
     const onCameraFrame = vi.fn();
-    const onRequestedCameraLayout = vi.fn();
     const controller = new CameraPoseController({
       video,
       initialPoseLimit: 1,
       onPacket,
-      onDiagnostics: vi.fn(),
       onCameraFrame,
-      onRequestedCameraLayout,
       onError: vi.fn(),
     });
     await controller.start();
@@ -233,9 +222,7 @@ describe("camera pose controller player limit", () => {
       }),
     );
 
-    const requested = controller.requestCameraLayout("portrait");
-    expect(onRequestedCameraLayout).toHaveBeenLastCalledWith("portrait");
-    Object.assign(window.screen.orientation, { type: "portrait-primary", angle: 0 });
+    Object.assign(window.screen.orientation, { type: "landscape-secondary", angle: 270 });
     vi.mocked(createImageBitmap).mockImplementation(
       async () => ({ width: 720, height: 1_280, close: frameClose }) as unknown as ImageBitmap,
     );
@@ -247,24 +234,22 @@ describe("camera pose controller player limit", () => {
     expect(estimator.resetTracking).not.toHaveBeenCalled();
 
     frameCallbacks[3]?.(500, {} as VideoFrameCallbackMetadata);
-    await expect(requested).resolves.toBeUndefined();
     await vi.waitFor(() => expect(onPacket).toHaveBeenCalledTimes(2));
 
     expect(estimator.resetTracking).toHaveBeenCalledOnce();
-    expect(onRequestedCameraLayout).toHaveBeenLastCalledWith(null);
     expect(onCameraFrame).toHaveBeenCalledWith(
       expect.objectContaining({
         source: { width: 720, height: 1_280 },
-        rotation: 0,
-        frame: { width: 720, height: 1_280, layout: "portrait", epoch: 1 },
+        rotation: 270,
+        frame: { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
       }),
     );
     expect(estimator.estimate).toHaveBeenLastCalledWith(
       expect.anything(),
       500,
       1,
-      { width: 720, height: 1_280, layout: "portrait", epoch: 1 },
-      0,
+      { width: 1_280, height: 720, layout: "landscape", epoch: 1 },
+      270,
     );
     controller.stop();
   });
@@ -276,9 +261,7 @@ describe("camera pose controller player limit", () => {
       video,
       initialPoseLimit: 1,
       onPacket: vi.fn(),
-      onDiagnostics: vi.fn(),
       onCameraFrame: vi.fn(),
-      onRequestedCameraLayout: vi.fn(),
       onError,
     });
     await controller.start();

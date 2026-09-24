@@ -28,9 +28,7 @@
   "dependencies": {
     "@mediapipe/tasks-vision": "1.0.1",
     "phaser": "4.2.1",
-    "preact": "10.29.8",
-    "qrcode": "1.5.4",
-    "trystero": "0.25.3"
+    "preact": "10.29.8"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",
@@ -40,7 +38,6 @@
     "@testing-library/preact": "3.2.4",
     "@types/babel__core": "7.20.5",
     "@types/node": "24.13.3",
-    "@types/qrcode": "1.5.6",
     "jsdom": "30.0.1",
     "typescript": "7.0.2",
     "vite": "8.2.1",

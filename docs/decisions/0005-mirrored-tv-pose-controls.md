@@ -1,16 +1,16 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-14
 scope: Television projection, fullscreen entry, temporary controller claiming, and pose-button interaction
 ---
 
 # ADR-0005: Mirrored television pose controls
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** [ADR-0006](0006-session-player-limit-control.md) for the former Skeleton action and television-local-only action constraint; [ADR-0008](0008-above-head-coarse-hand-controls.md) for the torso-relative row, direct wrist pointer, and immediately armed lease; [ADR-0010](0010-menu-and-draw-game.md) for the Circles action and effect layer; [ADR-0014](0014-procedural-body-avatar.md) for visible body presentation; [ADR-0015](0015-canonical-camera-orientation.md) for the orientation-implicit raw-camera packet basis
+- **Superseded by:** [ADR-0021](0021-landscape-phone-only.md)
 
 ## Context
 
@@ -119,3 +119,5 @@ Rejected for the identity-independent prototype. They add tracking complexity an
 ## Follow-up
 
 - Record timing or geometry changes from real-device evidence by updating this decision and the canonical product contract in the same hard cutover.
+
+Superseded by [ADR-0021](0021-landscape-phone-only.md).

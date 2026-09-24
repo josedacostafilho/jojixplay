@@ -1,96 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { readdir } from "node:fs/promises";
 
-test("landing page exposes all three application modes", async ({ page }) => {
+test("requires landscape before exposing camera activation", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-
-  await expect(
-    page.getByRole("heading", { name: "Turn a phone and TV into a motion playground." }),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: /Open on the TV/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Open on the phone/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Play on this phone/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Rotate your phone" })).toBeVisible();
+  await expect(page.locator("video")).toHaveCount(0);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.getByRole("button", { name: "Start playing" })).toBeVisible();
 });
 
-test("television enters TV mode and creates QR and manual pairing surfaces", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(Element.prototype, "requestFullscreen", {
-      configurable: true,
-      value: () => {
-        Reflect.set(window, "__jojixplayFullscreenRequested", true);
-        return Promise.reject(new DOMException("Fullscreen unavailable in the test browser."));
-      },
-    });
-  });
-  await page.goto("/?mode=tv");
-
-  await expect(
-    page.getByRole("heading", { name: "Make this screen the playground." }),
-  ).toBeVisible();
-  await expect(page.getByLabel("TV pairing key")).toHaveCount(0);
-  await page.getByRole("button", { name: "Start TV mode" }).click();
-  await expect
-    .poll(() => page.evaluate(() => Reflect.get(window, "__jojixplayFullscreenRequested")))
-    .toBe(true);
-  await expect(page.getByRole("heading", { name: "Connect your phone" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "Phone pairing QR code" })).toBeVisible();
-  await expect(page.getByLabel("TV pairing key")).toHaveText(
-    /^[0-9A-HJKMNP-TV-Z]{4}(?:-[0-9A-HJKMNP-TV-Z]{4}){4}$/,
-  );
-  await expect(page.getByText("Camera pixels never leave the phone.")).toBeVisible();
-});
-
-test("phone route offers manual pairing without a QR fragment", async ({ page }) => {
-  await page.goto("/?mode=phone");
-
-  await expect(page.getByRole("heading", { name: "Enter the key from your TV." })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "TV pairing key" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Start body tracking/ })).toHaveCount(0);
-});
-
-test("phone accepts a manually entered TV pairing key", async ({ page }) => {
-  await page.goto("/?mode=phone");
-
-  await page.getByRole("textbox", { name: "TV pairing key" }).fill("m7pkj3tdw9hxq4fv6r2c");
-  await page.getByRole("button", { name: "Connect to TV" }).click();
-
-  await expect(page.getByRole("button", { name: "Start body tracking" })).toBeVisible();
-});
-
-test("phone starts the camera and local pose worker after user activation", async ({ page }) => {
-  await page.addInitScript(() => {
-    const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = (constraints) => {
-      Reflect.set(window, "__jojixplayCameraConstraints", JSON.stringify(constraints));
-      return originalGetUserMedia(constraints);
-    };
-  });
-  await page.goto("/?mode=phone#key=M7PKJ3TDW9HXQ4FV6R2C");
-
-  const startButton = page.getByRole("button", { name: "Start body tracking" });
-  await expect(startButton).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("");
-  await startButton.click();
-
-  await expect(page.getByRole("button", { name: "Stop tracking" })).toBeVisible({
-    timeout: 30_000,
-  });
-  const requestedConstraints = await page.evaluate(() => {
-    const value: unknown = Reflect.get(window, "__jojixplayCameraConstraints");
-    return typeof value === "string" ? value : null;
-  });
-  expect(requestedConstraints).not.toBeNull();
-  expect(JSON.parse(requestedConstraints ?? "null")).toMatchObject({
-    audio: false,
-    video: {
-      facingMode: { ideal: "user" },
-      frameRate: { ideal: 30, max: 30 },
-    },
-  });
-  await expect(page.getByText(/visible · (portrait|landscape)$/)).toBeVisible();
-});
-
-test("all-in-one phone mode reaches a real local pose packet without preview or peer transport", async ({
+test("phone play reaches a real local pose packet without preview or peer transport", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -145,7 +65,7 @@ test("all-in-one phone mode reaches a real local pose packet without preview or 
       return stream;
     };
   });
-  await page.goto("/?mode=local");
+  await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Play right here on your phone." })).toBeVisible();
   await expect(page.getByRole("img", { name: /QR code/i })).toHaveCount(0);
@@ -155,15 +75,13 @@ test("all-in-one phone mode reaches a real local pose packet without preview or 
   await expect(captureSource).toHaveAttribute("aria-hidden", "true");
   await expect(captureSource).toHaveCSS("opacity", "0");
 
-  await page.getByRole("button", { name: "Start local play" }).click();
-  await expect(page.getByRole("button", { name: "Stop local play" })).toBeVisible({
+  await page.getByRole("button", { name: "Start playing" }).click();
+  await expect(page.getByRole("button", { name: "Stop playing" })).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.locator(".body-playfield")).toHaveAttribute(
-    "data-camera-layout",
-    /portrait|landscape/,
-    { timeout: 30_000 },
-  );
+  await expect(page.locator(".body-playfield")).toHaveAttribute("data-camera-layout", "landscape", {
+    timeout: 30_000,
+  });
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, "__jojixplayFullscreenRequested")))
     .toBe(true);
@@ -174,7 +92,7 @@ test("all-in-one phone mode reaches a real local pose packet without preview or 
     })),
   ).toEqual({ webSocket: "undefined", peerConnection: "undefined" });
 
-  await page.getByRole("button", { name: "Stop local play" }).click();
+  await page.getByRole("button", { name: "Stop playing" }).click();
   await expect(page.getByRole("heading", { name: "Play right here on your phone." })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayTrackStopCount"))))
@@ -182,6 +100,19 @@ test("all-in-one phone mode reaches a real local pose packet without preview or 
   await expect
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayWakeReleaseCount"))))
     .toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Start playing" }).click();
+  await expect(page.getByRole("button", { name: "Stop playing" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("heading", { name: "Rotate your phone" })).toBeVisible();
+  await expect(page.locator("video")).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayTrackStopCount"))))
+    .toBeGreaterThan(1);
+  await expect
+    .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayWakeReleaseCount"))))
+    .toBeGreaterThan(1);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.getByRole("button", { name: "Start playing" })).toBeVisible();
 });
 
 test("actionable game messages stay high and behind body-control buttons", async ({ page }) => {
@@ -249,7 +180,6 @@ test("production Racing chunk stays lazy and boots one forced Canvas runtime", a
       playerCount: 2,
       phase: "racing",
       paused: false,
-      orientationPaused: false,
       systemPaused: false,
       readyToStart: true,
       visibleDrivers: 2,

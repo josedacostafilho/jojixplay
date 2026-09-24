@@ -1,16 +1,16 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-14
 scope: Runtime player-limit selection, bidirectional session control, and MediaPipe reconfiguration
 ---
 
 # ADR-0006: Session player-limit control
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** The Skeleton palette action and television-local-only action constraint in [ADR-0005](0005-mirrored-tv-pose-controls.md)
-- **Superseded by:** [ADR-0010](0010-menu-and-draw-game.md) for retained circle-effect references; [ADR-0014](0014-procedural-body-avatar.md) for visible palette presentation
+- **Superseded by:** [ADR-0021](0021-landscape-phone-only.md)
 
 ## Context
 
@@ -96,3 +96,5 @@ Rejected because a failed or delayed command would display configuration that th
 ## Follow-up
 
 - Record measured performance and interaction findings in the canonical status/backlog documents; change the accepted defaults only from evidence and through a hard cutover.
+
+Superseded by [ADR-0021](0021-landscape-phone-only.md).

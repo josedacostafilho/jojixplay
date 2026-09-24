@@ -28,12 +28,8 @@ const EMPTY_PACKET: PosePacket = {
   poses: [],
 };
 
-interface CameraHarnessProps {
-  onPacket: (packet: PosePacket) => void;
-}
-
-function CameraHarness({ onPacket }: CameraHarnessProps) {
-  const camera = useCameraPose({ onPacket });
+function CameraHarness() {
+  const camera = useCameraPose();
   return (
     <section>
       <video ref={camera.videoRef} muted playsInline />
@@ -84,8 +80,7 @@ describe("shared camera pose lifecycle", () => {
   });
 
   it("owns one camera controller, publishes packets directly, applies mode before display, and cleans up", async () => {
-    const onPacket = vi.fn();
-    const view = render(<CameraHarness onPacket={onPacket} />);
+    const view = render(<CameraHarness />);
     const video = view.container.querySelector("video");
     if (video === null) {
       throw new Error("Camera harness did not render its capture source.");
@@ -120,7 +115,6 @@ describe("shared camera pose lifecycle", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(screen.getByLabelText("Packet sequence")).toHaveTextContent("7"));
-    expect(onPacket).toHaveBeenCalledWith(EMPTY_PACKET);
 
     let resolvePoseLimit: (() => void) | null = null;
     estimator.setPoseLimit.mockImplementation(

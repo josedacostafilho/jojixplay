@@ -1,16 +1,16 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-13
 scope: Human-readable session pairing, credential derivation, and QR/manual entry convergence
 ---
 
 # ADR-0004: One human-readable key for QR and manual pairing
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** ADR-0002 credential-generation and delivery clauses only
-- **Superseded by:** None
+- **Superseded by:** [ADR-0021](0021-landscape-phone-only.md)
 
 ## Context
 
@@ -64,3 +64,5 @@ Rejected because 54 ungrouped base64url characters are unnecessarily error-prone
 - Component and browser tests prove that a phone without a QR fragment can enter the displayed key and reach the same controller path.
 - The TV and QR render the same source key, and network code still receives only the derived `SessionCredentials` boundary.
 - Searches find no six-digit pairing path, credential lookup service, or parser for the former room/password fragment.
+
+Superseded by [ADR-0021](0021-landscape-phone-only.md).

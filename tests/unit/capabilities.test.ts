@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  inspectLocalPlayCapabilities,
-  inspectPhoneControllerCapabilities,
-  inspectTvDisplayCapabilities,
-} from "../../src/platform/capabilities";
+import { inspectLocalPlayCapabilities } from "../../src/platform/capabilities";
 
 describe("mode-specific capability checks", () => {
   beforeEach(() => {
@@ -41,23 +37,11 @@ describe("mode-specific capability checks", () => {
     Reflect.deleteProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback");
   });
 
-  it("allows local play without peer-network APIs while paired modes still require them", () => {
+  it("runs without peer-network APIs", () => {
     expect(inspectLocalPlayCapabilities()).toEqual({ supported: true, missing: [] });
-    expect(inspectPhoneControllerCapabilities()).toMatchObject({
-      supported: false,
-      missing: expect.arrayContaining(["WebSockets", "WebRTC DataChannels"]),
-    });
-    expect(inspectTvDisplayCapabilities()).toMatchObject({
-      supported: false,
-      missing: expect.arrayContaining(["WebSockets", "WebRTC DataChannels"]),
-    });
   });
-
-  it("requires native Web Audio only on the rendering hosts", () => {
+  it("requires native Web Audio", () => {
     vi.stubGlobal("AudioContext", undefined);
-
-    expect(inspectPhoneControllerCapabilities().missing).not.toContain("Web Audio");
     expect(inspectLocalPlayCapabilities().missing).toContain("Web Audio");
-    expect(inspectTvDisplayCapabilities().missing).toContain("Web Audio");
   });
 });

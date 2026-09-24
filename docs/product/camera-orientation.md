@@ -1,108 +1,27 @@
 ---
 status: Active
-last_verified: 2026-08-17
-scope: Portrait/landscape user experience, canonical camera coordinates, and game orientation behavior
+last_verified: 2026-09-24
+scope: Landscape-only output, source normalization, and rotation lifecycle
 ---
 
-# Camera orientation and game layouts
+# Landscape camera coordinates
 
-## Outcome
+## Entry and output
 
-JojixPlay accepts a phone held in portrait or landscape while presenting every pose in one upright camera coordinate system. Games explicitly state which layouts they support, the shell guides incompatible game entry, and an active game never silently changes coordinate basis.
+The website requires landscape before mounting phone setup. The trusted Start action attempts native landscape locking after fullscreen entry. Browser denial never enables portrait play: portrait unmounts the run, releases its resources, and shows the rotate instruction. See [Phone play](local-play.md).
 
-The governing rationale is [ADR-0015](../decisions/0015-canonical-camera-orientation.md). This document owns the current user-visible and runtime contract.
+`PosePacket.frame` is exactly `{ width, height, layout, epoch }`, with `layout: "landscape"` and width greater than height. Square and portrait canonical frames are rejected. Raw camera source dimensions may be portrait; this is source metadata, not a playable mode.
 
-## Coordinate contract
+## Normalization
 
-```text
-actual phone camera frame
-        ↓ phone-local quarter-turn normalization
-upright MediaPipe input
-        ↓ canonical raw PosePacket
-x right, y down, portrait or landscape, explicit epoch
-        ↓ aspect-preserving shared playfield projection
-horizontal presentation mirror: x → 1 - x
-```
+The camera parses Screen Orientation type and quarter-turn angle. Source bitmaps already in landscape are browser-oriented and receive no additional rotation. Portrait bitmaps receive the matching `90°` or `270°` turn before MediaPipe; output landmarks are mapped once into upright landscape coordinates. Anatomical indices remain unchanged. Presentation mirrors horizontally only after normalization.
 
-- Rotation precedes pose consumption. Mirroring follows canonical projection.
-- Anatomical landmark indices are never swapped.
-- `PosePacket.frame.layout` is `portrait` or `landscape`; its dimensions must agree with the layout.
-- `PosePacket.frame.epoch` changes whenever the phone commits a different camera basis.
-- Source rotation, screen angle, and source dimensions remain phone-local diagnostics.
-- Camera aspect ratio is preserved as delivered. Aspect ratio is not treated as evidence of field of view, and no `4:3` preference exists.
+A changed source basis must remain stable for 400 ms before commit. MediaPipe tracking resets and the frame epoch increments. Every temporal consumer resets on epoch changes. Temporarily inconsistent source/screen metadata is dropped for up to 1,500 ms; sustained invalid metadata stops tracking with an actionable error.
 
-## Phone behavior
+## Games and controls
 
-- Camera startup reads a validated Screen Orientation type and quarter-turn angle. When the source bitmap already has the screen's layout, it is treated as browser-oriented and is not rotated again; only a source/screen layout mismatch applies the corresponding `90°` or `270°` correction.
-- Tracking may begin in either layout. The camera stage follows the canonical frame aspect and identifies the active layout.
-- A changed source basis must remain stable for `400 ms` before it is committed. Frames are not inferred or published while rotation is unsettled. Temporarily inconsistent source/screen metadata is dropped for at most `1,500 ms`; a continuously invalid state then stops tracking with actionable guidance.
-- Before publishing a changed basis, the phone reconfigures MediaPipe with the current pose limit to reset its internal video-tracking history. Camera capture, pairing, and the acknowledged player limit remain active.
-- A game-layout request is absolute. If the requested layout is not active, the paired controller displays **Rotate phone to portrait** or **Rotate phone to landscape** and acknowledges only after that layout is committed; local play shows the same instruction in `BodyPlayfield` and resolves its direct request only after the same commit.
-- Tracking, pairing, and the acknowledged player limit survive a layout change.
-- Invalid orientation metadata or an inconsistent/square canonical frame stops tracking with an actionable message.
+All games and both player counts use landscape. Main Menu, Settings, Games, Draw, and actionable Bubbles/Racing phases use compact left-column targets within the projected camera frame. There are no layout commands, game orientation negotiation, portrait layouts, or captured-layout restoration paths.
 
-## Game policies
+Draw and Bubbles preserve the canonical frame aspect ratio. Racing fills the playfield, using a full viewport for one player and side-by-side views for two. All input uses raw canonical landmarks; presentation stabilization never feeds game logic.
 
-| View or mode | Supported camera layouts | Control placement |
-| --- | --- | --- |
-| Main Menu | Portrait and landscape | Portrait above-head row; landscape compact left column |
-| Games | Portrait and landscape | Compact left column |
-| Draw | Portrait and landscape | Compact left column |
-| Bubbles, one player | Portrait and landscape | Compact left column while actionable |
-| Bubbles, two players | Landscape only | Compact left column while actionable |
-| Racing, one player | Portrait and landscape | Compact left column while Ready, Paused, or Finished |
-| Racing, two players | Landscape only | Compact left column while Ready, Paused, or Finished |
-
-The shared playfield evaluates the policy before mounting a game. A mismatch disables the current pose targets, requests the required layout, and shows the rotation instruction on the playfield plus the paired controller where one exists. The game begins only after the paired acknowledgement or direct local commit and a matching canonical packet.
-
-## Active-game lock
-
-- Draw, Bubbles, and Racing capture the entering frame layout.
-- A different incoming layout is an orientation mismatch, not a resize.
-- The mismatched pose and avatar are hidden from the game. The active playfield instructs the user to restore the captured layout.
-- Draw immediately ends the grip and current path. Artwork, selected tool, and color remain available when the expected layout returns.
-- Bubbles freezes the countdown or active round, movement, effects, respawn delays, scores, and result timing. It resumes from the same remaining duration.
-- Racing freezes calibration, active elapsed time, car simulation, and steering input. It keeps a prior user pause and resumes only through fresh torso-lean input after the captured layout returns.
-- Returning to the captured layout resets all temporal input history before input resumes, preventing dwell, stroke, swept-collision, steering, or pause-gesture bridges.
-- A new Draw entry under a different layout begins with an empty canvas because the old normalized artwork has no stable physical meaning after a deliberate camera-layout change.
-
-Ordinary pose loss remains distinct: it follows each game's existing fail-closed behavior, does not pause Bubbles time, and causes only the affected Racing steering command to ease toward center after its bounded grace interval.
-
-## Presentation behavior
-
-- `BodyPlayfield` contains the canonical camera frame without stretching or rotating its viewport.
-- Portrait produces a centered tall arena with side gutters. Landscape produces a wider arena.
-- Game targets and body-controlled actions stay inside the camera arena. Scores, timers, instructions, and other noninteractive HUD may use playfield space outside it.
-- Draw and Bubbles scale sizes and distances from the canonical frame minimum dimension as before.
-- Racing uses the camera frame only for pose geometry and reachable DOM actions; its Phaser canvas fills the playfield and uses one full-screen or two half-screen viewports.
-- The paired controller's phone video and avatar preview share the same canonical aspect and rotation. Local play renders no camera preview.
-
-## Implementation plan
-
-- [x] Add strict camera-layout, quarter-turn, frame-epoch, and game-policy domain contracts.
-- [x] Hard-cut `PosePacket.frame`, worker messages, peer protocol, fixtures, and documentation to the canonical frame schema.
-- [x] Normalize MediaPipe input/output at the phone boundary and expose bounded orientation diagnostics.
-- [x] Add stable orientation transitions and strict acknowledged television-to-phone layout requests.
-- [x] Make phone preview geometry and menu control placement layout-aware.
-- [x] Gate incompatible game entry and lock active games to their entering layout.
-- [x] Reset Draw input and pause/resume Bubbles safely across orientation mismatch, including gaps before the returning packet.
-- [x] Add one-player both-layout and two-player landscape-only Racing policy with complete simulation/input freeze on mismatch.
-- [x] Reuse the same policies and direct absolute camera-layout commit in all-in-one local play without a preview or peer acknowledgement.
-- [x] Add unit, component, transport, and production-browser regression coverage.
-- [x] Run the complete canonical validation suite.
-- [ ] Validate portrait and landscape behavior on the owner's real phone and television.
-
-## Acceptance criteria
-
-1. A phone can begin tracking in portrait or landscape and MediaPipe receives an upright frame in either case.
-2. The shared playfield mirror remains horizontal in physical screen space for both layouts and both execution topologies.
-3. Packet dimensions, layout, and epoch are strictly validated; obsolete packets and peers fail closed.
-4. Main Menu uses the above-head row in portrait and the compact left column in landscape; Games uses the compact left column in both layouts.
-5. Draw plus one-player Bubbles/Racing can start in either layout; two-player Bubbles/Racing cannot start until landscape is acknowledged.
-6. An incompatible game selection shows a clear rotation gate on both screens without restarting pairing, tracking, or player mode.
-7. Active games consume no mismatched-layout pose. Draw creates no bridge stroke, Bubbles loses no game time or state, and Racing consumes no simulation time or steering history during the mismatch.
-8. Returning to the captured layout resumes through fresh input histories.
-9. Phone diagnostics reveal enough non-pixel orientation state to diagnose a target browser.
-10. No forced aspect ratio, alternate rotation implementation, screen-lock dependency, compatibility parser, or legacy protocol remains.
-
-Automated checks cannot prove browser camera metadata or pose accuracy. Complete real-device orientation acceptance remains required.
+Real-device acceptance must cover both landscape directions, source-coordinate alignment, native lock acceptance/rejection, portrait teardown, and external-mirroring behavior. [ADR-0021](../decisions/0021-landscape-phone-only.md) owns the rationale.

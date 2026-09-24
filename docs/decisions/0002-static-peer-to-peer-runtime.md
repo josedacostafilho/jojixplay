@@ -1,16 +1,16 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-13
 scope: Static deployment, decentralized rendezvous, and peer-to-peer session topology
 ---
 
 # ADR-0002: Static deployment with decentralized WebRTC rendezvous
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** ADR-0004 for pairing-credential generation and delivery only
+- **Superseded by:** [ADR-0021](0021-landscape-phone-only.md)
 
 ## Context
 
@@ -70,3 +70,5 @@ Not selected as the canonical path because receiver support is not portable acro
 - Network-facing code uses Trystero only for room discovery and actions only for validated application messages.
 - Tests prove that session credentials follow ADR-0004, QR credentials are scrubbed after parsing, and malformed input is rejected.
 - Code and dependency searches find no TURN configuration or alternate transport.
+
+Superseded by [ADR-0021](0021-landscape-phone-only.md).

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { PlayfieldAudio } from "../audio/audio-engine";
-import type { CameraFrame, CameraLayout } from "../domain/camera";
+import type { CameraFrame } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import { type PoseLimit, MAX_POSE_LIMIT } from "../domain/pose-limit";
-import { type GameId, gameSupportsCameraLayout, requiredCameraLayout } from "../games/catalog";
 import { BubblesCanvas } from "../games/bubbles/bubbles-canvas";
 import {
   bubblesPlayersFromPosePacket,
@@ -23,7 +22,6 @@ import {
 } from "../games/racing/racing-session";
 import {
   type PoseControlActionDefinition,
-  type PoseControlPlacement,
   PoseControlSession,
   type PoseControlSnapshot,
   type PoseControlUpdate,
@@ -44,9 +42,7 @@ interface BodyPlayfieldProps {
   packet: PosePacket | null;
   poseLimit: PoseLimit;
   poseLimitPending: boolean;
-  cameraLayoutPending: boolean;
   onPoseLimitRequest: (poseLimit: PoseLimit) => Promise<void>;
-  onCameraLayoutRequest: (layout: CameraLayout) => Promise<void>;
 }
 
 type BackgroundTheme = "navy" | "plum";
@@ -147,40 +143,22 @@ const EMPTY_SNAPSHOT: PoseControlSnapshot<PlayfieldAction> = {
   controllerPoseIndex: null,
 };
 
-interface ViewControls {
-  actions: readonly PoseControlActionDefinition<PlayfieldAction>[];
-  placement: PoseControlPlacement;
-}
-
-interface OrientationGate {
-  game: GameId;
-  view: "draw" | "bubbles" | "racing";
-  requiredLayout: CameraLayout;
-}
-
-function controlsForView(view: PlayfieldView, layout: CameraLayout | null): ViewControls {
+function actionsForView(
+  view: PlayfieldView,
+): readonly PoseControlActionDefinition<PlayfieldAction>[] {
   switch (view) {
     case "main":
-      return {
-        actions: MAIN_ACTIONS,
-        placement: layout === "landscape" ? "left-column" : "overhead-row",
-      };
+      return MAIN_ACTIONS;
     case "games":
-      return {
-        actions: GAMES_ACTIONS,
-        placement: "left-column",
-      };
+      return GAMES_ACTIONS;
     case "settings":
-      return {
-        actions: SETTINGS_ACTIONS,
-        placement: "left-column",
-      };
+      return SETTINGS_ACTIONS;
     case "draw":
-      return { actions: DRAW_ACTIONS, placement: "left-column" };
+      return DRAW_ACTIONS;
     case "bubbles":
-      return { actions: BUBBLES_READY_ACTIONS, placement: "left-column" };
+      return BUBBLES_READY_ACTIONS;
     case "racing":
-      return { actions: RACING_READY_ACTIONS, placement: "left-column" };
+      return RACING_READY_ACTIONS;
   }
 }
 
@@ -298,8 +276,6 @@ function controlInstruction(
   switch (snapshot.phase) {
     case "no-pose":
       return "Step back until your full body is visible";
-    case "needs-headroom":
-      return "Step back and leave clear space above your head";
     case "ready":
       return snapshot.requiresBothHands
         ? "One person: raise both hands and keep one whole hand visible"
@@ -429,14 +405,10 @@ export function BodyPlayfield({
   packet,
   poseLimit,
   poseLimitPending,
-  cameraLayoutPending,
   onPoseLimitRequest,
-  onCameraLayoutRequest,
 }: BodyPlayfieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [controlSession] = useState(
-    () => new PoseControlSession<PlayfieldAction>(MAIN_ACTIONS, "overhead-row"),
-  );
+  const [controlSession] = useState(() => new PoseControlSession<PlayfieldAction>(MAIN_ACTIONS));
   const [drawSession] = useState(() => new DrawSession());
   const [bubblesSession] = useState(() => new BubblesSession());
   const [racingSession] = useState(() => new RacingSession());
@@ -454,16 +426,9 @@ export function BodyPlayfield({
   const racingAudioPhaseRef = useRef<RacingSnapshot["phase"]>("ready");
   const racingCountdownRef = useRef<number | null>(null);
   const playerModeRequestActiveRef = useRef(false);
-  const orientationReturnRequestActiveRef = useRef(false);
-  const orientationMismatchRef = useRef(false);
-  const activeGameLayoutRef = useRef<CameraLayout | null>(null);
-  const drawLayoutRef = useRef<CameraLayout | null>(null);
   const activateActionRef = useRef<(action: PlayfieldAction) => void>(() => undefined);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [view, setView] = useState<PlayfieldView>("main");
-  const [controlPlacement, setControlPlacement] = useState<PoseControlPlacement>("overhead-row");
-  const [activeGameLayout, setActiveGameLayout] = useState<CameraLayout | null>(null);
-  const [orientationGate, setOrientationGate] = useState<OrientationGate | null>(null);
   const [snapshot, setSnapshot] = useState<PoseControlSnapshot<PlayfieldAction>>(EMPTY_SNAPSHOT);
   const [drawing, setDrawing] = useState<DrawSnapshot>(() => drawSession.tick(0));
   const [bubbles, setBubbles] = useState<BubblesSnapshot>(() =>
@@ -478,16 +443,9 @@ export function BodyPlayfield({
   const [announcement, setAnnouncement] = useState("");
   const palette = AVATAR_ACCENT_PALETTE;
 
-  if (activeGameLayout === null) {
-    orientationMismatchRef.current = false;
-  } else if (packet !== null) {
-    orientationMismatchRef.current = packet.frame.layout !== activeGameLayout;
-  }
-  const orientationMismatch = orientationMismatchRef.current;
-  const gamePacket = orientationMismatch ? null : packet;
   latestPacketRef.current = packet;
-  if (gamePacket !== null) {
-    latestFrameRef.current = gamePacket.frame;
+  if (packet !== null) {
+    latestFrameRef.current = packet.frame;
   }
 
   const applyDrawing = useCallback((next: DrawSnapshot) => {
@@ -495,43 +453,19 @@ export function BodyPlayfield({
   }, []);
 
   const transitionTo = useCallback(
-    (nextView: PlayfieldView, enteringLayout: CameraLayout | null = null) => {
+    (nextView: PlayfieldView) => {
       const nowMs = performance.now();
-      const nextGameLayout =
-        nextView === "draw" || nextView === "bubbles" || nextView === "racing"
-          ? enteringLayout
-          : null;
-      if (
-        (nextView === "draw" || nextView === "bubbles" || nextView === "racing") &&
-        nextGameLayout === null
-      ) {
-        throw new Error("A game requires an explicit camera layout on entry.");
-      }
       viewRef.current = nextView;
       setView(nextView);
-      activeGameLayoutRef.current = nextGameLayout;
-      setActiveGameLayout(nextGameLayout);
-      setOrientationGate(null);
       controlSession.setControlsEnabled(true, nowMs);
-      const controls = controlsForView(
-        nextView,
-        nextGameLayout ?? latestPacketRef.current?.frame.layout ?? null,
-      );
-      setControlPlacement(controls.placement);
-      const controlUpdate = controlSession.setActions(controls.actions, controls.placement, nowMs);
+      const controlUpdate = controlSession.setActions(actionsForView(nextView), nowMs);
       setSnapshot(controlUpdate.snapshot);
-      if (nextView === "draw" && nextGameLayout !== null) {
-        if (drawLayoutRef.current !== null && drawLayoutRef.current !== nextGameLayout) {
-          drawSession.clear();
-        }
-        drawLayoutRef.current = nextGameLayout;
-      }
       applyDrawing(drawSession.setEnabled(nextView === "draw"));
       if (nextView === "bubbles") {
         bubblesPlayerCountRef.current = poseLimit;
         let nextBubbles = bubblesSession.setEnabled(true, bubblesPlayerCountRef.current, nowMs);
         const currentPacket = latestPacketRef.current;
-        if (currentPacket !== null && currentPacket.frame.layout === nextGameLayout) {
+        if (currentPacket !== null) {
           nextBubbles = bubblesSession.updatePlayers(
             bubblesPlayersFromPosePacket(currentPacket, bubblesPlayerCountRef.current),
             currentPacket.frame,
@@ -549,7 +483,7 @@ export function BodyPlayfield({
         racingInputSession.reset();
         let nextRacing = racingSession.setEnabled(true, racingPlayerCountRef.current, nowMs);
         const currentPacket = latestPacketRef.current;
-        if (currentPacket !== null && currentPacket.frame.layout === nextGameLayout) {
+        if (currentPacket !== null) {
           nextRacing = racingSession.updateDrivers(
             racingInputSession.update(currentPacket, racingPlayerCountRef.current, nowMs),
             nowMs,
@@ -577,7 +511,7 @@ export function BodyPlayfield({
 
   const activateAction = useCallback(
     (action: PlayfieldAction) => {
-      if (poseLimitPending || cameraLayoutPending || playerModeRequestActiveRef.current) {
+      if (poseLimitPending || playerModeRequestActiveRef.current) {
         return;
       }
       if (action !== "sound") {
@@ -648,35 +582,13 @@ export function BodyPlayfield({
         case "open-draw":
         case "open-bubbles":
         case "open-racing": {
-          const game: GameId =
-            action === "open-draw" ? "draw" : action === "open-bubbles" ? "bubbles" : "racing";
-          const nextView = game;
-          const currentLayout = latestPacketRef.current?.frame.layout ?? null;
-          if (currentLayout === null) {
-            audio.playCue({ type: "ui-error" });
+          if (latestPacketRef.current === null) {
             setAnnouncement("A live camera frame is required before opening a game.");
             break;
           }
-          if (gameSupportsCameraLayout(game, poseLimit, currentLayout)) {
-            transitionTo(nextView, currentLayout);
-            break;
-          }
-          const requiredLayout = requiredCameraLayout(game, poseLimit);
-          if (requiredLayout === null) {
-            throw new Error("The selected game has an inconsistent camera-layout policy.");
-          }
-          const nowMs = performance.now();
-          setOrientationGate({ game, view: nextView, requiredLayout });
-          setSnapshot(controlSession.setControlsEnabled(false, nowMs).snapshot);
-          setAnnouncement("");
-          void onCameraLayoutRequest(requiredLayout).catch(() => {
-            audio.playCue({ type: "ui-error" });
-            setOrientationGate(null);
-            setSnapshot(controlSession.setControlsEnabled(true, performance.now()).snapshot);
-            setAnnouncement(
-              `Camera layout did not change. ${viewLabel(viewRef.current)} remains active.`,
-            );
-          });
+          transitionTo(
+            action === "open-draw" ? "draw" : action === "open-bubbles" ? "bubbles" : "racing",
+          );
           break;
         }
         case "return-main":
@@ -775,7 +687,7 @@ export function BodyPlayfield({
           const nextRacing = racingSession.restart(nowMs);
           racingPhaseRef.current = nextRacing.phase;
           setRacing(nextRacing);
-          controlSession.setActions(RACING_READY_ACTIONS, "left-column", nowMs);
+          controlSession.setActions(RACING_READY_ACTIONS, nowMs);
           setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
           setAnnouncement("Ready for a new race.");
           break;
@@ -789,10 +701,8 @@ export function BodyPlayfield({
       audio,
       applyDrawing,
       bubblesSession,
-      cameraLayoutPending,
       controlSession,
       drawSession,
-      onCameraLayoutRequest,
       onPoseLimitRequest,
       poseLimit,
       poseLimitPending,
@@ -804,62 +714,6 @@ export function BodyPlayfield({
     ],
   );
   activateActionRef.current = activateAction;
-
-  useEffect(() => {
-    if (
-      orientationGate === null ||
-      cameraLayoutPending ||
-      packet?.frame.layout !== orientationGate.requiredLayout
-    ) {
-      return;
-    }
-    audio.playCue({ type: "ui-success" });
-    transitionTo(orientationGate.view, orientationGate.requiredLayout);
-  }, [audio, cameraLayoutPending, orientationGate, packet, transitionTo]);
-
-  useEffect(() => {
-    const lockedLayout = activeGameLayoutRef.current;
-    if (lockedLayout === null) {
-      orientationReturnRequestActiveRef.current = false;
-      return;
-    }
-    const nowMs = performance.now();
-    if (orientationMismatch) {
-      setSnapshot(controlSession.reset(nowMs).snapshot);
-      if (viewRef.current === "draw") {
-        applyDrawing(drawSession.suspend());
-      } else if (viewRef.current === "bubbles") {
-        setBubbles(bubblesSession.setPaused(true, nowMs));
-      } else if (viewRef.current === "racing") {
-        racingInputSession.reset();
-        setRacing(racingSession.setOrientationPaused(true, nowMs));
-      }
-      if (!cameraLayoutPending && !orientationReturnRequestActiveRef.current) {
-        orientationReturnRequestActiveRef.current = true;
-        void onCameraLayoutRequest(lockedLayout).catch(() => {
-          setAnnouncement(`Return the phone to ${lockedLayout} to resume.`);
-        });
-      }
-      return;
-    }
-
-    orientationReturnRequestActiveRef.current = false;
-    if (viewRef.current === "bubbles") {
-      setBubbles(bubblesSession.setPaused(false, nowMs));
-    } else if (viewRef.current === "racing") {
-      setRacing(racingSession.setOrientationPaused(false, nowMs));
-    }
-  }, [
-    applyDrawing,
-    bubblesSession,
-    cameraLayoutPending,
-    controlSession,
-    drawSession,
-    onCameraLayoutRequest,
-    orientationMismatch,
-    racingInputSession,
-    racingSession,
-  ]);
 
   const applyPoseUpdate = useCallback(
     (
@@ -914,20 +768,19 @@ export function BodyPlayfield({
         if (racingInput.pauseRequested && racingPhaseRef.current === "racing") {
           nextRacing = racingSession.requestUserPause(nowMs);
           racingPhaseRef.current = nextRacing.phase;
-          controlSession.setActions(RACING_PAUSED_ACTIONS, "left-column", nowMs);
+          controlSession.setActions(RACING_PAUSED_ACTIONS, nowMs);
           setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
           setAnnouncement("Race paused.");
         }
         setRacing(nextRacing);
       }
-      if (update.activated !== null && !poseLimitPending && !cameraLayoutPending) {
+      if (update.activated !== null && !poseLimitPending) {
         activateActionRef.current(update.activated);
       }
     },
     [
       applyDrawing,
       bubblesSession,
-      cameraLayoutPending,
       controlSession,
       drawSession,
       poseLimitPending,
@@ -943,7 +796,7 @@ export function BodyPlayfield({
       setRacing(nextRacing);
       if (nextRacing.phase === "finished" && previousPhase !== "finished") {
         const nowMs = performance.now();
-        controlSession.setActions(RACING_RESULT_ACTIONS, "left-column", nowMs);
+        controlSession.setActions(RACING_RESULT_ACTIONS, nowMs);
         setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
         setAnnouncement("");
       }
@@ -962,7 +815,7 @@ export function BodyPlayfield({
       audio.playCue({ type: "ui-error" });
       setRacingRuntimeState("failed");
       setRacing(racingSession.setSystemPaused(true, nowMs));
-      controlSession.setActions(RACING_ERROR_ACTIONS, "left-column", nowMs);
+      controlSession.setActions(RACING_ERROR_ACTIONS, nowMs);
       setSnapshot(controlSession.setControlsEnabled(true, nowMs).snapshot);
       setAnnouncement(message);
     },
@@ -994,18 +847,8 @@ export function BodyPlayfield({
       return;
     }
     const nowMs = performance.now();
-    if (
-      gamePacket !== null &&
-      (viewRef.current === "main" || viewRef.current === "settings" || viewRef.current === "games")
-    ) {
-      const controls = controlsForView(viewRef.current, gamePacket.frame.layout);
-      if (controls.placement !== controlPlacement) {
-        controlSession.setActions(controls.actions, controls.placement, nowMs);
-        setControlPlacement(controls.placement);
-      }
-    }
-    applyPoseUpdate(controlSession.updatePacket(gamePacket, nowMs, size), nowMs, gamePacket);
-  }, [gamePacket, size, applyPoseUpdate, controlPlacement, controlSession]);
+    applyPoseUpdate(controlSession.updatePacket(packet, nowMs, size), nowMs, packet);
+  }, [packet, size, applyPoseUpdate, controlSession]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -1016,11 +859,7 @@ export function BodyPlayfield({
   }, [applyPoseUpdate, controlSession]);
 
   useEffect(() => {
-    if (
-      view !== "bubbles" ||
-      bubbles.paused ||
-      (bubbles.phase !== "starting" && bubbles.phase !== "playing")
-    ) {
+    if (view !== "bubbles" || (bubbles.phase !== "starting" && bubbles.phase !== "playing")) {
       return;
     }
     let animationFrameId: number | null = null;
@@ -1028,7 +867,7 @@ export function BodyPlayfield({
       const nextBubbles = bubblesSession.tick(nowMs);
       setBubbles(nextBubbles);
       if (nextBubbles.phase === "finished") {
-        controlSession.setActions(BUBBLES_RESULT_ACTIONS, "left-column", nowMs);
+        controlSession.setActions(BUBBLES_RESULT_ACTIONS, nowMs);
         const controlUpdate = controlSession.setControlsEnabled(true, nowMs);
         setSnapshot(controlUpdate.snapshot);
         setAnnouncement("");
@@ -1042,14 +881,13 @@ export function BodyPlayfield({
         window.cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [bubbles.paused, bubbles.phase, bubblesSession, controlSession, view]);
+  }, [bubbles.phase, bubblesSession, controlSession, view]);
 
   useEffect(() => {
-    const tool =
-      view === "draw" && drawing.gripActive && !orientationMismatch ? drawing.selectedTool : null;
+    const tool = view === "draw" && drawing.gripActive ? drawing.selectedTool : null;
     audio.setDrawContact(tool);
     return () => audio.setDrawContact(null);
-  }, [audio, drawing.gripActive, drawing.selectedTool, orientationMismatch, soundMuted, view]);
+  }, [audio, drawing.gripActive, drawing.selectedTool, soundMuted, view]);
 
   useEffect(() => {
     if (view !== "bubbles") {
@@ -1180,9 +1018,6 @@ export function BodyPlayfield({
     bubbles.lastPopAtMs.right !== null && bubbles.nowMs - bubbles.lastPopAtMs.right <= 320;
   const leftScorePulsing =
     bubbles.lastPopAtMs.left !== null && bubbles.nowMs - bubbles.lastPopAtMs.left <= 320;
-  const orientationInstructionLayout =
-    orientationGate?.requiredLayout ?? (orientationMismatch ? activeGameLayout : null);
-
   return (
     <div
       ref={containerRef}
@@ -1226,24 +1061,12 @@ export function BodyPlayfield({
 
       {view === "racing" ? null : (
         <AvatarCanvas
-          packet={gamePacket}
+          packet={packet}
           label="Mirrored live body avatar"
           className="avatar-canvas avatar-canvas--playfield"
           mirrored
           appearance={view === "draw" ? "draw" : view === "bubbles" ? "bubbles" : "stage"}
         />
-      )}
-
-      {orientationInstructionLayout === null ? null : (
-        <section class="camera-layout-gate" role="status" aria-live="assertive">
-          <p class="eyebrow">Camera layout</p>
-          <h2>Rotate phone to {orientationInstructionLayout}</h2>
-          <p>
-            {orientationMismatch
-              ? `${viewLabel(view)} is paused. Return the phone to its starting layout to resume.`
-              : `${orientationGate?.game === "bubbles" ? "Two-player Bubbles" : orientationGate?.game === "racing" ? "Two-player Racing" : "This game"} needs a ${orientationInstructionLayout} camera.`}
-          </p>
-        </section>
       )}
 
       {view === "bubbles" || view === "racing" ? null : (
@@ -1361,11 +1184,7 @@ export function BodyPlayfield({
         </section>
       ) : null}
 
-      {gamePacket !== null &&
-      orientationGate === null &&
-      !orientationMismatch &&
-      announcement === "" &&
-      gameControlsVisible ? (
+      {packet !== null && announcement === "" && gameControlsVisible ? (
         <p class={`pose-control-hint pose-control-hint--${snapshot.phase}`} aria-live="polite">
           {instruction}
           {snapshot.phase === "claiming" ? (
@@ -1376,12 +1195,8 @@ export function BodyPlayfield({
         </p>
       ) : null}
 
-      {gamePacket !== null &&
-      orientationGate === null &&
-      !orientationMismatch &&
-      snapshot.phase === "active" &&
-      gameControlsVisible ? (
-        <fieldset class="pose-control-targets" data-control-placement={controlPlacement}>
+      {packet !== null && snapshot.phase === "active" && gameControlsVisible ? (
+        <fieldset class="pose-control-targets" data-control-placement="left-column">
           <legend class="visually-hidden">{viewLabel(view)} body-controlled actions</legend>
           {snapshot.targets.map((target) => {
             const hovered = snapshot.hoveredAction === target.action;
@@ -1399,12 +1214,7 @@ export function BodyPlayfield({
                 type="button"
                 aria-label={accessibleActionLabel(target.action, poseLimit, drawing, soundMuted)}
                 onClick={() => activateAction(target.action)}
-                disabled={
-                  poseLimitPending ||
-                  cameraLayoutPending ||
-                  awaitingBubblesPlayers ||
-                  awaitingRacing
-                }
+                disabled={poseLimitPending || awaitingBubblesPlayers || awaitingRacing}
                 style={`left: ${target.rect.x}px; top: ${target.rect.y}px; width: ${target.rect.width}px; height: ${target.rect.height}px`}
               >
                 <span class="pose-control-button__label">
@@ -1428,11 +1238,7 @@ export function BodyPlayfield({
         </fieldset>
       ) : null}
 
-      {view !== "draw" &&
-      gameControlsVisible &&
-      gamePacket !== null &&
-      !orientationMismatch &&
-      snapshot.pointer !== null ? (
+      {view !== "draw" && gameControlsVisible && packet !== null && snapshot.pointer !== null ? (
         <span
           class="pose-cursor"
           aria-hidden="true"
@@ -1440,7 +1246,7 @@ export function BodyPlayfield({
         />
       ) : null}
 
-      {view === "draw" && !orientationMismatch && toolPoint !== null ? (
+      {view === "draw" && toolPoint !== null ? (
         <span
           class={`draw-tool-cursor draw-tool-cursor--${drawing.selectedTool} draw-tool-cursor--${drawing.cursor.phase}`}
           aria-hidden="true"

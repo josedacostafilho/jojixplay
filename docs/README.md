@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-18
+last_verified: 2026-09-24
 scope: Documentation system and navigation
 ---
 
@@ -15,7 +15,7 @@ Repository-wide agent instructions live in [`../AGENTS.md`](../AGENTS.md). That 
 | Goal | Read |
 | --- | --- |
 | Orient to the repository | [Project status](project/status.md), then [Stack](architecture/stack.md) |
-| Understand the product and current content | [Product brief](product/brief.md), [Phone-to-television specification](product/skeleton-viewer.md), [Play on this phone](product/local-play.md), [Camera orientation](product/camera-orientation.md), [Avatar renderer](product/avatar-renderer.md), [Draw game](product/draw-game.md), [Bubbles game](product/bubbles-game.md), [Racing game](product/racing-game.md), then [Application audio](product/audio.md) |
+| Understand the product and current content | [Product brief](product/brief.md), [Play on this phone](product/local-play.md), [Camera orientation](product/camera-orientation.md), [Avatar renderer](product/avatar-renderer.md), [Draw game](product/draw-game.md), [Bubbles game](product/bubbles-game.md), [Racing game](product/racing-game.md), then [Application audio](product/audio.md) |
 | Implement or modify behavior | [Engineering standards](engineering/standards.md), [Testing strategy](engineering/testing.md), [Workflow](engineering/workflow.md) |
 | Measure pose stability or evaluate a pose model | [Pose quality](engineering/pose-quality.md), then [ADR-0011](decisions/0011-consumer-specific-pose-stability.md) |
 | Make an architectural choice | [Architecture overview](architecture/overview.md), [ADR index](decisions/README.md) |
@@ -30,9 +30,8 @@ docs/
 ├── README.md                         # This index and documentation contract
 ├── product/
 │   ├── brief.md                      # Users, purpose, constraints, and non-goals
-│   ├── skeleton-viewer.md            # First vertical slice contract and implementation map
-│   ├── local-play.md                  # All-in-one phone journey and direct runtime contract
-│   ├── camera-orientation.md          # Portrait/landscape coordinates and game policy contract
+│   ├── local-play.md                  # Phone-only journey and direct runtime contract
+│   ├── camera-orientation.md          # Landscape coordinates and entry gate contract
 │   ├── avatar-renderer.md            # Live procedural body and presentation-smoothing contract
 │   ├── draw-game.md                  # Draw behavior and acceptance contract
 │   ├── bubbles-game.md               # Bubbles behavior and implementation contract
@@ -63,7 +62,8 @@ docs/
 │   ├── 0017-coarse-torso-lean-racing.md
 │   ├── 0018-all-in-one-phone-play.md
 │   ├── 0019-analog-torso-racing.md
-│   └── 0020-app-owned-procedural-audio.md
+│   ├── 0020-app-owned-procedural-audio.md
+│   └── 0021-landscape-phone-only.md
 ├── engineering/
 │   ├── standards.md                 # Design and implementation expectations
 │   ├── testing.md                   # Test strategy and required quality gates

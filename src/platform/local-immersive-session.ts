@@ -3,6 +3,8 @@ export class LocalImmersiveSession {
   private wakeLock: WakeLockSentinel | null = null;
   private wakeLockAcquisition: Promise<void> | null = null;
   private ownsFullscreen = false;
+  private ownsOrientation = false;
+  private immersiveAcquisition: Promise<void> | null = null;
 
   public start(): void {
     if (this.active) {
@@ -10,13 +12,18 @@ export class LocalImmersiveSession {
     }
     this.active = true;
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
-    this.requestFullscreen();
+    this.immersiveAcquisition = this.enterFullscreen();
     this.requestWakeLock();
   }
 
   public async stop(): Promise<void> {
     this.active = false;
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    await this.immersiveAcquisition;
+    if (this.ownsOrientation) {
+      window.screen.orientation.unlock();
+      this.ownsOrientation = false;
+    }
     await this.wakeLockAcquisition;
     await this.releaseWakeLock();
     if (this.ownsFullscreen && document.fullscreenElement !== null) {
@@ -40,26 +47,29 @@ export class LocalImmersiveSession {
     }
   };
 
-  private requestFullscreen(): void {
-    const requestFullscreen = document.documentElement.requestFullscreen;
-    if (document.fullscreenElement !== null || typeof requestFullscreen !== "function") {
-      return;
-    }
+  private async enterFullscreen(): Promise<void> {
     try {
-      void Promise.resolve(
-        requestFullscreen.call(document.documentElement, { navigationUI: "hide" }),
-      ).then(
-        () => {
-          if (this.active) {
-            this.ownsFullscreen = true;
-          } else if (document.fullscreenElement !== null) {
-            void document.exitFullscreen().catch(() => undefined);
-          }
-        },
-        () => undefined,
-      );
+      if (
+        document.fullscreenElement === null &&
+        typeof document.documentElement.requestFullscreen === "function"
+      ) {
+        await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+        this.ownsFullscreen = true;
+      }
     } catch {
-      // Fullscreen is optional and must never block local camera startup.
+      // Browser policy may deny fullscreen; the landscape gate remains mandatory.
+    }
+    if (!this.active) return;
+    const orientation = window.screen.orientation as ScreenOrientation & {
+      lock?: (orientation: "landscape") => Promise<void>;
+    };
+    try {
+      if (typeof orientation?.lock === "function") {
+        await orientation.lock("landscape");
+        this.ownsOrientation = true;
+      }
+    } catch {
+      // Native locking is optional. Portrait always unmounts and stops play.
     }
   }
 

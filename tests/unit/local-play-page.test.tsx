@@ -1,6 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CameraLayout } from "../../src/domain/camera";
 import type { PosePacket } from "../../src/domain/pose";
 import type { PoseLimit } from "../../src/domain/pose-limit";
 import { LocalPlayPage } from "../../src/pages/local-play-page";
@@ -10,9 +9,7 @@ interface CapturedPlayfieldProps {
   packet: PosePacket | null;
   poseLimit: PoseLimit;
   poseLimitPending: boolean;
-  cameraLayoutPending: boolean;
   onPoseLimitRequest: (poseLimit: PoseLimit) => Promise<void>;
-  onCameraLayoutRequest: (layout: CameraLayout) => Promise<void>;
 }
 
 const localMocks = vi.hoisted(() => ({
@@ -21,16 +18,10 @@ const localMocks = vi.hoisted(() => ({
     state: "idle" as "idle" | "starting" | "tracking" | "error",
     packet: null as PosePacket | null,
     poseLimit: 1 as PoseLimit,
-    cameraFrame: null,
-    requestedCameraLayout: null as CameraLayout | null,
-    diagnostics: null,
     errorMessage: null as string | null,
     start: vi.fn(async () => true),
     stop: vi.fn(),
     setPoseLimit: vi.fn(async (_poseLimit: 1 | 2): Promise<void> => undefined),
-    requestCameraLayout: vi.fn(
-      async (_layout: "portrait" | "landscape"): Promise<void> => undefined,
-    ),
   },
   immersiveStart: vi.fn(),
   immersiveStop: vi.fn(async () => undefined),
@@ -122,12 +113,10 @@ beforeEach(() => {
   localMocks.camera.state = "idle";
   localMocks.camera.packet = null;
   localMocks.camera.poseLimit = 1;
-  localMocks.camera.requestedCameraLayout = null;
   localMocks.camera.errorMessage = null;
   localMocks.camera.start.mockReset().mockResolvedValue(true);
   localMocks.camera.stop.mockReset();
   localMocks.camera.setPoseLimit.mockReset().mockResolvedValue(undefined);
-  localMocks.camera.requestCameraLayout.mockReset().mockResolvedValue(undefined);
   localMocks.immersiveStart.mockReset();
   localMocks.immersiveStop.mockReset().mockResolvedValue(undefined);
   localMocks.audioStart.mockReset().mockResolvedValue(undefined);
@@ -159,7 +148,7 @@ describe("local play page", () => {
     expect(captureSource).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByLabelText(/camera preview/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Start local play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
 
     expect(localMocks.immersiveStart).toHaveBeenCalledOnce();
     expect(localMocks.camera.start).toHaveBeenCalledOnce();
@@ -169,7 +158,7 @@ describe("local play page", () => {
 
   it("feeds the current packet directly into the shared playfield and stops every local owner", async () => {
     const view = render(<LocalPlayPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Start local play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
     await waitFor(() => expect(localMocks.audioStart).toHaveBeenCalledOnce());
     localMocks.camera.state = "tracking";
     localMocks.camera.packet = EMPTY_PACKET;
@@ -178,15 +167,15 @@ describe("local play page", () => {
     expect(screen.getByTestId("shared-body-playfield")).toBeInTheDocument();
     expect(localMocks.latestPlayfieldProps?.packet).toBe(EMPTY_PACKET);
     expect(localMocks.latestPlayfieldProps?.poseLimit).toBe(1);
-    expect(screen.getByRole("button", { name: "Stop local play" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop playing" })).toBeInTheDocument();
     expect(view.container.querySelector("video.local-camera-source")).toHaveAttribute(
       "aria-hidden",
       "true",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop local play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop playing" }));
 
-    expect(localMocks.camera.stop).toHaveBeenCalledWith({ resetPoseLimit: true });
+    expect(localMocks.camera.stop).toHaveBeenCalled();
     expect(localMocks.immersiveStop).toHaveBeenCalledOnce();
     expect(localMocks.audioStop).toHaveBeenCalledOnce();
   });
@@ -194,7 +183,7 @@ describe("local play page", () => {
   it("withholds a local packet after the one-second freshness bound", async () => {
     vi.useFakeTimers();
     const view = render(<LocalPlayPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Start local play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
     await act(async () => undefined);
     localMocks.camera.state = "tracking";
     localMocks.camera.packet = EMPTY_PACKET;
@@ -218,7 +207,7 @@ describe("local play page", () => {
         }),
     );
     const view = render(<LocalPlayPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Start local play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
     await waitFor(() => expect(localMocks.audioStart).toHaveBeenCalledOnce());
     localMocks.camera.state = "tracking";
     localMocks.camera.packet = EMPTY_PACKET;
@@ -241,19 +230,13 @@ describe("local play page", () => {
       await poseLimitRequest;
     });
     expect(localMocks.latestPlayfieldProps?.poseLimitPending).toBe(false);
-
-    await act(async () => {
-      await localMocks.latestPlayfieldProps?.onCameraLayoutRequest("landscape");
-    });
-    expect(localMocks.camera.requestCameraLayout).toHaveBeenCalledWith("landscape");
-    expect(localMocks.latestPlayfieldProps?.cameraLayoutPending).toBe(false);
   });
 
   it("releases optional immersive ownership when startup fails or the page unmounts", async () => {
     localMocks.camera.start.mockResolvedValue(false);
     const view = render(<LocalPlayPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Start local play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
     await waitFor(() => expect(localMocks.immersiveStop).toHaveBeenCalledOnce());
     expect(localMocks.audioStop).toHaveBeenCalledOnce();
 
@@ -266,12 +249,12 @@ describe("local play page", () => {
     localMocks.audioStart.mockRejectedValue(new Error("blocked"));
     render(<LocalPlayPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Start local play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Local play could not start its camera and sound.",
+      "Play could not start its camera and sound.",
     );
-    expect(localMocks.camera.stop).toHaveBeenCalledWith({ resetPoseLimit: true });
+    expect(localMocks.camera.stop).toHaveBeenCalled();
     expect(localMocks.audioStop).toHaveBeenCalledOnce();
     expect(localMocks.immersiveStop).toHaveBeenCalledOnce();
   });

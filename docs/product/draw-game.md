@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-18
+last_verified: 2026-09-24
 scope: User-visible contract and acceptance criteria for the first JojixPlay game
 ---
 
@@ -8,7 +8,7 @@ scope: User-visible contract and acceptance criteria for the first JojixPlay gam
 
 ## Outcome
 
-Draw is the first playable JojixPlay content. One temporarily claimed controller brings both hands together to activate a selected Pencil or Eraser, then draws with the lease's main hand until deliberately spreading both hands wide. Camera pixels remain inside the phone inference path; Draw consumes only raw validated `PosePacket` landmarks from either paired delivery or direct local play, never the avatar's display copy.
+Draw is the first playable JojixPlay content. One temporarily claimed controller brings both hands together to activate a selected Pencil or Eraser, then draws with the lease's main hand until deliberately spreading both hands wide. Camera pixels remain inside the phone inference path; Draw consumes only raw validated `PosePacket` landmarks directly in phone memory, never the avatar's display copy.
 
 ## Navigation contract
 
@@ -37,8 +37,8 @@ Draw
 - Replacing a view replaces every body-control target in one operation. No hidden prior action remains active.
 - The controller lease survives navigation, while target hover, dwell, latch, and neutral arming restart for each new view.
 - Main Menu and Games show the normal body-avatar stage. Draw changes only the game presentation inside the shared playfield.
-- Draw state is ephemeral. Artwork, selected tool, and active color survive navigation within the same mounted playfield session when Draw re-enters under the same camera layout, but not page reload, paired disconnect, local stop, a new session, or deliberate re-entry under the other layout. The grip never survives view exit or an orientation mismatch.
-- Draw supports portrait and landscape and captures its layout on entry. It does not hot-reflow an active canvas. A mismatched packet is withheld while the playfield asks the user to restore the entering layout.
+- Draw state is ephemeral. Artwork, tool, and color survive navigation within a mounted run. Stop, portrait rotation, reload, or unmount clears the run.
+- Draw supports landscape only. Portrait ends the run through the application gate.
 
 ## Draw presentation
 
@@ -54,7 +54,7 @@ Draw
 - Paths are tagged as Pencil or Eraser. Pencil paths retain the color active when each command was created.
 - Pencil width and Eraser diameter scale from the projected camera frame's minimum dimension, not the playfield viewport or CSS pixels.
 - Rendering mirrors `x` at presentation time and never changes anatomical landmarks or the network packet.
-- Points closer than the accepted sampling distance are not retained. A main-hand gap or dropout, camera-basis epoch change, toolbar crossing, board exit, orientation mismatch, or implausible main-hand jump ends the current path rather than connecting across unknown motion. Supporting-hand loss alone does not interrupt a valid main-hand path.
+- Points closer than the accepted sampling distance are not retained. A main-hand gap or dropout, camera-basis epoch change, toolbar crossing, board exit, portrait teardown, or implausible main-hand jump ends the current path rather than connecting across unknown motion. Supporting-hand loss alone does not interrupt a valid main-hand path.
 
 ## Interaction contract
 
@@ -91,9 +91,8 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 - With no live pose, Draw retains artwork but accepts no marks.
 - When the controller lease releases, the grip and current path end while Draw returns to claim guidance without exiting the game.
 - A brief missing main hand, board exit, toolbar entry, or implausible jump hides or moves the cursor and breaks the path without cancelling an otherwise valid grip.
-- Input stale for more than 250 ms, a viewport/controller reset, a camera-basis epoch change, orientation mismatch, leaving Draw, or session cleanup cancels the grip.
+- Input stale for more than 250 ms, a viewport/controller reset, a camera-basis epoch change, portrait teardown, leaving Draw, or session cleanup cancels the grip.
 - A viewport resize releases the controller under the existing contract; normalized artwork is reprojected and retained.
-- Returning to the captured layout retains the existing art/tool/color but begins from fresh gesture, cursor, controller, and path history. Re-entering Draw from a menu in the other layout clears the old normalized canvas before accepting input.
 - Physical camera movement cannot be detected or compensated reliably from pose-only data. The phone is expected to remain stationary.
 - Draw never sends artwork, tool state, or pixels across a peer connection or to a remote service.
 - The rendering host supplies bounded Pencil/Eraser contact texture plus tool, color, and clear cues. Draw session state remains audio-free, and mute never changes paths or gesture behavior.
@@ -107,9 +106,9 @@ Semantic click, remote, and keyboard activation produce the same result as body 
 5. The selected main hand draws one continuous smoothed Pencil or Eraser path throughout ordinary movement and the full hysteresis band.
 6. Only observed separation at or above `1.25 ×` shoulder span deliberately releases the grip; safety resets remain fail closed.
 7. The opposite hand never produces an independent path or cursor, and switching tools retains main-hand ownership.
-8. Toolbar entry, bounds exit, main-hand dropout, stale input, camera-basis change, orientation mismatch, and large jumps create no bridge segments; supporting-hand loss alone does not interrupt a latched grip.
-9. Tool and Color selections and artwork survive Draw exit/re-entry under the same layout; deliberate re-entry under the other layout clears artwork, while Clear remains a 1,500 ms body action.
+8. Toolbar entry, bounds exit, main-hand dropout, stale input, camera-basis change, portrait teardown, and large jumps create no bridge segments; supporting-hand loss alone does not interrupt a latched grip.
+9. Tool, Color, and artwork survive Draw exit/re-entry within the run; Clear remains a 1,500 ms body action.
 10. The procedural avatar remains useful but visually subordinate at 24% opacity, and its display-only stabilization never changes Draw input.
 11. Automated gates prove the threshold boundaries, hysteresis, main-hand ownership, one-cursor UI, and vertical layout; real-device acceptance records comfort, continuity, false activation/release, button reach, and perceived latency.
 
-The current Draw interaction is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md). The game boundary originates in [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md), unsmoothed-pose ownership and diagnostics remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md), avatar presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), layout behavior is governed by [ADR-0015](../decisions/0015-canonical-camera-orientation.md) and [Camera orientation](camera-orientation.md), and sound is governed by [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](audio.md).
+The current Draw interaction is governed by [ADR-0012](../decisions/0012-two-hand-draw-grip.md). The game boundary originates in [ADR-0010](../decisions/0010-menu-and-draw-game.md). Camera cadence is governed by [ADR-0009](../decisions/0009-camera-paced-inference.md), unsmoothed-pose ownership and diagnostics remain governed by [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) and [Pose quality](../engineering/pose-quality.md), avatar presentation is governed by [ADR-0014](../decisions/0014-procedural-body-avatar.md), layout behavior is governed by [ADR-0021](../decisions/0021-landscape-phone-only.md) and [Camera orientation](camera-orientation.md), and sound is governed by [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](audio.md).

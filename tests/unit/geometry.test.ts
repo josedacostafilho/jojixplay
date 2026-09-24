@@ -33,7 +33,7 @@ describe("contain geometry", () => {
     });
   });
 
-  it("mirrors television x coordinates without changing y", () => {
+  it("mirrors playfield x coordinates without changing y", () => {
     const projection = createPoseProjection(1920, 1080, 1920, 1080, true);
 
     expect(projectNormalizedPoint(0.2, 0.65, projection)).toEqual({ x: 1536, y: 702 });

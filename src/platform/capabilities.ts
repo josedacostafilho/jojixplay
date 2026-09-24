@@ -20,18 +20,6 @@ function secureContextChecks(): Array<[string, boolean]> {
   return [["a secure browsing context", window.isSecureContext]];
 }
 
-function peerChecks(): Array<[string, boolean]> {
-  return [
-    [
-      "Web Crypto",
-      typeof globalThis.crypto?.getRandomValues === "function" &&
-        globalThis.crypto.subtle !== undefined,
-    ],
-    ["WebSockets", typeof WebSocket !== "undefined"],
-    ["WebRTC DataChannels", typeof RTCPeerConnection !== "undefined"],
-  ];
-}
-
 function cameraChecks(): Array<[string, boolean]> {
   return [
     ["camera access", typeof navigator.mediaDevices?.getUserMedia === "function"],
@@ -68,28 +56,10 @@ function audioChecks(): Array<[string, boolean]> {
   ];
 }
 
-export function inspectPhoneControllerCapabilities(): CapabilityReport {
-  return report([
-    ...secureContextChecks(),
-    ...peerChecks(),
-    ...cameraChecks(),
-    ...playfieldChecks(),
-  ]);
-}
-
 export function inspectLocalPlayCapabilities(): CapabilityReport {
   return report([
     ...secureContextChecks(),
     ...cameraChecks(),
-    ...playfieldChecks(),
-    ...audioChecks(),
-  ]);
-}
-
-export function inspectTvDisplayCapabilities(): CapabilityReport {
-  return report([
-    ...secureContextChecks(),
-    ...peerChecks(),
     ...playfieldChecks(),
     ...audioChecks(),
   ]);

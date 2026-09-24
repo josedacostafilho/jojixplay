@@ -1,6 +1,6 @@
 export const CAMERA_FRAME_MAX_DIMENSION = 16_384;
 
-export type CameraLayout = "portrait" | "landscape";
+export type CameraLayout = "landscape";
 export type CameraRotation = 0 | 90 | 180 | 270;
 
 export interface CameraSize {
@@ -20,7 +20,7 @@ export interface CameraFrame extends CameraSize {
 
 export interface ScreenCameraOrientation {
   type: "portrait-primary" | "portrait-secondary" | "landscape-primary" | "landscape-secondary";
-  layout: CameraLayout;
+  layout: "portrait" | "landscape";
   angle: CameraRotation;
 }
 
@@ -31,23 +31,18 @@ export interface CameraFrameNormalization {
   screen: ScreenCameraOrientation;
 }
 
-export interface CameraLayoutMessage {
-  cameraLayout: CameraLayout;
-}
-
-export type CameraLayoutParseResult =
-  | { ok: true; value: CameraLayoutMessage }
-  | { ok: false; error: string };
-
 export type ScreenCameraOrientationParseResult =
   | { ok: true; value: ScreenCameraOrientation }
   | { ok: false; error: string };
 
 export function isCameraLayout(value: unknown): value is CameraLayout {
-  return value === "portrait" || value === "landscape";
+  return value === "landscape";
 }
 
-export function cameraLayoutForDimensions(width: number, height: number): CameraLayout | null {
+export function cameraLayoutForDimensions(
+  width: number,
+  height: number,
+): "portrait" | "landscape" | null {
   if (width === height) {
     return null;
   }
@@ -81,21 +76,6 @@ export function isCameraFrame(value: unknown): value is CameraFrame {
     cameraLayoutForDimensions(frame.width, frame.height) === frame.layout &&
     isCameraFrameEpoch(frame.epoch)
   );
-}
-
-export function parseCameraLayoutMessage(value: unknown): CameraLayoutParseResult {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return { ok: false, error: "Camera-layout message has an invalid shape." };
-  }
-  const record = value as Record<string, unknown>;
-  if (
-    Object.keys(record).length !== 1 ||
-    !Object.hasOwn(record, "cameraLayout") ||
-    !isCameraLayout(record.cameraLayout)
-  ) {
-    return { ok: false, error: "Camera-layout message is invalid." };
-  }
-  return { ok: true, value: { cameraLayout: record.cameraLayout } };
 }
 
 export function parseScreenCameraOrientation(
@@ -133,6 +113,9 @@ export function resolveCameraFrameNormalization(
     !isCameraFrameEpoch(epoch)
   ) {
     throw new Error("Camera frame metadata is invalid.");
+  }
+  if (screen.layout !== "landscape") {
+    throw new Error("Rotate your phone to landscape before playing.");
   }
   const sourceLayout = cameraLayoutForDimensions(sourceWidth, sourceHeight);
   if (sourceLayout === null) {
@@ -189,6 +172,8 @@ export function sameCameraFrameNormalization(
   right: CameraFrameNormalization,
 ): boolean {
   return (
+    left.screen.type === right.screen.type &&
+    left.screen.angle === right.screen.angle &&
     left.source.width === right.source.width &&
     left.source.height === right.source.height &&
     left.rotation === right.rotation &&

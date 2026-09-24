@@ -13,7 +13,6 @@ export const AVATAR_APPEARANCES = {
   stage: { opacity: 0.94 },
   draw: { opacity: 0.24 },
   bubbles: { opacity: 0.16 },
-  camera: { opacity: 0.38 },
 } as const;
 
 export type AvatarAppearance = keyof typeof AVATAR_APPEARANCES;

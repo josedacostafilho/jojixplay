@@ -13,25 +13,27 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | ADR | Status | Decision |
 | --- | --- | --- |
 | [0001](0001-greenfield-hard-cutover.md) | Accepted | Treat the project as greenfield; require hard cutovers and forbid backwards compatibility by default |
-| [0002](0002-static-peer-to-peer-runtime.md) | Accepted | Deploy static assets and use decentralized rendezvous for direct WebRTC sessions |
+| [0002](0002-static-peer-to-peer-runtime.md) | Superseded | Deploy static assets and use decentralized rendezvous for direct WebRTC sessions |
 | [0003](0003-client-stack-and-renderer-boundary.md) | Accepted | Use a typed static client with worker inference and a renderer-independent pose boundary |
-| [0004](0004-human-readable-pairing-key.md) | Accepted | Use one 100-bit human-readable key for QR and manual session pairing |
-| [0005](0005-mirrored-tv-pose-controls.md) | Accepted | Mirror television presentation and use adaptive dwell-based temporary pose controls |
-| [0006](0006-session-player-limit-control.md) | Accepted | Default to one-player inference and use an acknowledged television-to-phone command to select one or two players |
+| [0004](0004-human-readable-pairing-key.md) | Superseded | Use one 100-bit human-readable key for QR and manual session pairing |
+| [0005](0005-mirrored-tv-pose-controls.md) | Superseded | Mirror television presentation and use adaptive dwell-based temporary pose controls |
+| [0006](0006-session-player-limit-control.md) | Superseded | Default to one-player inference and use an acknowledged television-to-phone command to select one or two players |
 | [0007](0007-node-24-and-dependency-maintenance.md) | Accepted | Hard-cut over to Node 24 LTS and validate grouped, immutable dependency updates before deployment |
-| [0008](0008-above-head-coarse-hand-controls.md) | Accepted | Place controls above the visible head and use a neutral-gated coarse-hand pointer |
+| [0008](0008-above-head-coarse-hand-controls.md) | Superseded | Place controls above the visible head and use a neutral-gated coarse-hand pointer |
 | [0009](0009-camera-paced-inference.md) | Accepted | Remove the arbitrary 15 Hz gate and run serial inference at the camera's bounded cadence |
 | [0010](0010-menu-and-draw-game.md) | Accepted | Add body-controlled navigation and the normalized two-hand Draw game |
 | [0011](0011-consumer-specific-pose-stability.md) | Accepted | Keep raw pose canonical and use consumer-specific stability evidence and local diagnostics |
 | [0012](0012-two-hand-draw-grip.md) | Accepted | Use an immediate hysteretic two-hand grip, one selected Draw tool, and a compact left toolbar |
 | [0013](0013-identity-independent-bubbles-game.md) | Accepted | Add a deterministic Bubbles game with screen-side scoring and radius-safe procedural motion |
 | [0014](0014-procedural-body-avatar.md) | Accepted | Replace the visible stick skeleton with an isolated, presentation-smoothed procedural body avatar |
-| [0015](0015-canonical-camera-orientation.md) | Accepted | Normalize portrait/landscape camera frames before pose consumers and enforce explicit game layout policies |
+| [0015](0015-canonical-camera-orientation.md) | Superseded | Normalize portrait/landscape camera frames before pose consumers and enforce explicit game layout policies |
 | [0016](0016-phaser-canvas-racing.md) | Accepted | Add Racing through a lazy, forced-Canvas Phaser runtime with application-owned simulation and pose steering |
 | [0017](0017-coarse-torso-lean-racing.md) | Superseded | Hard-cut Racing from a two-hand wheel to calibrated, hysteretic torso-lean steering |
-| [0018](0018-all-in-one-phone-play.md) | Accepted | Add direct all-in-one phone play through the shared body playfield with no preview or peer transport |
+| [0018](0018-all-in-one-phone-play.md) | Superseded | Add direct all-in-one phone play through the shared body playfield with no preview or peer transport |
 | [0019](0019-analog-torso-racing.md) | Accepted | Hard-cut Racing to calibrated analog torso steering, a denser authored course, and explicit opponent projection |
 | [0020](0020-app-owned-procedural-audio.md) | Accepted | Add one rendering-host procedural Web Audio runtime with trusted activation and shared sound controls |
+
+| [0021](0021-landscape-phone-only.md) | Accepted | Run exclusively on the phone in landscape with external screen mirroring |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

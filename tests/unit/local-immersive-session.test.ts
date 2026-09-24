@@ -6,10 +6,15 @@ describe("local immersive session", () => {
   const exitFullscreen = vi.fn();
   const requestWakeLock = vi.fn();
   const releaseWakeLock = vi.fn();
+  const lockOrientation = vi.fn();
+  const unlockOrientation = vi.fn();
   let fullscreenElement: Element | null;
 
   beforeEach(() => {
     fullscreenElement = null;
+    lockOrientation.mockReset().mockResolvedValue(undefined);
+    unlockOrientation.mockReset();
+    vi.stubGlobal("screen", { orientation: { lock: lockOrientation, unlock: unlockOrientation } });
     requestFullscreen.mockReset().mockImplementation(async () => {
       fullscreenElement = document.documentElement;
     });
@@ -59,9 +64,12 @@ describe("local immersive session", () => {
 
     expect(releaseWakeLock).toHaveBeenCalledOnce();
     expect(exitFullscreen).toHaveBeenCalledOnce();
+    expect(lockOrientation).toHaveBeenCalledWith("landscape");
+    expect(unlockOrientation).toHaveBeenCalledOnce();
   });
 
   it("keeps local play nonfatal when optional immersive requests are rejected", async () => {
+    lockOrientation.mockRejectedValue(new DOMException("Lock denied"));
     requestFullscreen.mockRejectedValue(new DOMException("Fullscreen denied"));
     requestWakeLock.mockRejectedValue(new DOMException("Wake lock denied"));
     const session = new LocalImmersiveSession();
@@ -72,5 +80,22 @@ describe("local immersive session", () => {
 
     expect(releaseWakeLock).not.toHaveBeenCalled();
     expect(exitFullscreen).not.toHaveBeenCalled();
+  });
+  it("releases a landscape lock that completes after stop", async () => {
+    let resolveLock: (() => void) | undefined;
+    lockOrientation.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveLock = resolve;
+        }),
+    );
+    const session = new LocalImmersiveSession();
+    session.start();
+    await vi.waitFor(() => expect(lockOrientation).toHaveBeenCalledOnce());
+    const stopped = session.stop();
+    resolveLock?.();
+    await stopped;
+    expect(unlockOrientation).toHaveBeenCalledOnce();
+    expect(exitFullscreen).toHaveBeenCalledOnce();
   });
 });

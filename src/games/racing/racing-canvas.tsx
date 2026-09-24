@@ -59,7 +59,7 @@ export function RacingCanvas({
       })
       .catch(() => {
         if (!disposed) {
-          onErrorRef.current("Racing could not start on this television browser.");
+          onErrorRef.current("Racing could not start on this phone browser.");
         }
       });
     return () => {

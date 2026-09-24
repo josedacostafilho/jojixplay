@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   cameraLayoutForDimensions,
   isCameraFrame,
-  parseCameraLayoutMessage,
   parseScreenCameraOrientation,
   resolveCameraFrameNormalization,
   rotateNormalizedPoint,
   sameCameraFrameBasis,
+  sameCameraFrameNormalization,
 } from "../../src/domain/camera";
 
 describe("camera domain", () => {
@@ -45,28 +45,17 @@ describe("camera domain", () => {
     });
     expect(parseScreenCameraOrientation("portrait", 0).ok).toBe(false);
     expect(parseScreenCameraOrientation("portrait-primary", 45).ok).toBe(false);
-
-    expect(parseCameraLayoutMessage({ cameraLayout: "landscape" })).toEqual({
-      ok: true,
-      value: { cameraLayout: "landscape" },
-    });
-    expect(parseCameraLayoutMessage({ cameraLayout: "landscape", legacy: true }).ok).toBe(false);
-    expect(parseCameraLayoutMessage({ cameraLayout: "square" }).ok).toBe(false);
   });
 
   it("resolves raw and browser-corrected frames into one upright basis", () => {
-    const portrait = resolveCameraFrameNormalization(
-      720,
-      1_280,
-      { type: "portrait-primary", layout: "portrait", angle: 0 },
-      0,
-    );
-    expect(portrait).toMatchObject({
-      source: { width: 720, height: 1_280 },
-      rotation: 0,
-      frame: { width: 720, height: 1_280, layout: "portrait", epoch: 0 },
-    });
-
+    expect(() =>
+      resolveCameraFrameNormalization(
+        720,
+        1280,
+        { type: "portrait-primary", layout: "portrait", angle: 0 },
+        0,
+      ),
+    ).toThrow(/landscape/);
     const rotatedLandscape = resolveCameraFrameNormalization(
       720,
       1_280,
@@ -88,14 +77,6 @@ describe("camera domain", () => {
       rotation: 0,
       frame: { width: 1_280, height: 720, layout: "landscape", epoch: 2 },
     });
-
-    const browserCorrectedSecondaryPortrait = resolveCameraFrameNormalization(
-      720,
-      1_280,
-      { type: "portrait-secondary", layout: "portrait", angle: 180 },
-      3,
-    );
-    expect(browserCorrectedSecondaryPortrait.rotation).toBe(0);
   });
 
   it("maps every clockwise quarter-turn into canonical normalized coordinates", () => {
@@ -110,5 +91,21 @@ describe("camera domain", () => {
     const frame = { width: 1_280, height: 720, layout: "landscape" as const, epoch: 4 };
     expect(sameCameraFrameBasis(frame, { ...frame })).toBe(true);
     expect(sameCameraFrameBasis(frame, { ...frame, epoch: 5 })).toBe(false);
+  });
+  it("treats both landscape directions as distinct bases even for browser-oriented pixels", () => {
+    const primary = resolveCameraFrameNormalization(
+      1280,
+      720,
+      { type: "landscape-primary", layout: "landscape", angle: 90 },
+      0,
+    );
+    const secondary = resolveCameraFrameNormalization(
+      1280,
+      720,
+      { type: "landscape-secondary", layout: "landscape", angle: 270 },
+      1,
+    );
+    expect(sameCameraFrameNormalization(primary, secondary)).toBe(false);
+    expect(sameCameraFrameNormalization(primary, { ...primary })).toBe(true);
   });
 });

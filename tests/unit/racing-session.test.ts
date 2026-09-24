@@ -135,7 +135,7 @@ describe("Racing session", () => {
     expect(centered).toBeGreaterThanOrEqual(0);
   });
 
-  it("freezes for user and orientation pauses and can recenter without resetting progress", () => {
+  it("freezes for user and system pauses and can recenter without resetting progress", () => {
     const session = new RacingSession();
     session.setEnabled(true, 1, 0);
     let nowMs = calibrate(session, ["solo"]);
@@ -153,10 +153,10 @@ describe("Racing session", () => {
     expect(recentering).toMatchObject({ phase: "starting", calibrationPurpose: "recenter" });
     expect(recentering.cars[0]?.distance).toBe(distanceBeforePause);
 
-    session.setOrientationPaused(true, nowMs + 5_100);
+    session.setSystemPaused(true, nowMs + 5_100);
     session.tick(nowMs + 10_100);
     expect(session.getSnapshot(nowMs + 10_100).startingRemainingMs).toBe(RACING_COUNTDOWN_MS);
-    session.setOrientationPaused(false, nowMs + 10_100);
+    session.setSystemPaused(false, nowMs + 10_100);
   });
 
   it("produces deterministic movement across common rendering cadences", () => {

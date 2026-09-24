@@ -1,75 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import type { CameraFrameNormalization, CameraLayout } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { CameraPoseController } from "./camera-pose-controller";
-import type { PoseDiagnosticsSnapshot } from "./pose-diagnostics";
 
 export type CameraTrackingState = "idle" | "starting" | "tracking" | "error";
-
-interface CameraPoseOptions {
-  onPacket?: (packet: PosePacket) => void;
-}
-
-interface StopCameraPoseOptions {
-  resetPoseLimit: boolean;
-}
 
 export interface CameraPoseLifecycle {
   videoRef: preact.RefObject<HTMLVideoElement>;
   state: CameraTrackingState;
   packet: PosePacket | null;
   poseLimit: PoseLimit;
-  cameraFrame: CameraFrameNormalization | null;
-  requestedCameraLayout: CameraLayout | null;
-  diagnostics: PoseDiagnosticsSnapshot | null;
   errorMessage: string | null;
   start: () => Promise<boolean>;
-  stop: (options: StopCameraPoseOptions) => void;
+  stop: () => void;
   setPoseLimit: (poseLimit: PoseLimit) => Promise<void>;
-  requestCameraLayout: (layout: CameraLayout) => Promise<void>;
 }
 
-export function useCameraPose(options: CameraPoseOptions = {}): CameraPoseLifecycle {
+export function useCameraPose(): CameraPoseLifecycle {
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraController = useRef<CameraPoseController | null>(null);
   const mounted = useRef(true);
-  const onPacket = useRef(options.onPacket);
-  onPacket.current = options.onPacket;
   const poseLimitRef = useRef<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [state, setState] = useState<CameraTrackingState>("idle");
   const [packet, setPacket] = useState<PosePacket | null>(null);
   const [poseLimit, setPoseLimitState] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
-  const [cameraFrame, setCameraFrame] = useState<CameraFrameNormalization | null>(null);
-  const [requestedCameraLayout, setRequestedCameraLayout] = useState<CameraLayout | null>(null);
-  const [diagnostics, setDiagnostics] = useState<PoseDiagnosticsSnapshot | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const clearDerivedState = useCallback(() => {
+  const stop = useCallback(() => {
+    const controller = cameraController.current;
+    cameraController.current = null;
+    controller?.stop();
+    if (!mounted.current) {
+      return;
+    }
     setPacket(null);
-    setDiagnostics(null);
-    setCameraFrame(null);
-    setRequestedCameraLayout(null);
+    setState("idle");
+    setErrorMessage(null);
+    poseLimitRef.current = DEFAULT_POSE_LIMIT;
+    setPoseLimitState(DEFAULT_POSE_LIMIT);
   }, []);
-
-  const stop = useCallback(
-    ({ resetPoseLimit }: StopCameraPoseOptions) => {
-      const controller = cameraController.current;
-      cameraController.current = null;
-      controller?.stop();
-      if (!mounted.current) {
-        return;
-      }
-      clearDerivedState();
-      setState("idle");
-      setErrorMessage(null);
-      if (resetPoseLimit) {
-        poseLimitRef.current = DEFAULT_POSE_LIMIT;
-        setPoseLimitState(DEFAULT_POSE_LIMIT);
-      }
-    },
-    [clearDerivedState],
-  );
 
   const start = useCallback(async (): Promise<boolean> => {
     const video = videoRef.current;
@@ -78,7 +47,7 @@ export function useCameraPose(options: CameraPoseOptions = {}): CameraPoseLifecy
     }
     setState("starting");
     setErrorMessage(null);
-    clearDerivedState();
+    setPacket(null);
 
     let controller: CameraPoseController | null = null;
     controller = new CameraPoseController({
@@ -89,33 +58,21 @@ export function useCameraPose(options: CameraPoseOptions = {}): CameraPoseLifecy
           return;
         }
         setPacket(nextPacket);
-        onPacket.current?.(nextPacket);
-      },
-      onDiagnostics: (nextDiagnostics) => {
-        if (mounted.current && cameraController.current === controller) {
-          setDiagnostics(nextDiagnostics);
-        }
       },
       onCameraFrame: (nextFrame) => {
         if (!mounted.current || cameraController.current !== controller) {
           return;
         }
-        setCameraFrame(nextFrame);
         setPacket((current) =>
           nextFrame !== null && current?.frame.epoch === nextFrame.frame.epoch ? current : null,
         );
-      },
-      onRequestedCameraLayout: (layout) => {
-        if (mounted.current && cameraController.current === controller) {
-          setRequestedCameraLayout(layout);
-        }
       },
       onError: (message) => {
         if (!mounted.current || cameraController.current !== controller) {
           return;
         }
         cameraController.current = null;
-        clearDerivedState();
+        setPacket(null);
         setErrorMessage(message);
         setState("error");
       },
@@ -137,7 +94,7 @@ export function useCameraPose(options: CameraPoseOptions = {}): CameraPoseLifecy
       }
       return false;
     }
-  }, [clearDerivedState]);
+  }, []);
 
   const setPoseLimit = useCallback(async (nextPoseLimit: PoseLimit): Promise<void> => {
     const controller = cameraController.current;
@@ -150,17 +107,6 @@ export function useCameraPose(options: CameraPoseOptions = {}): CameraPoseLifecy
     }
     poseLimitRef.current = nextPoseLimit;
     setPoseLimitState(nextPoseLimit);
-  }, []);
-
-  const requestCameraLayout = useCallback(async (layout: CameraLayout): Promise<void> => {
-    const controller = cameraController.current;
-    if (controller === null) {
-      throw new Error("Body tracking is not active.");
-    }
-    await controller.requestCameraLayout(layout);
-    if (cameraController.current !== controller) {
-      throw new Error("Body tracking stopped before camera layout changed.");
-    }
   }, []);
 
   useEffect(() => {
@@ -178,13 +124,9 @@ export function useCameraPose(options: CameraPoseOptions = {}): CameraPoseLifecy
     state,
     packet,
     poseLimit,
-    cameraFrame,
-    requestedCameraLayout,
-    diagnostics,
     errorMessage,
     start,
     stop,
     setPoseLimit,
-    requestCameraLayout,
   };
 }

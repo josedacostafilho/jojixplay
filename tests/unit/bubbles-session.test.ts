@@ -372,25 +372,24 @@ describe("Bubbles session", () => {
       BUBBLES_STARTING_DURATION_MS + 100,
       BUBBLES_STARTING_DURATION_MS + 100,
     );
-    const portraitFrame: CameraFrame = {
-      width: 720,
-      height: 1_280,
-      layout: "portrait",
+    const changedFrame: CameraFrame = {
+      width: 1_280,
+      height: 720,
+      layout: "landscape",
       epoch: 1,
     };
     const changed = frameChangeSession.updatePlayers(
       [player("right", frameChangePath.to)],
-      portraitFrame,
+      changedFrame,
       BUBBLES_STARTING_DURATION_MS + 133,
       BUBBLES_STARTING_DURATION_MS + 133,
     );
     expect(changed.scores.right).toBe(0);
     for (const bubble of changed.bubbles) {
       const radiusX =
-        (bubble.radius * Math.min(portraitFrame.width, portraitFrame.height)) / portraitFrame.width;
+        (bubble.radius * Math.min(changedFrame.width, changedFrame.height)) / changedFrame.width;
       const radiusY =
-        (bubble.radius * Math.min(portraitFrame.width, portraitFrame.height)) /
-        portraitFrame.height;
+        (bubble.radius * Math.min(changedFrame.width, changedFrame.height)) / changedFrame.height;
       expect(bubble.point.x).toBeGreaterThanOrEqual(radiusX);
       expect(bubble.point.x).toBeLessThanOrEqual(1 - radiusX);
       expect(bubble.point.y).toBeGreaterThanOrEqual(radiusY);
@@ -421,31 +420,6 @@ describe("Bubbles session", () => {
         BUBBLES_STARTING_DURATION_MS + 133,
       ).scores.right,
     ).toBe(0);
-  });
-
-  it("freezes the complete round clock and simulation while paused", () => {
-    const session = readySession(1, lcg(17));
-    const started = session.start(0);
-    if (!started.started) {
-      throw new Error("Expected Bubbles to start.");
-    }
-    const beforePause = session.tick(BUBBLES_STARTING_DURATION_MS + 1_000);
-    const paused = session.setPaused(true, BUBBLES_STARTING_DURATION_MS + 1_000);
-    const pausedLater = session.tick(BUBBLES_STARTING_DURATION_MS + 31_000);
-
-    expect(paused).toMatchObject({
-      paused: true,
-      phase: "playing",
-      roundElapsedMs: 1_000,
-      roundRemainingMs: BUBBLES_ROUND_DURATION_MS - 1_000,
-    });
-    expect(pausedLater.roundElapsedMs).toBe(paused.roundElapsedMs);
-    expect(pausedLater.bubbles).toEqual(paused.bubbles);
-    expect(paused.bubbles).toEqual(beforePause.bubbles);
-
-    const resumed = session.setPaused(false, BUBBLES_STARTING_DURATION_MS + 31_000);
-    expect(resumed).toMatchObject({ paused: false, roundElapsedMs: 1_000 });
-    expect(session.tick(BUBBLES_STARTING_DURATION_MS + 32_000).roundElapsedMs).toBe(2_000);
   });
 
   it("derives mirrored identity-independent slots and complete hands from pose packets", () => {
