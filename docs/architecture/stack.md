@@ -18,9 +18,9 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | UI framework | Preact | 10.29.8 | `npm ls preact` |
 | Package manager | npm | 11.17.0 lockfile format | `npm run verify:toolchain` |
 | Build tool | Vite with Preact preset | 8.2.1 / 2.10.6 | `npm run build` |
-| Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Lite model and generated runtime assets |
-| Racing runtime and renderer | Phaser forced to Canvas | 4.2.1 | `npm ls phaser` and the lazy production Racing chunk |
-| Rendering-host sound | Standard Web Audio API | Browser-native | `src/audio/audio-engine.ts` and mode-specific capability tests |
+| Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Full GPU model and generated runtime assets |
+| 3D renderer | Three.js WebGL2 | 0.186.1 | `npm ls three` |
+| Workspace organization | npm workspaces | npm 11.17.0 | `npm run verify:boundaries` |
 | Formatter | Biome | 2.5.8 | `npm run format` |
 | Linter | Biome | 2.5.8 | `npm run lint` |
 | Static/type checker | TypeScript | 7.0.2 | `npm run typecheck` |
@@ -40,6 +40,8 @@ These commands are executable and are the only canonical paths for their concern
 | --- | --- |
 | Install dependencies | `npm ci` |
 | Start local development | `npm run dev` |
+| Independent input lab | `npm run dev:game` |
+| Workspace import boundaries | `npm run verify:boundaries` |
 | Format | `npm run format` |
 | Check formatting | `npm run format:check` |
 | Lint | `npm run lint` |
@@ -56,20 +58,11 @@ These commands are executable and are the only canonical paths for their concern
 
 `npm run test:e2e` first builds the production artifact and then serves it through Vite preview. The browser suite therefore exercises the same asset layout used for deployment, including the vendored MediaPipe model and WebAssembly files.
 
-## Racing engine boundary
+## Rendering and game development
 
-- `phaser@4.2.1` is exact and is the only game engine. [`src/games/racing/racing-canvas.tsx`](../../src/games/racing/racing-canvas.tsx) dynamically imports it only after Racing mounts; phone setup, Draw, and Bubbles do not load the engine.
-- [`vite.config.ts`](../../vite.config.ts) maps the internal `phaser-runtime` boundary directly to Phaser's production ESM runtime. [`src/vendor/phaser-runtime.d.ts`](../../src/vendor/phaser-runtime.d.ts) deliberately declares only the engine surface Racing owns because Phaser's published declaration bundle is not compatible with the repository's TypeScript 7 strict build. Do not replace this narrow boundary with `skipLibCheck`, a broad `any` declaration, or a second import path.
-- Racing always constructs `Phaser.CANVAS`. `AUTO`, WebGL, runtime renderer selection, and renderer fallbacks are forbidden by [ADR-0016](../decisions/0016-phaser-canvas-racing.md).
-- Preact owns navigation and semantic controls; pure TypeScript owns Racing input, simulation, track, and projection; Phaser owns the mounted canvas lifecycle, view cameras, frame callback, and drawing only.
-- As measured on 2026-08-15, the separate minified Racing chunk is approximately `1.38 MB` (`361 kB` gzip) and triggers Vite's generic `500 kB` advisory. The advisory is intentionally not suppressed: lazy loading keeps the cost off every other route, while target-phone startup, memory, and sustained cadence remain explicit acceptance risks.
+Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:game` opens the independent synthetic input lab; its separate build is included in `npm run build`. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. No Blender tooling is required for current procedural toy forms.
 
-## Audio boundary
-
-- [`src/audio/audio-engine.ts`](../../src/audio/audio-engine.ts) is the sole sound implementation. It uses the standard browser `AudioContext` directly and synthesizes every current cue; there is no audio package, downloaded sound asset, HTML Audio path, prefixed API, or Phaser sound manager.
-- Phone play requires Web Audio and creates one context only from the trusted Start action.
-- `BodyPlayfield` consumes the narrow injected audio interface. Pure game sessions, pose code, and the Phaser runtime do not import or own Web Audio state.
-- [ADR-0020](../decisions/0020-app-owned-procedural-audio.md) and [Application audio](../product/audio.md) define activation, mute, voice bounds, visibility, failure, and cleanup behavior.
+The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. It is not suppressed; target-phone startup and memory remain acceptance risks.
 
 ## Static artifact and deployment
 

@@ -14,9 +14,9 @@ The project is greenfield. Optimize for a clear current design, not historical b
 
 - Keep TypeScript strict, including unchecked-index and exact-optional-property checks. Do not use `any`, non-null assertions, or blanket suppressions to bypass a boundary.
 - Parse external values from `unknown` and return validated domain types. Network messages, URL fragments, worker messages, and browser capability state are trust boundaries.
-- Use Preact for UI state and lifecycle. Direct canvas drawing and video-frame scheduling must not run through component rerenders.
+- Use Preact for UI state and lifecycle. Three.js rendering and video-frame scheduling must not run through component rerenders.
 - A worker owns MediaPipe. Playfield rendering modules must not import the inference dependency.
-- Acquire camera access only after user activation, request no microphone track, and stop every owned media track during cleanup. Rendering-host output audio follows [ADR-0020](../decisions/0020-app-owned-procedural-audio.md).
+- Acquire camera access only after user activation, request no microphone track, and stop every owned media track during cleanup. Future game audio is designed with its first consumer; no audio runtime currently exists.
 - Prefer browser capability checks with explicit unsupported states over polyfills, browser sniffing, or alternate implementations.
 
 ## Design

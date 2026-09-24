@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePosePacket, type PosePacket } from "../../src/domain/pose";
+import { parsePosePacket, type PosePacket } from "../../apps/jojixplay/src/domain/pose";
 
 function validPacket(): PosePacket {
   return {

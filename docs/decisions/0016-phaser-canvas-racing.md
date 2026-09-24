@@ -1,16 +1,18 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-15
 scope: Racing runtime, renderer selection, simulation ownership, and television compatibility
 ---
 
 # ADR-0016: Add Racing through a lazy Phaser Canvas runtime
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The no-game-engine portion of [ADR-0003](0003-client-stack-and-renderer-boundary.md) now that Racing is the concrete engine consumer, plus the portrait Games above-head placement in [ADR-0015](0015-canonical-camera-orientation.md); the typed shell, worker inference, validated pose boundary, Canvas baseline, renderer independence, and portrait Main Menu row remain active
-- **Superseded by:** [ADR-0017](0017-coarse-torso-lean-racing.md) replaces the two-hand wheel steering and wheel-feedback portions; the remaining decisions stay active
+- **Superseded by:** [ADR-0022](0022-independent-3d-platform.md)
+
+Superseded by [ADR-0022](0022-independent-3d-platform.md). Historical rationale only.
 
 ## Context
 

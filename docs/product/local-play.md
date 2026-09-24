@@ -1,27 +1,16 @@
 ---
 status: Active
 last_verified: 2026-09-24
-scope: The only application journey and resource lifecycle
 ---
 
-# Play on your phone
+# Phone playroom
 
-## Journey
+Audience: children aged 4–7, with an adult helping or playing alongside them. A warm cream, coral, yellow and green interface uses large touch targets and a Three.js toy scene. The current experience is a movement check, not a game catalogue. Existing Draw, Bubbles and Racing are retired. The owner will specify a new Draw separately.
 
-1. Open the root website on the phone. In portrait, only **Rotate your phone** appears. Enable screen rotation and turn the phone sideways.
-2. Mirror the phone using operating-system screen mirroring or a wired display when a larger screen is wanted. The TV runs no application.
-3. Prop up the phone with its front camera facing the players' full bodies. Press **Start playing** to activate camera, tracking, and sound.
-4. Raise a hand to claim the mirrored controls (both hands when multiple people are visible), move clear of the targets to arm them, then select Games. Draw, Bubbles, and Racing share this one playfield.
-5. Press **Stop** to release camera, worker, sound, game runtime, wake lock, and owned fullscreen/orientation lock.
+Portrait displays a rotate prompt before camera activation. Landscape shows the playroom. **Let’s get ready** asks for camera permission and attempts fullscreen, orientation lock and wake lock. Unsupported optional immersive APIs do not block use. Portrait always tears down the session.
 
-## Runtime contract
+Put the phone somewhere steady with shoulders and hands in view. Feet and legs are not required by the movement check. Every joint is independently available, so missing hips cannot erase visible arms. A wave produces a mirrored Three.js visualization. **Add a grown-up** requests two-person inference and changes the displayed mode only after successful application. Neither person must match the other's height. **Finish movement check** releases capture and inference.
 
-- There is one entry point, with no mode query, pairing key, peer connection, preview, or remote controller. Query strings and fragments fail clearly with a root-link recovery action.
-- Camera pixels remain on the phone. The internal video stays visually and accessibility hidden; no video or landmark data is sent, stored, or logged.
-- Validated landscape packets travel directly from the camera lifecycle to `BodyPlayfield`; packets expire after one second without an update.
-- Every run begins with one-pose inference. Selecting Players applies the new limit to the camera before updating the displayed mode; failures are announced.
-- Start attempts fullscreen, landscape orientation lock, and Screen Wake Lock. These platform enhancements may be rejected. Portrait never exposes setup or gameplay: rotating upright unmounts the run and stops every resource. Returning to landscape requires a new Start and clears ephemeral game state.
-- One native audio context belongs to this phone run. Sound preferences are page-session-local; see [Audio](audio.md).
-- Camera access requires HTTPS or localhost. Unsupported required APIs produce an actionable unsupported-device panel.
+**For grown-ups** provides setup, external phone mirroring guidance, privacy information and live capture-age diagnostics. This is adult-assisted setup; there is no body-controlled menu or game reading requirement.
 
-[ADR-0021](../decisions/0021-landscape-phone-only.md) governs the hard cutover. Real-phone and external-mirroring acceptance remains outstanding.
+Camera pixels stay hidden and on-device. No microphone, recording, coordinate logs, network pose messages, persistence or account exists. The model may still fail to detect a severely cropped or occluded person; independently available joints only help after detection. Model accuracy, latency and thermal acceptance remain unverified on target phones.

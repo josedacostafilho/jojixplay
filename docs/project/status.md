@@ -1,33 +1,31 @@
 ---
 status: Active
 last_verified: 2026-09-24
-scope: Current capabilities, verification, and remaining acceptance
 ---
 
 # Project status
 
-## Snapshot
-
-JojixPlay is a greenfield static landscape phone application with Draw, Bubbles, Racing, a procedural avatar, and native procedural sound. All camera inference and rendering run on the phone. External operating-system or wired mirroring is the only television experience. Complete real-device acceptance remains outstanding.
-
 ## Implemented
 
-- Root-only entry with a portrait rotate screen and landscape-only setup/play.
-- Trusted camera/audio startup; optional fullscreen, native landscape lock, and wake lock; explicit Stop and portrait/unmount teardown.
-- Hidden camera capture, one MediaPipe worker, landscape canonical packets, frame epochs, and direct in-memory delivery with one-second freshness.
-- One-player default with direct apply-before-display two-player selection.
-- Compact left-column body controls, isolated procedural avatar presentation, Draw, Bubbles, and lazy forced-Canvas analog torso Racing.
-- Removal of TV/paired-phone pages, pairing credentials, QR, Trystero/WebRTC, mode routing, layout commands, and portrait game/control geometry.
+- Phone-only landscape entry and teardown; external screen mirroring only.
+- New children's playroom UI and adult-assisted movement check.
+- npm workspace isolation with a renderer-independent named-joint SDK and independent synthetic input lab.
+- Three.js WebGL2 diagnostic/toy scene. All previous games, Canvas renderers, Phaser, game audio and body-menu controls removed.
+- MediaPipe Full GPU replaces Lite; one worker, one estimate in flight, local hidden capture.
+- Independent per-joint availability, capture-age expiry and presentation-only jitter filtering. No whole-body prerequisite.
 
-## Verification
+## Deferred by the owner
 
-On 2026-09-24, `npm run validate` passed under Node 24.19.0/npm 11.17.0: formatting, warning-free lint, 124 unit/component tests, model integrity, production builds, four Chromium journeys, and the high-severity audit gate. The audit reports two moderate advisories in the existing Vitest tooling. Vite retains the known large lazy Racing chunk advisory. These checks do not establish real-device acceptance.
+No games ship in this foundation. A newly designed Draw will test drive it later. The owner chooses all game designs. Blender-authored game assets begin when an actual game calls for them.
 
-## Immediate work and risks
+## Unknown / acceptance risks
 
-- Validate both landscape directions, browser camera metadata, native orientation lock and rejected-lock portrait teardown on target phones.
-- Measure combined camera/inference/render/audio performance, thermals, battery use, and external-mirroring latency and quality.
-- Exercise every one-/two-player game, sound activation and suspension, control reach, no-preview framing, Stop, and resource release on real hardware.
-- Racing remains a large lazy chunk; startup and sustained Canvas performance require device evidence.
+The primary target is the owner’s Samsung Galaxy S22, assuming Chrome; current iPhones/Safari are also in scope. Actual cropped-body detection, accuracy, latency, adult/child tracking, sustained thermals and external mirroring must be measured on intended phones. Full GPU is not claimed to solve all model-quality failures. Synthetic fixtures only prove downstream handling. See [tracking acceptance](../engineering/pose-quality.md).
 
-GitHub Actions validates changes and deploys validated `main` to `https://josedacostafilho.github.io/jojixplay/`. This working-tree cutover is not a publication claim. [Stack](../architecture/stack.md) owns versions and commands; [Backlog](backlog.md) owns remaining work.
+## Publication
+
+GitHub Pages deploys validated `main` pushes to [JojixPlay](https://josedacostafilho.github.io/jojixplay/). The [deployment workflow history](https://github.com/josedacostafilho/jojixplay/actions/workflows/pages.yml) records the published commit and deployment outcome.
+
+## Validation
+
+The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, both production builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory; the audit reports two existing moderate development-tool advisories in Vitest/mocker.

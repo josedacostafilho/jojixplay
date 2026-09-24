@@ -1,0 +1,14 @@
+{
+  "name": "@jojixplay/game-dev",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@jojixplay/game-sdk": "*",
+    "@jojixplay/movement-view": "*"
+  }
+}

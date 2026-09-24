@@ -7,7 +7,7 @@ import {
   rotateNormalizedPoint,
   sameCameraFrameBasis,
   sameCameraFrameNormalization,
-} from "../../src/domain/camera";
+} from "../../apps/jojixplay/src/domain/camera";
 
 describe("camera domain", () => {
   it("derives only non-square layouts and validates an exact frame contract", () => {

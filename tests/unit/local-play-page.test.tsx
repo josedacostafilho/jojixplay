@@ -1,261 +1,124 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PosePacket } from "../../src/domain/pose";
-import type { PoseLimit } from "../../src/domain/pose-limit";
-import { LocalPlayPage } from "../../src/pages/local-play-page";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { LocalPlayPage } from "../../apps/jojixplay/src/pages/local-play-page";
+import type { CameraPoseLifecycle } from "../../apps/jojixplay/src/pose/use-camera-pose";
 
-interface CapturedPlayfieldProps {
-  audio: unknown;
-  packet: PosePacket | null;
-  poseLimit: PoseLimit;
-  poseLimitPending: boolean;
-  onPoseLimitRequest: (poseLimit: PoseLimit) => Promise<void>;
-}
-
-const localMocks = vi.hoisted(() => ({
-  camera: {
-    videoRef: { current: null as HTMLVideoElement | null },
-    state: "idle" as "idle" | "starting" | "tracking" | "error",
-    packet: null as PosePacket | null,
-    poseLimit: 1 as PoseLimit,
-    errorMessage: null as string | null,
-    start: vi.fn(async () => true),
-    stop: vi.fn(),
-    setPoseLimit: vi.fn(async (_poseLimit: 1 | 2): Promise<void> => undefined),
-  },
-  immersiveStart: vi.fn(),
-  immersiveStop: vi.fn(async () => undefined),
-  audioStart: vi.fn(async () => undefined),
-  audioResume: vi.fn(async () => undefined),
-  audioStop: vi.fn(async () => undefined),
-  audioSetMuted: vi.fn(),
-  audioPlayCue: vi.fn(),
-  audioSetDrawContact: vi.fn(),
-  audioSetRacingCars: vi.fn(),
-  latestPlayfieldProps: null as CapturedPlayfieldProps | null,
+const mocks = vi.hoisted(() => ({
+  update: vi.fn(),
+  dispose: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+  immersiveStop: vi.fn(),
+  setPoseLimit: vi.fn(),
 }));
-
-vi.mock("../../src/audio/audio-engine", () => ({
-  AppAudioEngine: class AppAudioEngineMock {
-    private mutedValue = false;
-
-    public constructor(
-      private readonly onStateChange: (state: "idle" | "starting" | "running" | "error") => void,
-    ) {}
-
-    public get muted(): boolean {
-      return this.mutedValue;
-    }
-
-    public async start(): Promise<void> {
-      this.onStateChange("starting");
-      try {
-        await localMocks.audioStart();
-        this.onStateChange("running");
-      } catch (error) {
-        this.onStateChange("error");
-        throw error;
-      }
-    }
-
-    public async resume(): Promise<void> {
-      await localMocks.audioResume();
-      this.onStateChange("running");
-    }
-
-    public async stop(): Promise<void> {
-      await localMocks.audioStop();
-      this.onStateChange("idle");
-    }
-
-    public setMuted(muted: boolean): void {
-      this.mutedValue = muted;
-      localMocks.audioSetMuted(muted);
-    }
-
-    public playCue = localMocks.audioPlayCue;
-    public setDrawContact = localMocks.audioSetDrawContact;
-    public setRacingCars = localMocks.audioSetRacingCars;
-  },
+let camera: CameraPoseLifecycle;
+vi.mock("../../apps/jojixplay/src/pose/use-camera-pose", () => ({ useCameraPose: () => camera }));
+vi.mock("@jojixplay/movement-view", () => ({
+  mountMovementView: () => ({ update: mocks.update, dispose: mocks.dispose }),
 }));
-
-vi.mock("../../src/platform/capabilities", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../src/platform/capabilities")>()),
+vi.mock("../../apps/jojixplay/src/platform/capabilities", () => ({
   inspectLocalPlayCapabilities: () => ({ supported: true, missing: [] }),
 }));
-
-vi.mock("../../src/pose/use-camera-pose", () => ({
-  useCameraPose: () => localMocks.camera,
-}));
-
-vi.mock("../../src/platform/local-immersive-session", () => ({
-  LocalImmersiveSession: class LocalImmersiveSessionMock {
-    public readonly start = localMocks.immersiveStart;
-    public readonly stop = localMocks.immersiveStop;
+vi.mock("../../apps/jojixplay/src/platform/local-immersive-session", () => ({
+  LocalImmersiveSession: class {
+    start() {}
+    stop() {
+      mocks.immersiveStop();
+      return Promise.resolve();
+    }
   },
 }));
-
-vi.mock("../../src/components/body-playfield", () => ({
-  BodyPlayfield: (props: CapturedPlayfieldProps) => {
-    localMocks.latestPlayfieldProps = props;
-    return <div data-testid="shared-body-playfield" />;
-  },
-}));
-
-const EMPTY_PACKET: PosePacket = {
-  sequence: 4,
-  capturedAtMs: 120,
-  frame: { width: 1_280, height: 720, layout: "landscape", epoch: 0 },
-  poses: [],
-};
-
 beforeEach(() => {
-  localMocks.camera.state = "idle";
-  localMocks.camera.packet = null;
-  localMocks.camera.poseLimit = 1;
-  localMocks.camera.errorMessage = null;
-  localMocks.camera.start.mockReset().mockResolvedValue(true);
-  localMocks.camera.stop.mockReset();
-  localMocks.camera.setPoseLimit.mockReset().mockResolvedValue(undefined);
-  localMocks.immersiveStart.mockReset();
-  localMocks.immersiveStop.mockReset().mockResolvedValue(undefined);
-  localMocks.audioStart.mockReset().mockResolvedValue(undefined);
-  localMocks.audioResume.mockReset().mockResolvedValue(undefined);
-  localMocks.audioStop.mockReset().mockResolvedValue(undefined);
-  localMocks.audioSetMuted.mockReset();
-  localMocks.audioPlayCue.mockReset();
-  localMocks.audioSetDrawContact.mockReset();
-  localMocks.audioSetRacingCars.mockReset();
-  localMocks.latestPlayfieldProps = null;
+  camera = {
+    state: "idle",
+    packet: null,
+    poseLimit: 1,
+    errorMessage: null,
+    videoRef: { current: null },
+    start: mocks.start.mockResolvedValue(true),
+    stop: mocks.stop,
+    setPoseLimit: mocks.setPoseLimit.mockResolvedValue(undefined),
+  };
 });
-
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
-
-describe("local play page", () => {
-  it("starts camera and optional immersive behavior only after explicit activation", async () => {
-    const view = render(<LocalPlayPage />);
-
-    expect(
-      screen.getByRole("heading", { name: "Play right here on your phone." }),
-    ).toBeInTheDocument();
-    expect(localMocks.camera.start).not.toHaveBeenCalled();
-    expect(localMocks.immersiveStart).not.toHaveBeenCalled();
-    expect(localMocks.audioStart).not.toHaveBeenCalled();
-    const captureSource = view.container.querySelector("video.local-camera-source");
-    expect(captureSource).toHaveAttribute("aria-hidden", "true");
-    expect(screen.queryByLabelText(/camera preview/i)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
-
-    expect(localMocks.immersiveStart).toHaveBeenCalledOnce();
-    expect(localMocks.camera.start).toHaveBeenCalledOnce();
-    expect(localMocks.audioStart).toHaveBeenCalledOnce();
-    await waitFor(() => expect(localMocks.immersiveStop).not.toHaveBeenCalled());
+it("requires touch to start, shows adult instructions and cleans up on unmount", async () => {
+  const view = render(<LocalPlayPage />);
+  expect(mocks.start).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "For grown-ups" }));
+  expect(screen.getByText(/Camera images stay on this phone/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Let’s get ready" }));
+  await act(async () => {});
+  expect(mocks.start).toHaveBeenCalledOnce();
+  view.unmount();
+  expect(mocks.dispose).toHaveBeenCalledOnce();
+  expect(mocks.immersiveStop).toHaveBeenCalled();
+});
+it("clears a fresh upper-body frame by capture age, without requiring hips", () => {
+  vi.useFakeTimers();
+  const now = performance.now();
+  camera = {
+    ...camera,
+    state: "tracking",
+    packet: {
+      sequence: 1,
+      capturedAtMs: now,
+      frame: { width: 1280, height: 720, layout: "landscape", epoch: 0 },
+      poses: [
+        {
+          landmarks: Array.from({ length: 33 }, (_, i) => ({
+            x: 0.4,
+            y: 0.3,
+            z: 0,
+            visibility: i === 15 ? 1 : 0,
+          })),
+        },
+      ],
+    },
+  };
+  render(<LocalPlayPage />);
+  expect(screen.getByRole("status")).toHaveTextContent("There you are!");
+  act(() => {
+    vi.advanceTimersByTime(251);
   });
+  expect(screen.getByRole("status")).toHaveTextContent("Wave in front of the phone");
+  expect(mocks.update).toHaveBeenLastCalledWith(null);
+});
+it("reports a rejected player-mode change and retains the applied setting", async () => {
+  camera = { ...camera, state: "tracking" };
+  mocks.setPoseLimit.mockRejectedValue(new Error("Camera stopped"));
+  render(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Add a grown-up · 2 people" }));
+  await act(async () => {});
+  expect(screen.getByRole("alert")).toHaveTextContent("Camera stopped");
+  expect(screen.getByRole("button", { name: "Add a grown-up · 2 people" })).toBeEnabled();
+});
 
-  it("feeds the current packet directly into the shared playfield and stops every local owner", async () => {
-    const view = render(<LocalPlayPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
-    await waitFor(() => expect(localMocks.audioStart).toHaveBeenCalledOnce());
-    localMocks.camera.state = "tracking";
-    localMocks.camera.packet = EMPTY_PACKET;
-    view.rerender(<LocalPlayPage />);
-
-    expect(screen.getByTestId("shared-body-playfield")).toBeInTheDocument();
-    expect(localMocks.latestPlayfieldProps?.packet).toBe(EMPTY_PACKET);
-    expect(localMocks.latestPlayfieldProps?.poseLimit).toBe(1);
-    expect(screen.getByRole("button", { name: "Stop playing" })).toBeInTheDocument();
-    expect(view.container.querySelector("video.local-camera-source")).toHaveAttribute(
-      "aria-hidden",
-      "true",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Stop playing" }));
-
-    expect(localMocks.camera.stop).toHaveBeenCalled();
-    expect(localMocks.immersiveStop).toHaveBeenCalledOnce();
-    expect(localMocks.audioStop).toHaveBeenCalledOnce();
+it("cancels startup without letting its late result stop a newer run", async () => {
+  let finish: (started: boolean) => void = () => {
+    throw new Error("Startup was not called");
+  };
+  mocks.start.mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const view = render(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Let’s get ready" }));
+  camera = { ...camera, state: "starting" };
+  view.rerender(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Cancel camera startup" }));
+  expect(mocks.stop).toHaveBeenCalledOnce();
+  camera = { ...camera, state: "idle" };
+  view.rerender(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Let’s get ready" }));
+  await act(async () => {});
+  const stops = mocks.immersiveStop.mock.calls.length;
+  await act(async () => {
+    finish(false);
   });
-
-  it("withholds a local packet after the one-second freshness bound", async () => {
-    vi.useFakeTimers();
-    const view = render(<LocalPlayPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
-    await act(async () => undefined);
-    localMocks.camera.state = "tracking";
-    localMocks.camera.packet = EMPTY_PACKET;
-    view.rerender(<LocalPlayPage />);
-
-    await act(async () => undefined);
-    expect(localMocks.latestPlayfieldProps?.packet).toBe(EMPTY_PACKET);
-
-    act(() => {
-      vi.advanceTimersByTime(1_001);
-    });
-    expect(localMocks.latestPlayfieldProps?.packet).toBeNull();
-  });
-
-  it("keeps direct player and layout requests pending until the camera controller applies them", async () => {
-    let resolvePoseLimit: (() => void) | null = null;
-    localMocks.camera.setPoseLimit.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolvePoseLimit = resolve;
-        }),
-    );
-    const view = render(<LocalPlayPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
-    await waitFor(() => expect(localMocks.audioStart).toHaveBeenCalledOnce());
-    localMocks.camera.state = "tracking";
-    localMocks.camera.packet = EMPTY_PACKET;
-    view.rerender(<LocalPlayPage />);
-
-    const initialProps = localMocks.latestPlayfieldProps;
-    if (initialProps === null) {
-      throw new Error("The shared body playfield did not mount.");
-    }
-    let poseLimitRequest: Promise<void> | null = null;
-    act(() => {
-      poseLimitRequest = initialProps.onPoseLimitRequest(2);
-    });
-    await waitFor(() => expect(localMocks.latestPlayfieldProps?.poseLimitPending).toBe(true));
-    expect(localMocks.camera.poseLimit).toBe(1);
-    expect(localMocks.camera.setPoseLimit).toHaveBeenCalledWith(2);
-
-    await act(async () => {
-      resolvePoseLimit?.();
-      await poseLimitRequest;
-    });
-    expect(localMocks.latestPlayfieldProps?.poseLimitPending).toBe(false);
-  });
-
-  it("releases optional immersive ownership when startup fails or the page unmounts", async () => {
-    localMocks.camera.start.mockResolvedValue(false);
-    const view = render(<LocalPlayPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
-    await waitFor(() => expect(localMocks.immersiveStop).toHaveBeenCalledOnce());
-    expect(localMocks.audioStop).toHaveBeenCalledOnce();
-
-    view.unmount();
-    expect(localMocks.immersiveStop).toHaveBeenCalledTimes(2);
-    expect(localMocks.audioStop).toHaveBeenCalledTimes(2);
-  });
-
-  it("tears down partial startup and reports an audio startup failure", async () => {
-    localMocks.audioStart.mockRejectedValue(new Error("blocked"));
-    render(<LocalPlayPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Start playing" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Play could not start its camera and sound.",
-    );
-    expect(localMocks.camera.stop).toHaveBeenCalled();
-    expect(localMocks.audioStop).toHaveBeenCalledOnce();
-    expect(localMocks.immersiveStop).toHaveBeenCalledOnce();
-  });
+  expect(mocks.immersiveStop).toHaveBeenCalledTimes(stops);
 });

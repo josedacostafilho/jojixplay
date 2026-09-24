@@ -10,12 +10,13 @@ scope: Automated test strategy and release quality gates
 
 Vitest, Testing Library, Playwright, Biome, TypeScript, production building, and dependency auditing are the selected quality gates for the first slice. Exact commands live in [Stack](../architecture/stack.md).
 
-## Phone-specific coverage
+## Platform coverage
 
-- Unit tests cover landscape frame validation, source quarter-turn normalization and stable epochs, camera-paced single-flight inference, player reconfiguration, pose consumers, game rules, deterministic rendering, and audio ownership.
-- Component tests cover portrait entry gating and teardown, rejection of obsolete links, direct packet freshness, apply-before-display player selection, trusted camera/audio startup and failure cleanup, hidden capture, left-column controls, all game navigation, and optional immersive resource ownership including late lock completion.
-- Production Chromium tests cover rotate-to-enter, real camera/MediaPipe startup without peer APIs, hidden capture, stop cleanup, action/message stacking, and lazy forced-Canvas Racing rendering.
-- Real-phone acceptance must cover both landscape directions, lock support/rejection, portrait teardown, camera normalization, full-body framing, controls, sound, thermals, sustained one-/two-player performance, and external screen-mirroring latency. Automation does not establish hardware acceptance.
+- Unit tests cover canonical orientation, packet validation, independent visible joints, freshness, visual smoothing resets, worker GPU configuration, camera single-flight inference, player reconfiguration and resource cleanup.
+- Component tests cover landscape gating and invalid links.
+- Production Chromium tests cover landscape entry, real Full GPU worker output, hidden capture, no peer APIs and stop/portrait cleanup.
+- The independent input lab exercises full-body, cropped legs, upper-body, a single hand, missing input and unequal-height two-person observations.
+- Actual phones must pass [tracking acceptance](pose-quality.md). Automation is not hardware acceptance.
 
 ## Principles
 

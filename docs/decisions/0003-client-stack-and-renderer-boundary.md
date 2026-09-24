@@ -1,18 +1,20 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-15
 scope: Client technology stack, inference boundary, and game-renderer independence
 ---
 
 # ADR-0003: Typed static client with an independent renderer boundary
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-13
 - **Decision owners:** Project owner
 - **Supersedes:** None
-- **Superseded by:** [ADR-0014](0014-procedural-body-avatar.md) for the visible stick-skeleton renderer and [ADR-0016](0016-phaser-canvas-racing.md) for the no-engine deferral once Racing became its concrete consumer; the typed client, worker, pose boundary, Canvas 2D baseline, and game-renderer independence remain active
+- **Superseded by:** [ADR-0022](0022-independent-3d-platform.md)
 
 > **Current-scope note:** The original skeleton-renderer and no-installed-engine passages below are historical. ADR-0014 owns the sole current body presentation; ADR-0016 owns the lazy forced-Canvas Phaser runtime used only by Racing.
+
+Superseded by [ADR-0022](0022-independent-3d-platform.md). Historical rationale only.
 
 ## Context
 

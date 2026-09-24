@@ -1,10 +1,10 @@
 import { act, cleanup, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useEffect } from "preact/hooks";
-import { App } from "../../src/app";
+import { App } from "../../apps/jojixplay/src/app";
 
 const lifecycle = vi.hoisted(() => ({ mount: vi.fn(), stop: vi.fn() }));
-vi.mock("../../src/pages/local-play-page", () => ({
+vi.mock("../../apps/jojixplay/src/pages/local-play-page", () => ({
   LocalPlayPage: () => {
     useEffect(() => {
       lifecycle.mount();

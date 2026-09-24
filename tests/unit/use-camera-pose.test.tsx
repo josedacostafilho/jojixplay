@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PosePacket } from "../../src/domain/pose";
-import { useCameraPose } from "../../src/pose/use-camera-pose";
+import type { PosePacket } from "../../apps/jojixplay/src/domain/pose";
+import { useCameraPose } from "../../apps/jojixplay/src/pose/use-camera-pose";
 
 const estimator = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -11,7 +11,7 @@ const estimator = vi.hoisted(() => ({
   close: vi.fn(),
 }));
 
-vi.mock("../../src/pose/pose-estimator", () => ({
+vi.mock("../../apps/jojixplay/src/pose/pose-estimator", () => ({
   PoseEstimator: class PoseEstimatorMock {
     readonly initialize = estimator.initialize;
     readonly estimate = estimator.estimate;
@@ -106,7 +106,7 @@ describe("shared camera pose lifecycle", () => {
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(estimator.initialize).toHaveBeenCalledWith(
       expect.stringContaining("mediapipe/tasks-vision-1.0.1/wasm"),
-      expect.stringContaining("pose_landmarker_lite.task"),
+      expect.stringContaining("pose_landmarker_full.task"),
       1,
     );
 

@@ -1,44 +1,32 @@
 ---
 status: Active
-last_verified: 2026-08-15
-scope: Repeatable one-player pose stability and latency measurement protocol
+last_verified: 2026-09-24
 ---
 
-# Pose quality and latency measurement
+# Tracking quality and acceptance
 
-## Purpose
+## Diagnosed issues and replacement
 
-This protocol turns subjective shaking into comparable one-player evidence without collecting video or pose coordinates. [ADR-0011](../decisions/0011-consumer-specific-pose-stability.md) owns the signal architecture and model-selection rationale. This document owns how contributors measure the current implementation and evaluate a replacement.
+A regression probe against the retired renderer demonstrated that making one hip invisible erased all visible anatomy. New adapter regression coverage proves shoulders and wrists remain available with both hips and all legs absent. This proves application behavior, not model detection quality.
 
-## Measurement procedure
+The previous Lite landmarker did not select GPU acceleration. The canonical runtime now uses the self-hosted Full float16 bundle with `delegate: "GPU"`, camera-paced single-flight inference and no fallback. Full was selected as an accuracy-oriented candidate compatible with two-person inference and the existing normalized landmarks. Heavy has a greater compute burden without a measured target-phone benefit. MoveNet Thunder is single-person; MultiPose uses Lightning. A larger model alone cannot guarantee better latency or cropped-body detection.
 
-The removed paired-phone preview and diagnostics panel are not part of the phone-only product. Numeric inference/hand-spread baselines remain unmeasured; do not claim requested camera FPS as achieved inference cadence.
+Sources: [Google pose model family](https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker), [official browser examples and model bundles](https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/pose-landmarker.ts), [MoveNet variants](https://github.com/tensorflow/tfjs-models/blob/master/pose-detection/src/movenet/README.md).
 
-On each target phone, record device/browser, both landscape directions, lighting, camera distance, warm-up, battery/thermal behavior, and external-mirroring method. Use browser performance tooling for frame cadence and sustained workload; never save camera pixels or landmark coordinates. Compare stationary avatar shimmer, slow movement, fast reversals, dropout recovery, Draw grip/path continuity, Bubbles hit behavior, and Racing steering comfort. Repeat identical motion and camera placement across model experiments. A future numeric pose-quality experiment must collect only bounded aggregate measurements and remove its instrumentation after analysis.
+Freshness is measured from capture, not arrival. The SDK rejects observations older than 250 ms. The parent panel displays elapsed capture age and current observation count locally; no coordinates are logged or stored. Presentation-only filtering has a 45 ms small-motion response, shortened to 20 ms for larger motion, and immediately resets across gaps, basis changes, missing joints and large jumps. No two-person array-slot smoothing exists.
 
-## Model replacement experiment
+## Exploratory image check (2026-09-24)
 
-The committed production model remains Lite until evidence supports a replacement. To evaluate Full:
+A separate Chromium worker ran the actual Full GPU model on Google's [public pose test photo](https://storage.googleapis.com/mediapipe-assets/pose.jpg), then on top-aligned crops retaining 85%, 70% and 55% of its height. All four inputs detected one pose and kept both shoulders, elbows and wrists in bounds with reported visibility at least 0.99. This single adult still image is a limited feasibility check, not child, motion, occlusion or phone validation. No fixture was committed, and no user camera data was captured.
 
-1. Create an isolated experiment branch.
-2. Replace the vendored Lite asset, checksum, Vite copy destination, camera-controller asset URL, asset-verification script, tests, and all model-name documentation in one hard cutover. Do not add a selector or retain the Lite asset in that branch.
-3. Run `npm run validate` and deploy the experiment artifact separately from validated `main`.
-4. Repeat the complete baseline procedure on the same target phone.
-5. Prefer Full only if stationary coarse-hand spread improves materially while achieved cadence, processing-age p95, drawing responsiveness, sustained thermals, startup, and asset size remain acceptable.
-6. Record the evidence and accept one model. Merge a single-model hard cutover or delete the experiment branch; never merge both runtime paths.
+## Required phone acceptance (Unknown)
 
-No universal numeric budget is selected before the first target-device baseline. A model name or offline benchmark alone is not acceptance evidence.
+The primary target is the owner’s Samsung Galaxy S22, assuming Chrome. Current iPhones/Safari are also in scope; no iPhone model or minimum iOS version is selected yet. Test both families on real hardware before calling the model accepted. Browser software-GPU integration tests only verify initialization and output plumbing.
 
-## Avatar-presentation acceptance
+For each device and one/two-person setting, compare stationary-hand jitter, a fast wave, wrists at screen edges, unequal adult/child heights, feet cropped, half-legs cropped, waist-up, one arm hidden and reacquisition. Check both landscape directions, ordinary household lighting, 10 minutes of continuous tracking, heat and external mirroring latency. Record only aggregate timing/error results, never camera pixels or coordinates without explicit consent.
 
-The procedural avatar now owns one isolated presentation filter per canvas under [ADR-0014](../decisions/0014-procedural-body-avatar.md). It adaptively smooths continuous one-pose display copies with a `22–72 ms` time constant, applies bounded limb-length stabilization, and uses near-side depth hysteresis. It resets on missing input, frame-layout/epoch/sequence/time discontinuity, or zero/multiple poses; multi-pose presentation has no temporal association. Exact behavior lives in [Avatar renderer](../product/avatar-renderer.md).
+Acceptance targets: visible upper-body joints survive lower-body loss when detected; unavailable joints disappear within 250 ms; no motion bridges across reacquisition; responsive waving with fresh observations during sustained use. Full GPU performance and detection recall remain Unknown until measured. If these targets fail, replace the chosen path in a new hard cutover rather than introducing model selection or fallback bloat.
 
-Evaluate that display path separately from raw interaction:
+## iPhone constraints
 
-- compare stationary avatar shimmer with raw interaction stability, but do not treat the avatar as a diagnostic measurement source;
-- compare slow motion and fast reversals for a meaningful reduction in shimmer without objectionable lag, overshoot, or rubber-limb behavior;
-- verify that landmark loss omits affected anatomy instead of holding stale geometry and that reappearance starts from the current observation;
-- verify that one-to-two, two-to-one, pose loss, frame-layout/epoch changes, and re-entry do not carry one person's display history onto another; and
-- repeat the Draw, Bubbles, and Racing checks to confirm that avatar smoothness cannot change grip, paths, buttons, hand rings, collisions, scores, torso-neutral calibration, steering, or pause gestures; Racing must remain avatar-free.
-
-Do not add an alternate filter, style selector, raw-render fallback, or different game-specific avatar. Replacing a constant or algorithm requires recorded target-device evidence, one updated canonical contract, proportional regression tests, and a hard cutover. The unsmoothed canonical `PosePacket` remains unchanged under every presentation outcome. Orientation acceptance is governed by [Camera orientation](../product/camera-orientation.md).
+The chosen worker GPU path requires OffscreenCanvas WebGL, introduced in [Safari/iOS 17](https://webkit.org/blog/14445/webkit-features-in-safari-17-0/). This is a prerequisite, not a declaration that every iOS 17 device is supported. Start acceptance on current iOS/Safari; select a minimum version only after hardware validation. Fullscreen, native orientation locking and wake lock remain optional browser-controlled enhancements. The landscape gate works independently and always stops a portrait session. Do not promise that a website can force an iPhone to remain physically locked in landscape. Check GPU memory, model startup, camera interruptions and sustained heat alongside frame timing.

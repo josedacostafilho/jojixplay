@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PoseEstimator } from "../../src/pose/pose-estimator";
-import type { PoseWorkerResponse } from "../../src/pose/worker-protocol";
+import { PoseEstimator } from "../../apps/jojixplay/src/pose/pose-estimator";
+import type { PoseWorkerResponse } from "../../apps/jojixplay/src/pose/worker-protocol";
 
 class WorkerHarness {
   onmessage: ((event: MessageEvent<PoseWorkerResponse>) => void) | null = null;
@@ -28,6 +28,7 @@ describe("pose estimator worker protocol", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("initializes in one-player mode and acknowledges a runtime switch to two players", async () => {
@@ -53,6 +54,27 @@ describe("pose estimator worker protocol", () => {
     worker.respond({ type: "tracking-reset" });
     await expect(reset).resolves.toBeUndefined();
 
+    estimator.close();
+    expect(worker.terminate).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a stalled estimate instead of leaving the camera permanently busy", async () => {
+    vi.useFakeTimers();
+    const estimator = new PoseEstimator();
+    const ready = estimator.initialize("/wasm", "/pose.task", 1);
+    worker.respond({ type: "ready" });
+    await ready;
+    const bitmap = { close: vi.fn() } as unknown as ImageBitmap;
+    const pending = estimator.estimate(
+      bitmap,
+      0,
+      0,
+      { width: 1280, height: 720, layout: "landscape", epoch: 0 },
+      0,
+    );
+    const rejected = expect(pending).rejects.toThrow("stopped responding");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await rejected;
     estimator.close();
     expect(worker.terminate).toHaveBeenCalledOnce();
   });

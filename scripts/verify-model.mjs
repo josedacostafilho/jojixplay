@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-const modelUrl = new URL("../assets/models/pose_landmarker_lite.task", import.meta.url);
-const checksumUrl = new URL("../assets/models/pose_landmarker_lite.task.sha256", import.meta.url);
+const modelUrl = new URL("../assets/models/pose_landmarker_full.task", import.meta.url);
+const checksumUrl = new URL("../assets/models/pose_landmarker_full.task.sha256", import.meta.url);
 const expectedChecksum = (await readFile(checksumUrl, "utf8")).trim();
 
 if (!/^[a-f0-9]{64}$/u.test(expectedChecksum)) {

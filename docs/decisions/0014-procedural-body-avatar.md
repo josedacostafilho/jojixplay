@@ -1,16 +1,18 @@
 ---
-status: Active
+status: Superseded
 last_verified: 2026-08-14
 scope: Live pose presentation renderer and its isolated stabilization boundary
 ---
 
 # ADR-0014: Replace the stick skeleton with a procedural body avatar
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-14
 - **Decision owners:** Project owner
 - **Supersedes:** The visible stick-skeleton presentation portions of ADR-0003, ADR-0005, and ADR-0011
-- **Superseded by:** [ADR-0015](0015-canonical-camera-orientation.md) for canonical frame epochs and orientation-transition continuity resets; the procedural renderer and presentation-only stabilization decisions remain active
+- **Superseded by:** [ADR-0022](0022-independent-3d-platform.md)
+
+Superseded by [ADR-0022](0022-independent-3d-platform.md). Historical rationale only.
 
 ## Context
 
@@ -29,7 +31,7 @@ The pose stream is also visibly noisy at rest. Existing consumer separation is c
 - Use explicit appearance profiles: television menu `0.94`, Draw `0.24`, Bubbles `0.16`, and unmirrored phone preview `0.38` opacity.
 - Add no downloaded asset, inference output, dependency, backend, persistence, or independent continuous render loop.
 
-The complete geometry, failure behavior, constants, profiles, implementation sequence, and acceptance criteria are canonical in the [avatar renderer specification](../product/avatar-renderer.md).
+The complete geometry, failure behavior, constants, profiles, implementation sequence, and acceptance criteria are canonical in the avatar renderer specification (retired; see [current architecture](../architecture/overview.md)).
 
 ## Consequences
 

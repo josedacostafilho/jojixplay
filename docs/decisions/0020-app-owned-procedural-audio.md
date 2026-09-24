@@ -1,16 +1,18 @@
 ---
-status: Accepted
+status: Superseded
 last_verified: 2026-08-18
 scope: Application-wide audio ownership, browser activation, sound controls, and procedural cue policy
 ---
 
 # ADR-0020: Own one procedural Web Audio runtime on the rendering device
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-18
 - **Decision owners:** Project owner
 - **Supersedes:** The silent-runtime scope in [ADR-0016](0016-phaser-canvas-racing.md) and the Main Menu action set in [ADR-0010](0010-menu-and-draw-game.md)
-- **Superseded by:** None
+- **Superseded by:** [ADR-0022](0022-independent-3d-platform.md)
+
+Superseded by [ADR-0022](0022-independent-3d-platform.md). Historical rationale only.
 
 ## Context
 
@@ -70,5 +72,5 @@ Rejected for the first sound slice. Assets add licensing, attribution, codec, pr
 
 ## Follow-up
 
-- Complete the target-device acceptance in [Audio](../product/audio.md).
+- Complete the target-device acceptance in Audio (retired; see [current architecture](../architecture/overview.md)).
 - Add music or sample assets only through a separately accepted product and licensing decision.

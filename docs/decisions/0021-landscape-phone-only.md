@@ -14,6 +14,8 @@ Accepted — 2026-09-24.
 
 Smart-TV browsers are unsuitable for the intended game workload. The user requires all inference, games, and sound to run on the phone, with external screen mirroring as the sole television experience. Portrait play is removed.
 
+The renderer, audio and menu details below are superseded by [ADR-0022](0022-independent-3d-platform.md). The phone-only landscape and camera lifecycle decisions remain active.
+
 ## Decision
 
 - Serve one phone application at the root URL. Reject query/fragment routes. Delete mode selection, TV rendering, paired-phone preview, QR/manual credentials, Trystero, WebRTC, and reverse command protocols.

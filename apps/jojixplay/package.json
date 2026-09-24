@@ -1,0 +1,12 @@
+{
+  "name": "@jojixplay/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@jojixplay/game-sdk": "*",
+    "@jojixplay/movement-view": "*",
+    "@mediapipe/tasks-vision": "1.0.1",
+    "preact": "10.29.8"
+  }
+}

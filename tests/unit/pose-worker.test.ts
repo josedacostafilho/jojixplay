@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PoseWorkerRequest, PoseWorkerResponse } from "../../src/pose/worker-protocol";
+import type {
+  PoseWorkerRequest,
+  PoseWorkerResponse,
+} from "../../apps/jojixplay/src/pose/worker-protocol";
 
 const mediaPipe = vi.hoisted(() => ({
   forVisionTasks: vi.fn(),
@@ -39,7 +42,7 @@ describe("pose worker player limit", () => {
   });
 
   it("creates one-pose inference by default and acknowledges in-place two-pose reconfiguration", async () => {
-    await import("../../src/pose/pose.worker");
+    await import("../../apps/jojixplay/src/pose/pose.worker");
 
     worker.onmessage?.(
       new MessageEvent("message", {
@@ -54,7 +57,10 @@ describe("pose worker player limit", () => {
     await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledWith({ type: "ready" }));
     expect(mediaPipe.createFromOptions).toHaveBeenCalledWith(
       {},
-      expect.objectContaining({ numPoses: 1 }),
+      expect.objectContaining({
+        numPoses: 1,
+        baseOptions: expect.objectContaining({ delegate: "GPU" }),
+      }),
     );
 
     worker.onmessage?.(
@@ -101,7 +107,7 @@ describe("pose worker player limit", () => {
         });
       },
     );
-    await import("../../src/pose/pose.worker");
+    await import("../../apps/jojixplay/src/pose/pose.worker");
     worker.onmessage?.(
       new MessageEvent("message", {
         data: {

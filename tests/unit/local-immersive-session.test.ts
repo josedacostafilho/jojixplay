@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LocalImmersiveSession } from "../../src/platform/local-immersive-session";
+import { LocalImmersiveSession } from "../../apps/jojixplay/src/platform/local-immersive-session";
 
 describe("local immersive session", () => {
   const requestFullscreen = vi.fn();

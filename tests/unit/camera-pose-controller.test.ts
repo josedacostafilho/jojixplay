@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PosePacket } from "../../src/domain/pose";
-import { CameraPoseController } from "../../src/pose/camera-pose-controller";
+import type { PosePacket } from "../../apps/jojixplay/src/domain/pose";
+import { CameraPoseController } from "../../apps/jojixplay/src/pose/camera-pose-controller";
 
 const estimator = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -10,7 +10,7 @@ const estimator = vi.hoisted(() => ({
   close: vi.fn(),
 }));
 
-vi.mock("../../src/pose/pose-estimator", () => ({
+vi.mock("../../apps/jojixplay/src/pose/pose-estimator", () => ({
   PoseEstimator: class PoseEstimatorMock {
     readonly initialize = estimator.initialize;
     readonly estimate = estimator.estimate;
@@ -94,7 +94,7 @@ describe("camera pose controller player limit", () => {
     await controller.start();
     expect(estimator.initialize).toHaveBeenCalledWith(
       expect.stringContaining("mediapipe/tasks-vision-1.0.1/wasm"),
-      expect.stringContaining("pose_landmarker_lite.task"),
+      expect.stringContaining("pose_landmarker_full.task"),
       1,
     );
     expect(getUserMedia).toHaveBeenCalledOnce();

@@ -23,5 +23,5 @@
     "jsxImportSource": "preact",
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["src", "tests/unit", "tests/setup.ts"]
+  "include": ["apps", "packages", "tests/unit", "tests/setup.ts", "games"]
 }

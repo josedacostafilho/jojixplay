@@ -1,16 +1,18 @@
 ---
-status: Accepted
+status: Superseded
 last_verified: 2026-08-18
 scope: Analog Racing steering, authored course intensity, and two-player opponent presentation
 ---
 
 # ADR-0019: Hard-cut Racing to analog torso steering and a denser authored course
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-08-18
 - **Decision owners:** Project owner
 - **Supersedes:** [ADR-0017](0017-coarse-torso-lean-racing.md)
-- **Superseded by:** None
+- **Superseded by:** [ADR-0022](0022-independent-3d-platform.md)
+
+Superseded by [ADR-0022](0022-independent-3d-platform.md). Historical rationale only.
 
 ## Context
 
@@ -69,5 +71,5 @@ Rejected. It would undermine comparable times, deterministic regression tests, a
 
 ## Follow-up
 
-- Complete the target-device acceptance in [Racing](../product/racing-game.md).
+- Complete the target-device acceptance in Racing (retired; see [current architecture](../architecture/overview.md)).
 - Tune no threshold or curvature again without recording target-device evidence.
