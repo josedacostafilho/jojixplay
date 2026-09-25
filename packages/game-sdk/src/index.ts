@@ -60,3 +60,5 @@ export function isFresh(frame: BodyFrame, now: number): boolean {
   const age = now - frame.capturedAtMs;
   return age >= 0 && age <= BODY_FRESHNESS_MS;
 }
+
+export { mountMovementControls, type ControlPoint } from "./movement-controls";

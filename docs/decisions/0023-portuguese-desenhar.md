@@ -5,6 +5,8 @@ last_verified: 2026-09-24
 
 # Brazilian Portuguese and Desenhar
 
+The touch-only confirmation clause below is superseded by [ADR-0024](0024-movement-navigation.md); all post-setup controls support movement.
+
 The owner chose Brazilian Portuguese for all product UI, while engineering documentation and conversation remain English. Use direct pt-BR copy; no locale switch or translation framework exists.
 
 Desenhar is the first new game, authorized for a simple professional implementation. It owns an isolated `games/desenhar` workspace. The host lazy-loads its public mount function and supplies only the existing SDK observations and lifecycle. It applies the selected one- or two-person inference limit before entry. The game has an independent synthetic development page, build and tests.

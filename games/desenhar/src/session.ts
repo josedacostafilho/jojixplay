@@ -146,11 +146,16 @@ export class DrawSession {
     const wrist = body?.[brush.leftHand ? "leftWrist" : "rightWrist"];
     const other = body?.[brush.leftHand ? "rightWrist" : "leftWrist"];
     const shoulder = body?.[brush.leftHand ? "rightShoulder" : "leftShoulder"];
-    if (!wrist || !shoulder || !other) {
+    if (!wrist) {
       this.breakStroke(index);
       return;
     }
     const point = { x: 1 - wrist.x, y: wrist.y };
+    if (!shoulder || !other) {
+      this.breakStroke(index);
+      brush.point = point;
+      return;
+    }
     const torso = { x: shoulder.x, y: shoulder.y };
     const gap = frame.capturedAtMs - brush.lastTime;
     const jump =

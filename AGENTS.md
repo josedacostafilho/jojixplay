@@ -10,7 +10,7 @@ Before changing code, read relevant material in this order: [status](docs/projec
 
 ## Product and architecture
 
-The owner selects games. All old games are retired. The first new game, Desenhar, supports one or two people. All product copy is Brazilian Portuguese (pt-BR); engineering documentation and development conversation remain English. The audience is ages 4–7 with an adult nearby or playing together. Use a playful, colorful, readable interface without marketing-page scaffolding. Setup is touch operated by an adult.
+The owner selects games. All old games are retired. The first new game, Desenhar, supports one or two people. All product copy is Brazilian Portuguese (pt-BR); engineering documentation and development conversation remain English. The audience is ages 4–7 with an adult nearby or playing together. Use a playful, colorful, readable interface without marketing-page scaffolding. Initial camera setup is touch operated by an adult. Every interaction after setup must also work through movement alone, including navigation, help, game controls, confirmations and exit. The phone stays across the room. See [ADR-0024](docs/decisions/0024-movement-navigation.md).
 
 [ADR-0022](docs/decisions/0022-independent-3d-platform.md) governs the workspace cutover. Application code lives in `apps/jojixplay`; public contracts in `packages/game-sdk`; a diagnostic Three.js scene in `packages/movement-view`; independent synthetic development in `packages/game-dev`. `games/desenhar` owns its rules, Three.js paint rendering, controls, tests and independent development build. Games own their rules, assets, tests and builds, and may not import the app or another game. Do not build unneeded game systems before games exist.
 

@@ -8,9 +8,9 @@ last_verified: 2026-09-24
 ## Implemented
 
 - Phone-only landscape entry and teardown; external screen mirroring only.
-- Brazilian Portuguese product UI, adult-assisted movement check and Desenhar entry.
+- Brazilian Portuguese product UI and movement-operated navigation, help, Desenhar entry, confirmations and return after trusted camera setup.
 - npm workspace isolation with a renderer-independent named-joint SDK and independent synthetic input lab.
-- Three.js WebGL2 diagnostic/toy scene. All previous games, Canvas renderers, Phaser, game audio and body-menu controls removed.
+- Three.js WebGL2 diagnostic/toy scene. All previous games, Canvas renderers, Phaser, game audio and old body-menu implementation removed.
 - MediaPipe Full GPU replaces Lite; one worker, one estimate in flight, local hidden capture.
 - Independent per-joint availability, capture-age expiry and presentation-only jitter filtering. No whole-body prerequisite.
 

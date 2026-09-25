@@ -86,3 +86,14 @@ it("bounds retained paint rather than accumulating an unlimited scene", () => {
   session.select(0, "undo");
   expect(session.full).toBe(false);
 });
+
+it("keeps the control pointer available with only the selected wrist while withholding paint", () => {
+  const session = new DrawSession(1);
+  input(session, frame(0));
+  input(session, frame(1, [{ rightWrist: joint(0.4, 0.5) }]));
+  expect(session.brushes[0]?.point).toEqual({ x: 0.6, y: 0.5 });
+  expect(session.brushes[0]?.painting).toBe(false);
+  expect(session.marks).toHaveLength(1);
+  input(session, frame(2));
+  expect(session.marks[1]?.from).toEqual(session.marks[1]?.to);
+});

@@ -541,3 +541,79 @@ a {
     font-size: 12px;
   }
 }
+
+.room-header[hidden] {
+  display: none;
+}
+.playroom--drawing {
+  padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+}
+.game-back {
+  right: max(14px, calc((100% - (100svh - 16px) * 16 / 9) / 2 + 14px));
+}
+.parent-panel {
+  overflow: hidden;
+}
+.parent-panel ol {
+  max-height: 30svh;
+  overflow: auto;
+}
+.parent-scroll-controls {
+  display: flex;
+  gap: 12px;
+}
+.parent-scroll-controls button {
+  border: 1px solid #c9d1c5;
+  border-radius: 12px;
+  background: #f7c853;
+  padding: 8px 16px;
+}
+.parent-heading {
+  position: sticky;
+  top: 0;
+  background: #fffdf5;
+}
+.playroom--live:not(.playroom--drawing) {
+  height: 100svh;
+  min-height: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.playroom--live .welcome {
+  min-height: 0;
+  height: calc(100svh - 65px);
+}
+.playroom--live .little-label,
+.playroom--live .welcome h1 {
+  display: none;
+}
+.playroom--live .welcome-copy {
+  padding: 0;
+}
+.playroom--live .live-actions {
+  gap: 5px;
+}
+.playroom--live .draw-entry {
+  flex-wrap: nowrap;
+}
+.playroom--live .room-footer {
+  display: none;
+}
+.parent-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 20px;
+}
+.parent-heading,
+.parent-scroll-controls,
+.parent-panel > p {
+  flex-shrink: 0;
+}
+.parent-panel ol {
+  min-height: 0;
+  margin: 6px 0;
+}
+.parent-panel > p {
+  margin: 4px 0;
+  font-size: 10px;
+}

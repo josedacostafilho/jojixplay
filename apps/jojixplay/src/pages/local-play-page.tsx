@@ -1,6 +1,7 @@
 import { BODY_FRESHNESS_MS, isFresh, type Experience } from "@jojixplay/game-sdk";
 import { mountMovementView } from "@jojixplay/movement-view";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { MovementNavigation } from "../components/movement-navigation";
 import { DrawGame } from "../components/draw-game";
 import { UnsupportedPanel } from "../components/unsupported-panel";
 import { inspectLocalPlayCapabilities } from "../platform/capabilities";
@@ -147,6 +148,7 @@ export function LocalPlayPage() {
     <main
       class={`playroom ${active ? "playroom--live" : ""} ${drawing ? "playroom--drawing" : ""}`}
     >
+      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} />
       <video
         ref={camera.videoRef}
         class="local-camera-source"
@@ -155,11 +157,11 @@ export function LocalPlayPage() {
         aria-hidden="true"
         tabIndex={-1}
       />
-      <header class="room-header">
-        <a class="brand" href={import.meta.env.BASE_URL} aria-label="Início do JojixPlay">
+      <header class="room-header" hidden={drawing}>
+        <span class="brand">
           jojix<span>play</span>
           <i aria-hidden="true">✳</i>
-        </a>
+        </span>
         <button
           class="parent-button"
           type="button"
@@ -216,7 +218,7 @@ export function LocalPlayPage() {
             </h1>
             <p>
               {active
-                ? "Dê um tchauzinho! Suas mãos podem brincar mesmo com os pés fora da imagem."
+                ? "Mova a mão até um botão e segure até o círculo completar. Não precisa tocar no celular!"
                 : "Chame um adulto, encontre um lugar confortável e venha brincar!"}
             </p>
             {active ? (
@@ -324,6 +326,30 @@ export function LocalPlayPage() {
               Fechar ×
             </button>
           </div>
+          <div class="parent-scroll-controls">
+            <button
+              type="button"
+              onClick={(event) =>
+                event.currentTarget
+                  .closest("section")
+                  ?.querySelector("ol")
+                  ?.scrollBy({ top: -120, behavior: "smooth" })
+              }
+            >
+              ↑ Subir
+            </button>
+            <button
+              type="button"
+              onClick={(event) =>
+                event.currentTarget
+                  .closest("section")
+                  ?.querySelector("ol")
+                  ?.scrollBy({ top: 120, behavior: "smooth" })
+              }
+            >
+              ↓ Ler mais
+            </button>
+          </div>
           <ol>
             <li>
               <strong>Prepare um espacinho.</strong> Apoie o celular em um lugar firme, de frente
@@ -335,12 +361,14 @@ export function LocalPlayPage() {
             </li>
             <li>
               <strong>Participe.</strong> No teste de movimento, você pode chamar uma segunda
-              pessoa. Não é preciso ter a mesma altura. Desenhar é para uma pessoa por vez.
+              pessoa. Não é preciso ter a mesma altura. Vocês podem desenhar juntos, cada um de um
+              lado.
             </li>
             <li>
               <strong>Hora de desenhar.</strong> Uma mão conduz o pincel. Levante a outra acima do
               ombro para pintar e abaixe para parar. Em dupla, cada pessoa fica de um lado. As cores
-              podem ser escolhidas mantendo o pincel sobre elas ou tocando na tela.
+              podem ser escolhidas mantendo o pincel sobre elas até o círculo completar. Menus,
+              voltar e confirmações também funcionam com a mão.
             </li>
           </ol>
           <p>As imagens ficam neste celular. Não mostramos, gravamos ou enviamos sua câmera.</p>

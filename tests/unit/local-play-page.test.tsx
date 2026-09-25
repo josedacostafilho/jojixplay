@@ -32,6 +32,7 @@ vi.mock("../../apps/jojixplay/src/platform/local-immersive-session", () => ({
   },
 }));
 beforeEach(() => {
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => null });
   camera = {
     state: "idle",
     packet: null,
@@ -45,6 +46,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  Reflect.deleteProperty(document, "elementFromPoint");
   vi.useRealTimers();
 });
 it("requires touch to start, shows adult instructions and cleans up on unmount", async () => {

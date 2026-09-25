@@ -1,4 +1,10 @@
-import { isFresh, type BodyFrame, type Experience } from "@jojixplay/game-sdk";
+import {
+  isFresh,
+  mountMovementControls,
+  type ControlPoint,
+  type BodyFrame,
+  type Experience,
+} from "@jojixplay/game-sdk";
 import * as THREE from "three";
 import { colors, colorNames, DrawSession, MAX_MARKS } from "./session";
 import "./style.css";
@@ -63,11 +69,7 @@ export function mountDesenhar(container: HTMLElement, players: 1 | 2): Experienc
     rendered = 0,
     aspect = 16 / 9,
     disposed = false;
-  const hover = [
-    { button: null as HTMLButtonElement | null, since: 0, latched: false },
-    { button: null as HTMLButtonElement | null, since: 0, latched: false },
-  ];
-  const neutral = [false, false];
+  const controls = mountMovementControls(root, () => true, false);
   const transform = new THREE.Object3D(),
     up = new THREE.Vector3(0, 1, 0),
     delta = new THREE.Vector3();
@@ -136,16 +138,11 @@ export function mountDesenhar(container: HTMLElement, players: 1 | 2): Experienc
             button.closest<HTMLElement>("[data-player]")?.dataset.player === focusedPlayer,
         )
         ?.focus({ preventScroll: true });
-    hover.forEach((h) => {
-      h.button = null;
-      h.latched = false;
-      h.since = 0;
-    });
   }
   function activate(button: HTMLButtonElement, player: number) {
     const action = button.dataset.action;
     if (!action) return;
-    neutral[player] = false;
+    controls.reset();
     session.breakStroke(player);
     if (action === "clear") {
       session.brushes.forEach((_, i) => {
@@ -167,10 +164,10 @@ export function mountDesenhar(container: HTMLElement, players: 1 | 2): Experienc
     if (!(event.target instanceof HTMLButtonElement)) return;
     if (event.target.dataset.confirm === "yes") session.clear();
     dialog.close();
-    neutral.fill(false);
+    controls.reset();
   });
   dialog.addEventListener("cancel", () => {
-    neutral.fill(false);
+    controls.reset();
   });
   function resize() {
     if (!paper) return;
@@ -245,18 +242,12 @@ export function mountDesenhar(container: HTMLElement, players: 1 | 2): Experienc
       });
     refreshPaint();
     const rect = renderer.domElement.getBoundingClientRect();
+    const points: ControlPoint[] = [];
     session.brushes.forEach((brush, i) => {
-      const pointer = pointers[i],
-        h = hover[i];
-      if (!pointer || !h) return;
-      pointer.group.visible = !!brush.point && !dialog.open;
-      if (!brush.point || dialog.open) {
-        h.button?.style.removeProperty("--dwell");
-        h.button = null;
-        h.latched = false;
-        neutral[i] = false;
-        return;
-      }
+      const pointer = pointers[i];
+      if (!pointer) return;
+      pointer.group.visible = !!brush.point && !document.querySelector("dialog[open]");
+      if (!brush.point) return;
       const p = project(brush.point);
       p.z = 0.4;
       pointer.group.position.copy(p);
@@ -268,33 +259,14 @@ export function mountDesenhar(container: HTMLElement, players: 1 | 2): Experienc
       }
       pointer.center.visible = brush.painting;
       const ndc = p.clone().project(camera);
-      const x = rect.left + ((ndc.x + 1) * rect.width) / 2,
-        y = rect.top + ((1 - ndc.y) * rect.height) / 2;
-      const button =
-        [...tools.querySelectorAll<HTMLButtonElement>("button")].find((button) => {
-          const owner = button.closest<HTMLElement>("[data-player]")?.dataset.player;
-          if (owner !== undefined && Number(owner) !== i) return false;
-          const r = button.getBoundingClientRect();
-          return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-        }) ?? null;
-      if (button !== h.button) {
-        if (h.button) h.button.style.removeProperty("--dwell");
-        h.button = button;
-        h.since = now;
-        h.latched = false;
-      }
-      if (!button) {
-        neutral[i] = true;
-        return;
-      }
-      if (!neutral[i] || h.latched) return;
-      const progress = Math.min(1, (now - h.since) / 800);
-      button.style.setProperty("--dwell", `${progress * 100}%`);
-      if (progress === 1) {
-        h.latched = true;
-        activate(button, i);
-      }
+      points.push({
+        key: String(i),
+        player: i,
+        x: rect.left + ((ndc.x + 1) * rect.width) / 2,
+        y: rect.top + ((1 - ndc.y) * rect.height) / 2,
+      });
     });
+    controls.update(points, now);
     const painting = session.brushes.some((b) => b.painting);
     hint.textContent = session.full
       ? "Folha cheia de arte! Desfaça um traço ou comece uma nova folha."
@@ -309,24 +281,29 @@ export function mountDesenhar(container: HTMLElement, players: 1 | 2): Experienc
   });
   return {
     update(next) {
+      if (!next || !frame || next.epoch !== frame.epoch || next.sequence <= frame.sequence)
+        controls.reset();
       frame = next;
       if (next && aspect !== next.width / next.height) {
         aspect = next.width / next.height;
         resize();
       }
-      session.update(next, performance.now(), (point, i) => {
+      session.update(next, performance.now(), (point) => {
         const position = project(point).project(camera),
           rect = renderer.domElement.getBoundingClientRect();
         const x = rect.left + ((position.x + 1) * rect.width) / 2,
           y = rect.top + ((1 - position.y) * rect.height) / 2;
         const r = tools.getBoundingClientRect();
         return (
-          dialog.open || !neutral[i] || (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
+          !!document.querySelector("dialog[open]") ||
+          !!document.elementFromPoint(x, y)?.closest("button") ||
+          (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
         );
       });
     },
     dispose() {
       disposed = true;
+      controls.dispose();
       observer.disconnect();
       renderer.setAnimationLoop(null);
       ball.dispose();

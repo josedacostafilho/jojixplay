@@ -12,14 +12,14 @@ The static application runs entirely on a landscape phone. External screen mirro
 | Workspace | Owns | Public dependencies |
 | --- | --- | --- |
 | `apps/jojixplay` | Preact UI, permission, camera, worker, observation adapter, immersive lifecycle | SDK, movement view, Preact, MediaPipe |
-| `packages/game-sdk` | Readonly named-joint input, freshness, mount/update/dispose contract | None |
+| `packages/game-sdk` | Readonly named-joint input, freshness, lifecycle and shared DOM dwell | None |
 | `packages/movement-view` | Three.js diagnostic scene and decorative toy characters; visual-only smoothing | SDK, Three.js |
 | `games/desenhar` | Game rules, two independent brushes, Three.js paint, controls, tests and standalone synthetic development | SDK, Three.js |
 | `packages/game-dev` | Independent Vite input lab with synthetic partial-body and unequal-height observations | SDK, movement view |
 
 Desenhar is the first new game, in `games/desenhar`. The application lazy-loads its public mount function with the applied player count and passes SDK frames. Its standalone development page has no camera or application dependency. Future games follow the same isolated workspace pattern; the owner chooses their rules. Workspace imports must use declared public package exports; relative escapes, deep cross-package imports, imports of application internals and game-to-game imports fail `verify:boundaries`. Root TypeScript and validation coordinate shared checks. The development lab builds without the application or camera.
 
-The SDK intentionally contains no menus, scoring, player identity, tracking vendor types, renderer or game framework. The base `mount(container)` contract returns `update(frame | null)` and `dispose()`. Null clears unavailable input. Desenhar takes one additional explicit mount argument: the applied one-/two-person count, which remains fixed for that run. Each experience owns and disposes its scene resources. New game requirements may add narrowly justified host interactions later; there is no unused audio or scoring service today.
+The SDK contains the shared DOM hand-dwell mechanism used by host navigation and game tools. It contains no menu state, scoring, player identity, tracking vendor types, renderer or game framework. See [ADR-0024](../decisions/0024-movement-navigation.md). The base `mount(container)` contract returns `update(frame | null)` and `dispose()`. Null clears unavailable input. Desenhar takes one additional explicit mount argument: the applied one-/two-person count, which remains fixed for that run. Each experience owns and disposes its scene resources. New game requirements may add narrowly justified host interactions later; there is no unused audio or scoring service today.
 
 ## Data flow
 
