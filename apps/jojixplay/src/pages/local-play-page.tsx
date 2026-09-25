@@ -1,5 +1,6 @@
-import { BODY_FRESHNESS_MS, isFresh, type Experience } from "@jojixplay/game-sdk";
-import { mountMovementView } from "@jojixplay/movement-view";
+import { BODY_FRESHNESS_MS, isFresh } from "@jojixplay/game-sdk";
+import { CameraBackdrop } from "../components/camera-backdrop";
+import { GameMenu } from "../components/game-menu";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { MovementNavigation } from "../components/movement-navigation";
 import { DrawGame } from "../components/draw-game";
@@ -15,14 +16,13 @@ export function LocalPlayPage() {
   const [immersive] = useState(() => new LocalImmersiveSession());
   const [confirmExit, setConfirmExit] = useState(false);
   const exitDialog = useRef<HTMLDialogElement>(null);
+  const [choosingPlayers, setChoosingPlayers] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const opening = useRef(false);
   const [grownups, setGrownups] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [changingPlayers, setChangingPlayers] = useState(false);
   const [stale, setStale] = useState(true);
-  const container = useRef<HTMLDivElement>(null);
-  const scene = useRef<Experience | null>(null);
   const mounted = useRef(true);
   const run = useRef(0);
   const starting = useRef(false);
@@ -40,21 +40,10 @@ export function LocalPlayPage() {
 
   useEffect(() => {
     mounted.current = true;
-    if (container.current && capabilities.supported) {
-      try {
-        scene.current = mountMovementView(container.current);
-      } catch {
-        setError(
-          "Não foi possível abrir a brincadeira em 3D. Recarregue a página em um navegador com WebGL 2 ativado.",
-        );
-      }
-    }
     return () => {
       mounted.current = false;
-      scene.current?.dispose();
-      scene.current = null;
     };
-  }, [active, drawing, capabilities.supported, immersive]);
+  }, []);
 
   useEffect(
     () => () => {
@@ -66,18 +55,18 @@ export function LocalPlayPage() {
   useEffect(() => {
     if (!active) {
       setDrawing(false);
+      setChoosingPlayers(false);
       setConfirmExit(false);
       if (camera.state === "error") void immersive.stop();
       return;
     }
-    scene.current?.update(bodyFrame);
+
     setStale(!bodyFrame || !isFresh(bodyFrame, performance.now()));
     const remaining = bodyFrame
       ? Math.max(0, BODY_FRESHNESS_MS - (performance.now() - bodyFrame.capturedAtMs))
       : 0;
     const timer = window.setTimeout(() => {
       setStale(true);
-      scene.current?.update(null);
     }, remaining);
     return () => clearTimeout(timer);
   }, [active, bodyFrame, camera.state, immersive]);
@@ -89,7 +78,7 @@ export function LocalPlayPage() {
     starting.current = false;
     setChangingPlayers(false);
     camera.stop();
-    scene.current?.update(null);
+
     setStale(true);
     void immersive.stop();
   }
@@ -104,21 +93,6 @@ export function LocalPlayPage() {
     starting.current = false;
     if (!started) void immersive.stop();
   }
-  async function changePlayers() {
-    const currentRun = run.current;
-    setChangingPlayers(true);
-    setError(null);
-    try {
-      await camera.setPoseLimit(camera.poseLimit === 1 ? 2 : 1);
-    } catch (reason) {
-      if (mounted.current && run.current === currentRun)
-        setError(
-          reason instanceof Error ? reason.message : "Não foi possível mudar o número de pessoas.",
-        );
-    } finally {
-      if (mounted.current && run.current === currentRun) setChangingPlayers(false);
-    }
-  }
   async function openDrawing(players: 1 | 2) {
     if (opening.current || changingPlayers) return;
     opening.current = true;
@@ -129,6 +103,7 @@ export function LocalPlayPage() {
       if (camera.poseLimit !== players) await camera.setPoseLimit(players);
       if (mounted.current && run.current === currentRun) {
         setGrownups(false);
+        setChoosingPlayers(false);
         setDrawing(true);
       }
     } catch {
@@ -148,15 +123,12 @@ export function LocalPlayPage() {
     <main
       class={`playroom ${active ? "playroom--live" : ""} ${drawing ? "playroom--drawing" : ""}`}
     >
-      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} />
-      <video
-        ref={camera.videoRef}
-        class="local-camera-source"
-        muted
-        playsInline
-        aria-hidden="true"
-        tabIndex={-1}
+      <CameraBackdrop
+        videoRef={camera.videoRef}
+        normalization={camera.normalization}
+        visible={!drawing}
       />
+      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} onError={setError} />
       <header class="room-header" hidden={drawing}>
         <span class="brand">
           jojix<span>play</span>
@@ -191,121 +163,83 @@ export function LocalPlayPage() {
               onClick={() => {
                 setConfirmExit(false);
                 setDrawing(false);
+                setChoosingPlayers(false);
               }}
             >
               Sair e apagar
             </button>
           </dialog>
         </section>
+      ) : active ? (
+        <>
+          <GameMenu
+            choosing={choosingPlayers}
+            busy={changingPlayers}
+            onChoose={() => {
+              setGrownups(false);
+              setChoosingPlayers(true);
+            }}
+            onBack={() => setChoosingPlayers(false)}
+            onPlay={(players) => void openDrawing(players)}
+          />
+          <div class="menu-footer">
+            <span class="tracking-note" role="status">
+              {visible ? "Achamos você!" : "Mostre as mãos para o celular"}
+            </span>
+            <button class="quiet-button" type="button" onClick={stop}>
+              Encerrar brincadeira
+            </button>
+          </div>
+          {error ? (
+            <p class="inline-error menu-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </>
       ) : (
         <section class="welcome" aria-labelledby="welcome-title">
           <div class="welcome-copy">
             <span class="little-label">OI, PEQUENO ARTISTA!</span>
             <h1 id="welcome-title">
-              {active ? (
-                <>
-                  Olá,
-                  <br />
-                  <em>que alegria!</em>
-                </>
+              Preparar…
+              <br />
+              <em>brincar!</em>
+            </h1>
+            <p>Chame um adulto, apoie o celular e abra espaço para brincar!</p>
+            <button
+              class="start-button"
+              type="button"
+              disabled={busy || error !== null}
+              onClick={() => void start()}
+            >
+              {busy ? (
+                "Abrindo a câmera…"
               ) : (
                 <>
-                  Preparar…
-                  <br />
-                  <em>brincar!</em>
+                  Vamos começar <span aria-hidden="true">→</span>
                 </>
               )}
-            </h1>
-            <p>
-              {active
-                ? "Mova a mão até um botão e segure até o círculo completar. Não precisa tocar no celular!"
-                : "Chame um adulto, encontre um lugar confortável e venha brincar!"}
-            </p>
-            {active ? (
-              <div class="live-actions">
-                <div class="draw-entry">
-                  <button
-                    class="start-button"
-                    type="button"
-                    disabled={changingPlayers}
-                    onClick={() => void openDrawing(1)}
-                  >
-                    ✎ Desenhar sozinho
-                  </button>
-                  <button
-                    class="secondary-button"
-                    type="button"
-                    disabled={changingPlayers}
-                    onClick={() => void openDrawing(2)}
-                  >
-                    ✎ Desenhar em dupla
-                  </button>
-                </div>
-                <span class={`tracking-note ${visible ? "tracking-note--seen" : ""}`} role="status">
-                  {visible ? "Achamos você!" : "Dê um tchauzinho para o celular"}
-                </span>
-                <button
-                  class="secondary-button"
-                  type="button"
-                  disabled={changingPlayers}
-                  onClick={() => void changePlayers()}
-                >
-                  {changingPlayers
-                    ? "Só um instante…"
-                    : camera.poseLimit === 1
-                      ? "Chamar um adulto · 2 pessoas"
-                      : "Só eu · 1 pessoa"}
-                </button>
-                <button class="quiet-button" type="button" onClick={stop}>
-                  Encerrar o teste
-                </button>
-              </div>
-            ) : (
-              <>
-                <button
-                  class="start-button"
-                  type="button"
-                  disabled={busy || error !== null}
-                  onClick={() => void start()}
-                >
-                  {busy ? (
-                    "Abrindo a câmera…"
-                  ) : (
-                    <>
-                      Vamos começar <span aria-hidden="true">→</span>
-                    </>
-                  )}
-                </button>
-                <p class="button-caption">Um teste de movimento com a ajuda de um adulto.</p>
-                {busy ? (
-                  <button class="quiet-button" type="button" onClick={stop}>
-                    Cancelar abertura da câmera
-                  </button>
-                ) : null}
-              </>
-            )}
+            </button>
+            <p class="button-caption">Um teste de movimento com a ajuda de um adulto.</p>
+            {busy ? (
+              <button class="quiet-button" type="button" onClick={stop}>
+                Cancelar abertura da câmera
+              </button>
+            ) : null}
             {camera.errorMessage || error ? (
               <p class="inline-error" role="alert">
                 {camera.errorMessage ?? error}
               </p>
             ) : null}
           </div>
-          <div class="wonder-world">
-            <div class="world-orbit" aria-hidden="true" />
-            <span class="world-spark spark-one" aria-hidden="true">
-              ✳
-            </span>
-            <span class="world-spark spark-two" aria-hidden="true">
-              ✦
-            </span>
-            <div class="movement-scene" ref={container} />
-            <span class="world-caption">
-              {active ? "Seu movimento vira magia." : "Juntos é mais divertido."}
-            </span>
+          <div class="setup-art" aria-hidden="true">
+            <span>✳</span>
+            <span>✦</span>
+            <span>✎</span>
           </div>
         </section>
       )}
-      {!drawing && (
+      {!active && (
         <footer class="room-footer">
           <span>
             <b aria-hidden="true">☀</b> Para crianças de 4 a 7 anos
@@ -360,9 +294,8 @@ export function LocalPlayPage() {
               cabo. A brincadeira continua rodando no celular.
             </li>
             <li>
-              <strong>Participe.</strong> No teste de movimento, você pode chamar uma segunda
-              pessoa. Não é preciso ter a mesma altura. Vocês podem desenhar juntos, cada um de um
-              lado.
+              <strong>Participe.</strong> Escolha Desenhar e depois Sozinho ou Em dupla. Não é
+              preciso ter a mesma altura. Vocês podem desenhar juntos, cada um de um lado.
             </li>
             <li>
               <strong>Hora de desenhar.</strong> Uma mão conduz o pincel. Levante a outra acima do
@@ -371,7 +304,9 @@ export function LocalPlayPage() {
               voltar e confirmações também funcionam com a mão.
             </li>
           </ol>
-          <p>As imagens ficam neste celular. Não mostramos, gravamos ou enviamos sua câmera.</p>
+          <p>
+            Sua câmera aparece nos menus. As imagens ficam neste celular: não gravamos nem enviamos.
+          </p>
           {active ? (
             <p class="diagnostic">
               Teste de movimento ·{" "}

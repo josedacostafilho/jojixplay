@@ -4,85 +4,95 @@ import {
   type BodyFrame,
   type ControlPoint,
 } from "@jojixplay/game-sdk";
+import { mountHandView, type HandPoint } from "@jojixplay/movement-view";
 import { useEffect, useRef } from "preact/hooks";
+import { cameraCover, handCenter } from "../domain/camera-view";
 
-/** Host navigation stays active while game input is paused by host dialogs. */
+/** The same projected point drives the hand mesh and button hit testing. */
 export function MovementNavigation({
   frame,
   active,
   drawing,
+  onError,
 }: {
   frame: BodyFrame | null;
   active: boolean;
   drawing: boolean;
+  onError: (message: string) => void;
 }) {
-  const anchor = useRef<HTMLSpanElement>(null);
-  const latest = useRef(frame);
-  latest.current = frame;
+  const layer = useRef<HTMLDivElement>(null);
+  const latest = useRef({ frame, onError });
+  latest.current = { frame, onError };
   useEffect(() => {
-    const root = anchor.current?.closest("main");
-    if (!root || !active) return;
+    const container = layer.current;
+    const root = container?.closest("main");
+    if (!root || !container || !active) return;
     const controls = mountMovementControls(
       root,
       (button) => !button.closest(".draw-game"),
-      !drawing,
+      drawing ? "target" : "none",
     );
+    let hands: Awaited<ReturnType<typeof mountHandView>> | null = null;
+    let disposed = false;
+    if (!drawing)
+      void mountHandView(container)
+        .then((view) => {
+          if (disposed) view.dispose();
+          else hands = view;
+        })
+        .catch(() => {
+          if (!disposed)
+            latest.current.onError(
+              "Não foi possível carregar as mãos em 3D. Recarregue a página para tentar novamente.",
+            );
+        });
     let request = 0;
     let epoch: number | undefined;
     function tick() {
-      const frame = latest.current;
-      const points: ControlPoint[] = [];
-      if (frame && isFresh(frame, performance.now())) {
+      const frame = latest.current.frame;
+      const points: (ControlPoint & HandPoint)[] = [];
+      if ((drawing || hands) && frame && isFresh(frame, performance.now())) {
         if (frame.epoch !== epoch) controls.reset();
         epoch = frame.epoch;
         const paper = drawing ? root?.querySelector(".draw-paper")?.getBoundingClientRect() : null;
+        const cover = cameraCover(frame.width, frame.height, innerWidth, innerHeight);
         const width = paper
           ? Math.min(paper.width, (paper.height * frame.width) / frame.height)
-          : innerWidth;
-        const height = paper ? (width * frame.height) / frame.width : innerHeight;
-        const left = paper ? paper.left + (paper.width - width) / 2 : 0;
-        const top = paper ? paper.top + (paper.height - height) / 2 : 0;
+          : cover.width;
+        const height = paper ? (width * frame.height) / frame.width : cover.height;
+        const left = paper ? paper.left + (paper.width - width) / 2 : drawing ? 0 : cover.left;
+        const top = paper ? paper.top + (paper.height - height) / 2 : drawing ? 0 : cover.top;
         const back = root?.querySelector<HTMLElement>(".game-back");
         if (back && paper) back.style.right = `${Math.max(14, (paper.width - width) / 2 + 14)}px`;
-        for (const body of frame.bodies) {
-          const center =
-            body.leftShoulder && body.rightShoulder
-              ? (body.leftShoulder.x + body.rightShoulder.x) / 2
-              : null;
-          const zone =
-            frame.bodies.length === 1
-              ? "solo"
-              : center === null
-                ? null
-                : center < 0.44
-                  ? "right"
-                  : center > 0.56
-                    ? "left"
-                    : null;
-          if (!zone) continue;
-          for (const hand of ["leftWrist", "rightWrist"] as const) {
-            const wrist = body[hand];
-            if (wrist)
-              points.push({
-                key: `${zone}-${hand}`,
-                x: left + (1 - wrist.x) * width,
-                y: top + wrist.y * height,
-              });
-          }
+        for (const isLeft of [false, true]) {
+          // Spatial hand slots only: no body/torso prerequisite or detector-array identity.
+          const wrists = frame.bodies
+            .map((body) =>
+              drawing ? body[isLeft ? "leftWrist" : "rightWrist"] : handCenter(body, isLeft),
+            )
+            .filter((point) => point !== undefined)
+            .sort((a, b) => a.x - b.x);
+          wrists.forEach((wrist, i) => {
+            points.push({
+              key: `${isLeft}-${i}`,
+              left: isLeft,
+              x: left + (1 - wrist.x) * width,
+              y: top + wrist.y * height,
+            });
+          });
         }
       }
-      // Ambiguous same-zone detections must never combine their dwell time.
-      controls.update(
-        points.filter((point) => points.filter((other) => other.key === point.key).length === 1),
-        performance.now(),
-      );
+      hands?.update(points);
+      controls.update(points, performance.now());
       request = requestAnimationFrame(tick);
     }
     request = requestAnimationFrame(tick);
     return () => {
+      disposed = true;
       cancelAnimationFrame(request);
       controls.dispose();
+      hands?.dispose();
     };
   }, [active, drawing]);
-  return <span ref={anchor} aria-hidden="true" />;
+  return <div ref={layer} class="hand-layer" aria-hidden="true" />;
 }

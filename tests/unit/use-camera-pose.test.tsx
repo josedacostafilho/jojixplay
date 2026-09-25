@@ -35,6 +35,7 @@ function CameraHarness() {
       <video ref={camera.videoRef} muted playsInline />
       <output aria-label="Camera state">{camera.state}</output>
       <output aria-label="Packet sequence">{camera.packet?.sequence ?? "none"}</output>
+      <output aria-label="Camera rotation">{camera.normalization?.rotation ?? "none"}</output>
       <output aria-label="Pose limit">{camera.poseLimit}</output>
       <button type="button" onClick={() => void camera.start()}>
         Start
@@ -115,6 +116,8 @@ describe("shared camera pose lifecycle", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(screen.getByLabelText("Packet sequence")).toHaveTextContent("7"));
+
+    expect(screen.getByLabelText("Camera rotation")).toHaveTextContent("0");
 
     let resolvePoseLimit: (() => void) | null = null;
     estimator.setPoseLimit.mockImplementation(

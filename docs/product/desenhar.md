@@ -9,7 +9,7 @@ A simple collaborative air-painting game for ages 4–7, with a grown-up nearby.
 
 ## Playing
 
-After **Vamos começar**, choose **Desenhar sozinho** or **Desenhar em dupla**. The host waits for the camera to apply that inference count before entering. Two people stand on opposite screen sides with some space between them. They share one page, each with independent colors, brush width and selected drawing hand. Adult/child height differences do not affect ownership.
+After **Vamos começar**, choose **Desenhar** from the main game list, then **Sozinho** or **Em dupla**. The host waits for the camera to apply that inference count before entering. Two people stand on opposite screen sides with some space between them. They share one page, each with independent colors, brush width and selected drawing hand. Adult/child height differences do not affect ownership.
 
 The right wrist moves the mirrored brush by default. Raise the other wrist above its shoulder to paint; lower it to move without painting. The hand button switches drawing hands. Feet, legs, hips and face are not prerequisites. Six colors and two brush widths are available. Hover over a control for 800 ms, or tap it. Move clear of the controls to re-arm after a selection. **Desfazer** removes that person's last stroke. **Nova folha** asks for movement-operated confirmation before clearing everyone's page. **Voltar** asks before leaving and discarding the drawing; both choices use the same hand dwell. Initial camera setup is the only required touch. Help, player selection and session stop are also movement operated.
 

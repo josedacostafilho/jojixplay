@@ -15,6 +15,7 @@ for (const viewport of [
       });
       Reflect.set(window, "testWrist", { x: 0.5, y: 0.5 });
       Reflect.set(window, "testLost", false);
+      Reflect.set(window, "testHandsOnly", true);
       class SyntheticWorker {
         onmessage: ((event: { data: unknown }) => void) | null = null;
         postMessage(request: {
@@ -47,7 +48,12 @@ for (const viewport of [
                           x: i === 16 ? 1 - wrist.x : i === 11 ? 0.7 : i === 12 ? 0.8 : 0.6,
                           y: i === 16 ? wrist.y : i === 15 ? 0.7 : 0.4,
                           z: 0,
-                          visibility: [11, 12, 15, 16].includes(i) ? 1 : 0,
+                          visibility: (Reflect.get(window, "testHandsOnly")
+                            ? [15, 16]
+                            : [11, 12, 15, 16]
+                          ).includes(i)
+                            ? 1
+                            : 0,
                         })),
                       },
                     ],
@@ -64,7 +70,17 @@ for (const viewport of [
     });
     await page.goto("/");
     await page.getByRole("button", { name: "Vamos começar" }).click();
-    await expect(page.getByRole("button", { name: "✎ Desenhar sozinho" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" })).toBeVisible();
+    await expect(page.locator(".hand-layer canvas")).toBeVisible();
+    await expect(page.locator(".camera-backdrop")).toHaveCSS("opacity", "1");
+    await expect(page.getByText("Em breve", { exact: true })).toHaveCount(2);
+    expect(await page.locator(".game-card--soon button").count()).toBe(0);
+    const cameraBounds = await page.locator("video").boundingBox();
+    expect(cameraBounds?.x).toBeLessThanOrEqual(0);
+    expect(cameraBounds?.y).toBeLessThanOrEqual(0);
+    expect(cameraBounds?.width).toBeGreaterThanOrEqual(viewport.width);
+    expect(cameraBounds?.height).toBeGreaterThanOrEqual(viewport.height);
+
     // All further selections change only synthetic camera joints, never click/tap.
     async function select(name: string) {
       await page.evaluate(() => {
@@ -72,10 +88,12 @@ for (const viewport of [
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
-        const width = paper ? Math.min(paper.width, paper.height * aspect) : innerWidth;
-        const height = paper ? width / aspect : innerHeight;
-        const left = paper ? paper.left + (paper.width - width) / 2 : 0;
-        const top = paper ? paper.top + (paper.height - height) / 2 : 0;
+        const width = paper
+          ? Math.min(paper.width, paper.height * aspect)
+          : Math.max(innerWidth, innerHeight * aspect);
+        const height = width / aspect;
+        const left = paper ? paper.left + (paper.width - width) / 2 : (innerWidth - width) / 2;
+        const top = paper ? paper.top + (paper.height - height) / 2 : (innerHeight - height) / 2;
         for (const y of [0.4, 0.3, 0.5, 0.6])
           for (const x of [0.5, 0.4, 0.6, 0.3]) {
             if (!document.elementFromPoint(left + x * width, top + y * height)?.closest("button")) {
@@ -92,10 +110,12 @@ for (const viewport of [
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
-        const width = paper ? Math.min(paper.width, paper.height * aspect) : innerWidth;
-        const height = paper ? width / aspect : innerHeight;
-        const left = paper ? paper.left + (paper.width - width) / 2 : 0;
-        const top = paper ? paper.top + (paper.height - height) / 2 : 0;
+        const width = paper
+          ? Math.min(paper.width, paper.height * aspect)
+          : Math.max(innerWidth, innerHeight * aspect);
+        const height = width / aspect;
+        const left = paper ? paper.left + (paper.width - width) / 2 : (innerWidth - width) / 2;
+        const top = paper ? paper.top + (paper.height - height) / 2 : (innerHeight - height) / 2;
         return { x: (b.x + b.width / 2 - left) / width, y: (b.y + b.height / 2 - top) / height };
       });
       expect(point.x).toBeGreaterThanOrEqual(0);
@@ -105,16 +125,20 @@ for (const viewport of [
       await page.evaluate((point) => Reflect.set(window, "testWrist", point), point);
       await page.waitForTimeout(1050);
     }
-    await select("Chamar um adulto · 2 pessoas");
-    await expect(page.getByRole("button", { name: "Só eu · 1 pessoa" })).toBeVisible();
-    await select("Só eu · 1 pessoa");
     await select("Para os adultos");
     await expect(page.getByRole("heading", { name: "Uma ajudinha sua" })).toBeVisible();
     await select("↓ Ler mais");
     await select("↑ Subir");
     await select("Fechar orientações");
     await expect(page.getByRole("heading", { name: "Uma ajudinha sua" })).not.toBeVisible();
-    await select("✎ Desenhar sozinho");
+    await select("Desenhar · 1 ou 2 pessoas");
+    await expect(page.getByRole("heading", { name: "Quem vai brincar?" })).toBeVisible();
+    await select("← Todos os jogos");
+    await expect(page.getByRole("heading", { name: "Vamos brincar?" })).toBeVisible();
+    await select("Desenhar · 1 ou 2 pessoas");
+    await page.evaluate(() => Reflect.set(window, "testHandsOnly", false));
+    await select("Desenhar sozinho");
+    await expect(page.locator("video")).toHaveCSS("opacity", "0");
     await expect(page.getByText("Suas cores", { exact: true })).toBeVisible();
     await select("Verde");
     await expect(page.getByRole("button", { name: "Verde", exact: true })).toHaveAttribute(
@@ -137,7 +161,10 @@ for (const viewport of [
     await expect(page.getByText("Suas cores", { exact: true })).toBeVisible();
     await select("← Voltar");
     await select("Sair e apagar");
-    await select("✎ Desenhar em dupla");
+    await expect(page.locator("video")).toHaveCSS("opacity", "1");
+    await expect(page.locator(".hand-layer canvas")).toBeVisible();
+    await select("Desenhar · 1 ou 2 pessoas");
+    await select("Desenhar em dupla");
     await expect(page.getByText("Lado esquerdo", { exact: true })).toBeVisible();
     await select("Verde · esquerda");
     await expect(
@@ -145,7 +172,7 @@ for (const viewport of [
     ).toHaveAttribute("aria-pressed", "true");
     await select("← Voltar");
     await select("Sair e apagar");
-    await select("Encerrar o teste");
+    await select("Encerrar brincadeira");
     await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
   });
 }

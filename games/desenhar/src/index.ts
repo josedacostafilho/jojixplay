@@ -69,7 +69,7 @@ export function mountDesenhar(container: HTMLElement, players: 1 | 2): Experienc
     rendered = 0,
     aspect = 16 / 9,
     disposed = false;
-  const controls = mountMovementControls(root, () => true, false);
+  const controls = mountMovementControls(root, () => true, "target");
   const transform = new THREE.Object3D(),
     up = new THREE.Vector3(0, 1, 0),
     delta = new THREE.Vector3();

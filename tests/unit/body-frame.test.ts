@@ -2,7 +2,6 @@ import { expect, it } from "vitest";
 import { isFresh } from "@jojixplay/game-sdk";
 import { toBodyFrame } from "../../apps/jojixplay/src/pose/body-frame";
 import type { PosePacket } from "../../apps/jojixplay/src/domain/pose";
-import { softenMovement } from "../../packages/movement-view/src/presentation";
 
 function upperBody(): PosePacket {
   return {
@@ -45,22 +44,4 @@ it("expires input from capture time and rejects future timestamps", () => {
   expect(isFresh(frame, 350)).toBe(true);
   expect(isFresh(frame, 351)).toBe(false);
   expect(isFresh(frame, 99)).toBe(false);
-});
-it("softens small presentation jitter without carrying absent joints, epochs or person slots", () => {
-  const before = toBodyFrame(upperBody());
-  const after = {
-    ...before,
-    capturedAtMs: 133,
-    bodies: [{ leftWrist: { x: 0.41, y: 0.3, z: 0, confidence: 1 } }],
-  };
-  const soft = softenMovement(before, after);
-  expect(soft.bodies[0]?.leftWrist?.x).toBeGreaterThan(0.4);
-  expect(soft.bodies[0]?.leftWrist?.x).toBeLessThan(0.41);
-  expect(soft.bodies[0]?.rightWrist).toBeUndefined();
-  const epoch = { ...after, epoch: 1 };
-  expect(softenMovement(before, epoch)).toBe(epoch);
-  const two = { ...after, bodies: [after.bodies[0] ?? {}, {}] };
-  expect(softenMovement(before, two)).toBe(two);
-  const stale = { ...after, capturedAtMs: 500 };
-  expect(softenMovement(before, stale)).toBe(stale);
 });

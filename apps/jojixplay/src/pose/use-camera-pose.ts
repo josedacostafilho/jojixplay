@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import type { CameraFrameNormalization } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { CameraPoseController } from "./camera-pose-controller";
@@ -9,6 +10,7 @@ export interface CameraPoseLifecycle {
   videoRef: preact.RefObject<HTMLVideoElement>;
   state: CameraTrackingState;
   packet: PosePacket | null;
+  normalization: CameraFrameNormalization | null;
   poseLimit: PoseLimit;
   errorMessage: string | null;
   start: () => Promise<boolean>;
@@ -22,6 +24,7 @@ export function useCameraPose(): CameraPoseLifecycle {
   const mounted = useRef(true);
   const poseLimitRef = useRef<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [state, setState] = useState<CameraTrackingState>("idle");
+  const [normalization, setNormalization] = useState<CameraFrameNormalization | null>(null);
   const [packet, setPacket] = useState<PosePacket | null>(null);
   const [poseLimit, setPoseLimitState] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -34,6 +37,7 @@ export function useCameraPose(): CameraPoseLifecycle {
       return;
     }
     setPacket(null);
+    setNormalization(null);
     setState("idle");
     setErrorMessage(null);
     poseLimitRef.current = DEFAULT_POSE_LIMIT;
@@ -48,6 +52,7 @@ export function useCameraPose(): CameraPoseLifecycle {
     setState("starting");
     setErrorMessage(null);
     setPacket(null);
+    setNormalization(null);
 
     let controller: CameraPoseController | null = null;
     controller = new CameraPoseController({
@@ -63,6 +68,7 @@ export function useCameraPose(): CameraPoseLifecycle {
         if (!mounted.current || cameraController.current !== controller) {
           return;
         }
+        setNormalization(nextFrame);
         setPacket((current) =>
           nextFrame !== null && current?.frame.epoch === nextFrame.frame.epoch ? current : null,
         );
@@ -73,6 +79,7 @@ export function useCameraPose(): CameraPoseLifecycle {
         }
         cameraController.current = null;
         setPacket(null);
+        setNormalization(null);
         setErrorMessage(message);
         setState("error");
       },
@@ -127,6 +134,7 @@ export function useCameraPose(): CameraPoseLifecycle {
     videoRef,
     state,
     packet,
+    normalization,
     poseLimit,
     errorMessage,
     start,

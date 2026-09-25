@@ -9,7 +9,7 @@ export interface ControlPoint {
 export function mountMovementControls(
   root: HTMLElement,
   accepts: (button: HTMLButtonElement) => boolean = () => true,
-  showPointer = true,
+  pointer: "always" | "target" | "none" = "always",
 ) {
   const states = new Map<
     string,
@@ -97,7 +97,8 @@ export function mountMovementControls(
         if (button) button.style.setProperty("--dwell", `${progress * 100}%`);
         // A modal's top layer requires its cursor to live inside that modal.
         if (state.cursor.parentElement !== scope) scope.append(state.cursor);
-        state.cursor.hidden = !targets.length || (!showPointer && !button && !modal);
+        state.cursor.hidden =
+          pointer === "none" || !targets.length || (pointer === "target" && !button && !modal);
         state.cursor.style.display = state.cursor.hidden ? "none" : "grid";
         state.cursor.style.left = `${point.x}px`;
         state.cursor.style.top = `${point.y}px`;

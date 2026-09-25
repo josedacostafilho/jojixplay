@@ -53,7 +53,6 @@ export interface Experience {
   update(frame: BodyFrame | null): void;
   dispose(): void;
 }
-export type MountExperience = (container: HTMLElement) => Experience;
 
 export const BODY_FRESHNESS_MS = 250;
 export function isFresh(frame: BodyFrame, now: number): boolean {

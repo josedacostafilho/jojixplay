@@ -17,7 +17,7 @@ vi.mock("../../apps/jojixplay/src/components/draw-game", () => ({
   DrawGame: ({ players }: { players: 1 | 2 }) => <div data-testid="drawing">{players} pessoas</div>,
 }));
 vi.mock("@jojixplay/movement-view", () => ({
-  mountMovementView: () => ({ update: mocks.update, dispose: mocks.dispose }),
+  mountHandView: async () => ({ update: mocks.update, dispose: mocks.dispose }),
 }));
 vi.mock("../../apps/jojixplay/src/platform/capabilities", () => ({
   inspectLocalPlayCapabilities: () => ({ supported: true, missing: [] }),
@@ -36,6 +36,7 @@ beforeEach(() => {
   camera = {
     state: "idle",
     packet: null,
+    normalization: null,
     poseLimit: 1,
     errorMessage: null,
     videoRef: { current: null },
@@ -53,12 +54,12 @@ it("requires touch to start, shows adult instructions and cleans up on unmount",
   const view = render(<LocalPlayPage />);
   expect(mocks.start).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Para os adultos" }));
-  expect(screen.getByText(/As imagens ficam neste celular/)).toBeInTheDocument();
+  expect(screen.getByText(/Sua câmera aparece nos menus/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Vamos começar" }));
   await act(async () => {});
   expect(mocks.start).toHaveBeenCalledOnce();
   view.unmount();
-  expect(mocks.dispose).toHaveBeenCalledOnce();
+
   expect(mocks.immersiveStop).toHaveBeenCalled();
 });
 it("clears a fresh upper-body frame by capture age, without requiring hips", () => {
@@ -88,17 +89,17 @@ it("clears a fresh upper-body frame by capture age, without requiring hips", () 
   act(() => {
     vi.advanceTimersByTime(251);
   });
-  expect(screen.getByRole("status")).toHaveTextContent("Dê um tchauzinho para o celular");
-  expect(mocks.update).toHaveBeenLastCalledWith(null);
+  expect(screen.getByRole("status")).toHaveTextContent("Mostre as mãos para o celular");
 });
 it("reports a rejected player-mode change and retains the applied setting", async () => {
   camera = { ...camera, state: "tracking" };
   mocks.setPoseLimit.mockRejectedValue(new Error("Camera stopped"));
   render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Chamar um adulto · 2 pessoas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Desenhar em dupla" }));
   await act(async () => {});
-  expect(screen.getByRole("alert")).toHaveTextContent("Camera stopped");
-  expect(screen.getByRole("button", { name: "Chamar um adulto · 2 pessoas" })).toBeEnabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível preparar as pessoas");
+  expect(screen.getByRole("button", { name: "Desenhar em dupla" })).toBeEnabled();
 });
 
 it("cancels startup without letting its late result stop a newer run", async () => {
@@ -138,7 +139,8 @@ it("enters solo directly and waits for two-person inference before opening a duo
       }),
   );
   const view = render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "✎ Desenhar em dupla" }));
+  fireEvent.click(screen.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Desenhar em dupla" }));
   expect(mocks.setPoseLimit).toHaveBeenCalledWith(2);
   expect(screen.queryByTestId("drawing")).not.toBeInTheDocument();
   camera = { ...camera, poseLimit: 2 };
@@ -150,7 +152,8 @@ it("enters solo directly and waits for two-person inference before opening a duo
   view.unmount();
   camera = { ...camera, poseLimit: 1 };
   render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "✎ Desenhar sozinho" }));
+  fireEvent.click(screen.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Desenhar sozinho" }));
   await act(async () => {});
   expect(screen.getByTestId("drawing")).toHaveTextContent("1 pessoas");
 });

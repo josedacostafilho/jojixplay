@@ -8,7 +8,6 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@jojixplay/game-sdk": "*",
     "@jojixplay/movement-view": "*"
   }
 }

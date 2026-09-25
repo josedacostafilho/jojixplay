@@ -1,173 +1,115 @@
-import { isFresh, type BodyFrame, type Experience, type JointName } from "@jojixplay/game-sdk";
 import * as THREE from "three";
-import { softenMovement } from "./presentation";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import handUrl from "../assets/hand.glb?url";
+import license from "../assets/LICENSE.txt?raw";
 
-const connections: ReadonlyArray<readonly [JointName, JointName]> = [
-  ["leftShoulder", "rightShoulder"],
-  ["leftShoulder", "leftElbow"],
-  ["leftElbow", "leftWrist"],
-  ["rightShoulder", "rightElbow"],
-  ["rightElbow", "rightWrist"],
-  ["leftShoulder", "leftHip"],
-  ["rightShoulder", "rightHip"],
-  ["leftHip", "rightHip"],
-  ["leftHip", "leftKnee"],
-  ["leftKnee", "leftAnkle"],
-  ["rightHip", "rightKnee"],
-  ["rightKnee", "rightAnkle"],
-];
-const visibleJoints: readonly JointName[] = [
-  "nose",
-  "leftShoulder",
-  "rightShoulder",
-  "leftElbow",
-  "rightElbow",
-  "leftWrist",
-  "rightWrist",
-  "leftHip",
-  "rightHip",
-  "leftKnee",
-  "rightKnee",
-  "leftAnkle",
-  "rightAnkle",
-];
+export interface HandPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly left: boolean;
+}
 
-/** Diagnostic scene, also used by the independent development harness. */
-export function mountMovementView(container: HTMLElement): Experience {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+/** One authored mesh, baked once into its static pose; no finger animation or rig at runtime. */
+export async function mountHandView(container: HTMLElement) {
+  const gltf = await new GLTFLoader().loadAsync(handUrl);
+  gltf.scene.updateMatrixWorld(true);
+  const source = gltf.scene.getObjectByProperty("type", "SkinnedMesh");
+  if (!(source instanceof THREE.SkinnedMesh)) throw new Error("Hand asset has no mesh.");
+  source.skeleton.update();
+  const geometry = source.geometry.clone();
+  const positions = geometry.getAttribute("position");
+  const point = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    point.fromBufferAttribute(positions, i);
+    source.applyBoneTransform(i, point).applyMatrix4(source.matrixWorld);
+    positions.setXYZ(i, point.x, point.y, point.z);
+  }
+  const bone = (name: string) => {
+    const node = gltf.scene.getObjectByName(name);
+    if (!node) throw new Error(`Missing hand asset landmark: ${name}`);
+    return node.getWorldPosition(new THREE.Vector3());
+  };
+  const wrist = bone("wrist");
+  const up = bone("middle-finger-tip").sub(wrist).normalize();
+  const across = bone("index-finger-metacarpal").sub(bone("pinky-finger-metacarpal"));
+  across.addScaledVector(up, -across.dot(up)).normalize();
+  const normal = new THREE.Vector3().crossVectors(across, up).normalize();
+  const palm = wrist
+    .clone()
+    .add(bone("index-finger-phalanx-proximal"))
+    .add(bone("pinky-finger-phalanx-proximal"))
+    .multiplyScalar(1 / 3);
+  geometry.translate(-palm.x, -palm.y, -palm.z);
+  geometry.applyMatrix4(new THREE.Matrix4().makeBasis(across, up, normal).invert());
+  geometry.computeBoundingBox();
+  const height = geometry.boundingBox?.getSize(new THREE.Vector3()).y;
+  if (!height) throw new Error("Hand asset has no size.");
+  geometry.scale(1 / height, 1 / height, 1 / height);
+  geometry.deleteAttribute("skinIndex");
+  geometry.deleteAttribute("skinWeight");
+  geometry.computeVertexNormals();
+  source.geometry.dispose();
+  source.skeleton.dispose();
+  for (const material of Array.isArray(source.material) ? source.material : [source.material])
+    material.dispose();
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-  renderer.setClearColor(0xffffff, 0);
-  renderer.domElement.setAttribute("aria-label", "Visualização dos movimentos");
+  renderer.domElement.setAttribute("aria-label", "Mãos em 3D");
+  renderer.domElement.dataset.assetLicense = license;
   container.append(renderer.domElement);
   const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-4, 4, 2.5, -2.5, 0.1, 40);
-  camera.position.z = 12;
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x95a5b1, 2.5));
-  const light = new THREE.DirectionalLight(0xfff2d5, 3);
-  light.position.set(-3, 6, 8);
+  const camera = new THREE.OrthographicCamera(0, 1, 1, 0, 0.1, 1000);
+  camera.position.z = 500;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x476783, 2.8));
+  const light = new THREE.DirectionalLight(0xfff7e6, 3);
+  light.position.set(-100, 200, 400);
   scene.add(light);
-  const ball = new THREE.SphereGeometry(1, 24, 16);
-  const cylinder = new THREE.CylinderGeometry(1, 1, 1, 12);
-  const colors = [0xef846d, 0x5b9cde];
-  const materials = colors.map(
-    (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.55 }),
+  const materials = [0xffce68, 0x8cdbeb].map(
+    (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0.05 }),
   );
-  const eyes = new THREE.MeshStandardMaterial({ color: 0x293b3d });
-  const cream = new THREE.MeshStandardMaterial({ color: 0xfff8e5 });
-  const toys = new THREE.Group();
-  scene.add(toys);
-  function sphere(
-    parent: THREE.Group,
-    material: THREE.Material,
-    x: number,
-    y: number,
-    z: number,
-    sx: number,
-    sy = sx,
-    sz = sx,
-  ) {
-    const mesh = new THREE.Mesh(ball, material);
-    mesh.position.set(x, y, z);
-    mesh.scale.set(sx, sy, sz);
-    parent.add(mesh);
+  const hands = Array.from({ length: 4 }, () => {
+    const mesh = new THREE.Mesh(geometry, materials[0]);
+    mesh.visible = false;
+    scene.add(mesh);
     return mesh;
-  }
-  for (let i = 0; i < 2; i++) {
-    const material = materials[i];
-    if (!material) continue;
-    const character = new THREE.Group();
-    character.position.set(i ? 1.25 : -1, i ? -0.55 : -0.2, 0);
-    character.rotation.z = i ? -0.12 : 0.1;
-    const scale = i ? 0.78 : 1;
-    character.scale.setScalar(scale);
-    toys.add(character);
-    sphere(character, material, 0, 0, 0, 0.92, 1.25, 0.65);
-    sphere(character, material, -0.9, 0.1, 0, 0.28, 0.65, 0.3).rotation.z = -0.55;
-    sphere(character, material, 0.9, 0.55, 0, 0.28, 0.65, 0.3).rotation.z = -0.6;
-    sphere(character, material, -0.4, -1.15, 0.1, 0.33, 0.3, 0.45);
-    sphere(character, material, 0.4, -1.15, 0.1, 0.33, 0.3, 0.45);
-    for (const x of [-0.28, 0.28]) {
-      sphere(character, cream, x, 0.35, 0.58, 0.22, 0.27, 0.1);
-      sphere(character, eyes, x + 0.04, 0.34, 0.67, 0.085, 0.12, 0.04);
-    }
-    sphere(character, cream, 0, -0.05, 0.65, 0.2, 0.08, 0.04);
-  }
-  const bodies = materials.map((material) => {
-    const group = new THREE.Group();
-    group.visible = false;
-    scene.add(group);
-    const joints = visibleJoints.map(() => sphere(group, material, 0, 0, 0, 0.1));
-    const links = connections.map(() => {
-      const mesh = new THREE.Mesh(cylinder, material);
-      group.add(mesh);
-      return mesh;
-    });
-    return { group, joints, links };
   });
-  let frame: BodyFrame | null = null;
-  let receivedInput = false;
-  const up = new THREE.Vector3(0, 1, 0);
-  const direction = new THREE.Vector3();
-  const position = (point: { x: number; y: number }, width: number, height: number) =>
-    new THREE.Vector3((0.5 - point.x) * width, (0.5 - point.y) * height, 0);
   const resize = () => {
     const { width, height } = container.getBoundingClientRect();
-    renderer.setSize(Math.max(width, 1), Math.max(height, 1));
-    camera.left = (-2.5 * width) / Math.max(height, 1);
-    camera.right = -camera.left;
+    renderer.setSize(Math.max(1, width), Math.max(1, height));
+    camera.right = width;
+    camera.top = height;
     camera.updateProjectionMatrix();
   };
   const observer = new ResizeObserver(resize);
   observer.observe(container);
   resize();
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  renderer.setAnimationLoop((time) => {
-    const live = frame && isFresh(frame, performance.now()) ? frame : null;
-    toys.visible = !receivedInput;
-    if (!reducedMotion.matches) toys.rotation.z = Math.sin(time * 0.0006) * 0.025;
-    for (const [index, visual] of bodies.entries()) {
-      const body = live?.bodies[index];
-      visual.group.visible = !!body;
-      if (!body || !live) continue;
-      // Fit the canonical camera frame without stretching or cropping it.
-      const aspect = live.width / live.height;
-      const height = Math.min(4.3, (camera.right - camera.left) / aspect);
-      const width = height * aspect;
-      visibleJoints.forEach((name, j) => {
-        const mesh = visual.joints[j];
-        if (!mesh) return;
-        const point = body[name];
-        mesh.visible = !!point;
-        if (point) mesh.position.copy(position(point, width, height));
-      });
-      connections.forEach(([a, b], j) => {
-        const mesh = visual.links[j];
-        if (!mesh) return;
-        const start = body[a],
-          end = body[b];
-        mesh.visible = !!start && !!end;
-        if (!start || !end) return;
-        const p = position(start, width, height),
-          q = position(end, width, height);
-        direction.subVectors(q, p);
-        mesh.position.copy(p).add(q).multiplyScalar(0.5);
-        mesh.scale.set(0.065, direction.length(), 0.065);
-        mesh.quaternion.setFromUnitVectors(up, direction.normalize());
-      });
-    }
-    renderer.render(scene, camera);
-  });
   return {
-    update(next) {
-      receivedInput = true;
-      frame = next ? softenMovement(frame, next) : null;
+    update(points: readonly HandPoint[]) {
+      const rect = container.getBoundingClientRect();
+      hands.forEach((mesh, i) => {
+        const point = points[i];
+        mesh.visible = !!point;
+        if (!point) return;
+        mesh.position.set(point.x - rect.left, rect.height - (point.y - rect.top), 0);
+        const size = Math.max(48, Math.min(76, rect.height * 0.18));
+        mesh.scale.set(point.left ? -size : size, size, size);
+        const material = materials[point.left ? 1 : 0];
+        if (material) mesh.material = material;
+      });
+      renderer.render(scene, camera);
     },
     dispose() {
       observer.disconnect();
-      renderer.setAnimationLoop(null);
-      ball.dispose();
-      cylinder.dispose();
-      for (const material of [...materials, eyes, cream]) material.dispose();
+      geometry.dispose();
+      materials.forEach((material) => {
+        material.dispose();
+      });
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

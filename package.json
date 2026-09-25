@@ -21,7 +21,7 @@
     "test:e2e": "playwright test",
     "audit": "npm audit --audit-level=high",
     "verify:toolchain": "node scripts/verify-toolchain.mjs",
-    "verify:assets": "node scripts/verify-model.mjs",
+    "verify:assets": "node scripts/verify-assets.mjs",
     "check": "npm run verify:toolchain && npm run verify:boundaries && npm run format:check && npm run lint && npm run test && npm run verify:assets && npm run build",
     "validate": "npm run check && npm run test:e2e && npm run audit",
     "dev:game": "npm run dev --workspace @jojixplay/game-dev",

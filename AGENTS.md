@@ -12,13 +12,13 @@ Before changing code, read relevant material in this order: [status](docs/projec
 
 The owner selects games. All old games are retired. The first new game, Desenhar, supports one or two people. All product copy is Brazilian Portuguese (pt-BR); engineering documentation and development conversation remain English. The audience is ages 4–7 with an adult nearby or playing together. Use a playful, colorful, readable interface without marketing-page scaffolding. Initial camera setup is touch operated by an adult. Every interaction after setup must also work through movement alone, including navigation, help, game controls, confirmations and exit. The phone stays across the room. See [ADR-0024](docs/decisions/0024-movement-navigation.md).
 
-[ADR-0022](docs/decisions/0022-independent-3d-platform.md) governs the workspace cutover. Application code lives in `apps/jojixplay`; public contracts in `packages/game-sdk`; a diagnostic Three.js scene in `packages/movement-view`; independent synthetic development in `packages/game-dev`. `games/desenhar` owns its rules, Three.js paint rendering, controls, tests and independent development build. Games own their rules, assets, tests and builds, and may not import the app or another game. Do not build unneeded game systems before games exist.
+[ADR-0022](docs/decisions/0022-independent-3d-platform.md) governs the workspace cutover. Application code lives in `apps/jojixplay`; public contracts in `packages/game-sdk`; an authored static hand renderer in `packages/movement-view`; an isolated hand asset lab in `packages/game-dev`. `games/desenhar` owns its rules, Three.js paint rendering, controls, tests and independent development build. Games own their rules, assets, tests and builds, and may not import the app or another game. Do not build unneeded game systems before games exist.
 
 ## Invariants
 
 - Everything runs on the phone. TV use is external screen mirroring. No peer transport, backend, persistence or TV app.
 - Landscape gates entry. Portrait unmounts the running session. Orientation lock, fullscreen and wake lock are best effort; gating is authoritative.
-- Camera permission requires trusted activation. Capture video remains hidden. Pixels and coordinates are never transmitted, recorded, persisted or logged.
+- Camera permission requires trusted activation. Outside games the camera fills the viewport behind all UI, using the same normalized cover projection as hand rendering and hit testing. Games choose their own presentation. See [ADR-0025](docs/decisions/0025-camera-menu-and-authored-hands.md). Pixels and coordinates are never transmitted, recorded, persisted or logged.
 - One worker owns one Full GPU MediaPipe landmarker. Camera callbacks drive single-flight inference; never queue old frames or introduce an alternate model/backend.
 - Validate worker output at the receiving boundary. Reject malformed metadata, unknown shapes and invalid coordinates.
 - Raw observations are unmirrored and unsmoothed in canonical upright landscape camera space. Source rotation happens exactly once. Frame epoch changes reset temporal consumers.
