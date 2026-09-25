@@ -85,7 +85,7 @@ for (const viewport of [
 
     // All further selections change only synthetic camera joints, never click/tap.
     async function select(name: string) {
-      await page.evaluate(() => {
+      const neutral = await page.evaluate(() => {
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
@@ -100,13 +100,29 @@ for (const viewport of [
           for (const x of [0.5, 0.4, 0.6, 0.3]) {
             if (!document.elementFromPoint(left + x * width, top + y * height)?.closest("button")) {
               Reflect.set(window, "testWrist", { x, y: y + (paper ? 0 : 0.035) });
-              return;
+              return { x: left + x * width, y: top + y * height };
             }
           }
         throw new Error("No reachable neutral area");
       });
-      await page.waitForTimeout(160);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            ({ x, y }) =>
+              [...document.querySelectorAll<HTMLElement>(".movement-pointer")].some(
+                (pointer) =>
+                  Math.abs(parseFloat(pointer.style.left) - x) < 1 &&
+                  Math.abs(parseFloat(pointer.style.top) - y) < 1,
+              ),
+            neutral,
+          ),
+        )
+        .toBe(true);
       const point = await page.getByRole("button", { name, exact: true }).evaluate((button) => {
+        Reflect.set(window, "testSelected", false);
+        button.addEventListener("click", () => Reflect.set(window, "testSelected", true), {
+          once: true,
+        });
         const b = button.getBoundingClientRect();
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
         const video = document.querySelector("video");
@@ -128,7 +144,9 @@ for (const viewport of [
       expect(point.y).toBeGreaterThanOrEqual(0);
       expect(point.y).toBeLessThanOrEqual(1);
       await page.evaluate((point) => Reflect.set(window, "testWrist", point), point);
-      await page.waitForTimeout(1050);
+      await expect
+        .poll(() => page.evaluate(() => Reflect.get(window, "testSelected")), { timeout: 10000 })
+        .toBe(true);
     }
     await select("Para os adultos");
     await expect(page.getByRole("heading", { name: "Uma ajudinha sua" })).toBeVisible();
