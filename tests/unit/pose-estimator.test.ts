@@ -58,7 +58,29 @@ describe("pose estimator worker protocol", () => {
     expect(worker.terminate).toHaveBeenCalledOnce();
   });
 
-  it("rejects a stalled estimate instead of leaving the camera permanently busy", async () => {
+  it("allows GPU warm-up on the first frame, then bounds subsequent estimates", async () => {
+    vi.useFakeTimers();
+    const estimator = new PoseEstimator();
+    const ready = estimator.initialize("/wasm", "/pose.task", 1);
+    worker.respond({ type: "ready" });
+    await ready;
+    const frame = { width: 1280, height: 720, layout: "landscape", epoch: 0 } as const;
+    const bitmap = { close: vi.fn() } as unknown as ImageBitmap;
+    const result = estimator.estimate(bitmap, 0, 0, frame, 0).then(
+      () => true,
+      () => false,
+    );
+    await vi.advanceTimersByTimeAsync(6_000);
+    worker.respond({ type: "result", packet: { sequence: 0, capturedAtMs: 0, frame, poses: [] } });
+    expect(await result).toBe(true);
+    const stalled = estimator.estimate(bitmap, 6_000, 1, frame, 0);
+    const rejected = expect(stalled).rejects.toThrow("stopped responding");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await rejected;
+    estimator.close();
+  });
+
+  it("bounds first-frame warm-up instead of leaving the camera permanently busy", async () => {
     vi.useFakeTimers();
     const estimator = new PoseEstimator();
     const ready = estimator.initialize("/wasm", "/pose.task", 1);
@@ -73,7 +95,7 @@ describe("pose estimator worker protocol", () => {
       0,
     );
     const rejected = expect(pending).rejects.toThrow("stopped responding");
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(30_000);
     await rejected;
     estimator.close();
     expect(worker.terminate).toHaveBeenCalledOnce();

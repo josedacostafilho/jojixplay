@@ -12,6 +12,8 @@ test("requires landscape before exposing camera activation", async ({ page }) =>
 test("phone play reaches a real local pose packet without preview or peer transport", async ({
   page,
 }) => {
+  // This journey starts two real GPU sessions, each with bounded model warm-up.
+  test.setTimeout(90_000);
   await page.addInitScript(() => {
     Reflect.set(window, "__jojixplayTrackStopCount", 0);
     Reflect.set(window, "__jojixplayWakeReleaseCount", 0);

@@ -37,6 +37,7 @@ export class PoseEstimator {
   private trackingResetTimeoutId: number | null = null;
   private failedError: Error | null = null;
   private ready = false;
+  private hasEstimated = false;
   private closed = false;
 
   public constructor() {
@@ -160,11 +161,15 @@ export class PoseEstimator {
       };
       try {
         this.worker.postMessage(request, [frame]);
-        this.estimateTimeoutId = window.setTimeout(() => {
-          this.fail(
-            new Error("Body tracking stopped responding. Stop and restart the movement check."),
-          );
-        }, 5_000);
+        // The GPU may compile its kernels on the first inference, after model loading.
+        this.estimateTimeoutId = window.setTimeout(
+          () => {
+            this.fail(
+              new Error("Body tracking stopped responding. Stop and restart the movement check."),
+            );
+          },
+          this.hasEstimated ? 5_000 : 30_000,
+        );
       } catch (error) {
         this.pendingEstimate = null;
         this.clearEstimateTimeout();
@@ -242,6 +247,7 @@ export class PoseEstimator {
     this.clearEstimateTimeout();
     const parsed = parsePosePacket(message.packet);
     if (parsed.ok) {
+      this.hasEstimated = true;
       pending?.resolve(parsed.value);
     } else {
       pending?.reject(new Error("The pose worker returned invalid data."));
