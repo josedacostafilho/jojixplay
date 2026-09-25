@@ -5,15 +5,15 @@ last_verified: 2026-09-25
 
 # Corrida dos Blocos
 
-A single-player, first-person obstacle run for ages 4–7 with an adult nearby. An original procedural block forest supplies trees, grass, flowers, wooden barriers and a finish gate. No Minecraft names, characters or assets are used. No dodging, smashing, enemies, persistence or online scoreboards exist.
+A single-player, first-person obstacle run for ages 4–7 with an adult nearby. An original procedural block forest supplies trees, grass, flowers, wooden barriers and a finish gate. Original seamless pixel textures distinguish bark, foliage, earth, stone walls and the moving path. They are generated once as Three.js DataTextures, use mipmaps for distance, and are disposed with the scene. No Minecraft names, characters or assets are used. No dodging, smashing, enemies, persistence or online scoreboards exist.
 
 ## Entry and controls
 
-Choose **Corrida dos Blocos** from the main menu. The host confirms one-person inference before mounting, including after a two-person Desenhar session. The world is already visible and stationary. **Venha para o meio e agache para começar** invites a generous central stance (shoulder center between 12% and 88% of the camera width). Crouching continuously fills a three-second countdown. Leaving the center cancels immediately; standing or losing useful tracking for more than 120 ms cancels. A single noisy frame does not cancel a valid hold.
+Choose **Corrida dos Blocos** from the main menu. The host confirms one-person inference before mounting, including after a two-person Desenhar session. The world is already visible and stationary. **Agache para começar** with **No meio, segure por 3 segundos** invites a generous central stance (shoulder center between 12% and 88% of the camera width). Crouching continuously fills a three-second countdown. Leaving the center cancels immediately; standing or losing useful tracking for more than 120 ms cancels. A single noisy frame does not cancel a valid hold.
 
 A bent observed knee, a compressed hip/knee configuration, or shoulder descent relative to a standing reference can establish crouching. With cropped legs, briefly standing before crouching supplies that reference. No whole-body prerequisite blocks menus or visible joints. Mostly full-body framing is recommended for this game.
 
-Fresh wrist dwell, touch and keyboard focus activate **Pausa**, **Como jogar**, **Correr de novo** and the host's confirmed **Voltar**. Missing wrists disappear; missing leg joints do not prevent controls. Exiting abandons the run. Replay returns to the stationary entry and resets points, lives, time and movement history.
+Fresh wrist dwell, touch and keyboard focus activate **Pausa**, **Como jogar**, **Correr de novo** and the host's confirmed **Voltar**. Visible hand circles use the same amplified projection as hit testing: the central half of camera width and y=15–75% cover the interface. This projection is shared with host-owned race exit and confirmation controls; camera-backed menus and drawing retain their own projections. Buttons are at least 54 px high, and essential race copy is at least 20 px at supported phone sizes. Missing wrists disappear; missing leg joints do not prevent controls. Exiting abandons the run. Replay returns to the stationary entry and resets points, lives, time and movement history.
 
 ## Course and scoring
 
@@ -21,13 +21,13 @@ Five minutes means active running time, excluding entry, pauses and tracking rec
 
 | Level | Active time | Obstacles |
 | --- | --- | --- |
-| 1 | 0–60 seconds | Jump barriers |
-| 2 | 60–150 seconds | Jump barriers and pose walls |
-| 3 | 150–300 seconds | Jump barriers, pose walls and duck beams |
+| 1 | 0–60 seconds | Duck beams |
+| 2 | 60–150 seconds | Duck beams and pose walls |
+| 3 | 150–300 seconds | Duck beams, pose walls and jump barriers |
 
 Each obstacle awards 100 points on success, with **Boa!** and a point pop. A miss awards no points, shows **Ops!**, and removes exactly one heart. Each level starts with three hearts, never more; reaching zero ends the entire run immediately. Level three has no further refill. Reaching the finish at 300 seconds with hearts remaining is victory. Successful runs can have different scores.
 
-Jump evidence is accepted within 650 ms before or after arrival. Duck evidence is accepted from 450 ms before to 350 ms after arrival. Evidence is consumed once per obstacle. These are deliberately forgiving action windows, not precise collision simulations.
+Jump evidence is accepted from two seconds before to one second after arrival. Duck evidence is accepted from one second before to 600 ms after arrival. Evidence is consumed once per obstacle. These are deliberately forgiving action windows, not precise collision simulations.
 
 ## Pose walls
 
@@ -37,7 +37,7 @@ The yellow wall contains the target silhouette. A translucent live stick figure 
 
 ## First-person movement and tracking
 
-Jumping and crouching move the camera at any point, including between obstacles. Camera height never follows raw joint coordinates. A jump needs 60 ms of upward evidence and produces one 850 ms smooth bounded arc; another jump needs a neutral stance first. Crouching eases between two fixed camera heights with posture hysteresis. The camera retains a level horizon, with no running bob, roll, shake, lateral pose steering or raw-position jitter. Reduced motion removes UI pop animation, substitutes a static red border for the failure pulse, and reduces jump height; essential forward course motion remains.
+Only the upcoming obstacle's action moves the camera, starting when its cue appears (5.5 seconds before arrival). Ducking is ignored for camera movement during jump preparation and pose walls; jumps do not animate during duck obstacles, walls or entry. A symbolic dip-and-rise counts as a jump without leaving the floor. A small upward movement also counts after 60 ms of evidence. Accepted jumps produce one 1.8-second bounded arc, with a 1.8-second retrigger limit. Crouching eases between two fixed heights. The camera never follows raw joint coordinates and keeps a level horizon without running bob, roll or shake. Reduced motion removes UI pop animation, substitutes a static red border for the failure pulse, and reduces jump height. Essential forward motion remains. See [ADR-0028](../decisions/0028-contextual-race-actions.md).
 
 Invalid/stale input freezes active time immediately and hides the preview. Sustained loss clears temporal evidence; recovery requires 800 ms in the generous central region before time resumes. Modals and background tabs also pause. Epoch changes reset movement evidence. Phone portrait, stop, camera failure and unmount release the host session and game resources. WebGL context loss displays an actionable return-to-menu message; there is no fallback renderer.
 

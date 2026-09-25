@@ -15,16 +15,22 @@ for (const viewport of [
     await page.clock.pauseAt(new Date("2026-09-25T12:00:01Z"));
     await page.goto("http://127.0.0.1:4176");
     await page.clock.runFor(600);
-    await expect(page.getByRole("heading", { name: "Pronto para ir mais longe?" })).toBeVisible();
-    const canvas = page.getByLabel("Pista de Corrida dos Blocos");
-    const upright = await canvas.screenshot();
+    await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
     const panel = await page.locator(".race-start").boundingBox();
     const footer = await page.locator(".race-route").boundingBox();
     expect(panel && footer && panel.y + panel.height < footer.y).toBe(true);
+    const tools = await page.locator(".race-tools").boundingBox();
+    expect(tools && footer && tools.y + tools.height < footer.y).toBe(true);
+    const smallText = await page.locator(".race-ui").evaluate((root) =>
+      [...root.querySelectorAll("h1, p, strong, small, button, time")]
+        .filter((element) => element.getClientRects().length > 0)
+        .filter((element) => parseFloat(getComputedStyle(element).fontSize) < 20)
+        .map((element) => element.textContent),
+    );
+    expect(smallText).toEqual([]);
     await page.screenshot({ path: info.outputPath("ready.png") });
     await page.locator("#crouch").check();
     await page.clock.runFor(1200);
-    expect((await canvas.screenshot()).equals(upright)).toBe(false);
     await expect(page.locator(".race-countdown")).toBeVisible();
     await page.locator("#crouch").uncheck();
     await page.clock.runFor(600);
@@ -33,14 +39,15 @@ for (const viewport of [
     await page.clock.runFor(3100);
     await page.locator("#crouch").uncheck();
     await page.clock.runFor(900);
-    await expect(page.getByText("Bora pular!", { exact: true })).toBeVisible();
+    await expect(page.getByText("Abaixa e vai!", { exact: true })).toBeVisible();
     const progress = page.getByRole("progressbar", { name: "Percurso" });
     while (Number(await progress.getAttribute("aria-valuenow")) < 6) await page.clock.runFor(100);
     await page.clock.runFor(500);
-    await page.getByRole("button", { name: "Pular (Espaço)" }).click();
+    await page.locator("#crouch").check();
     await page.clock.runFor(1300);
+    await page.locator("#crouch").uncheck();
     await expect(page.locator(".race-score strong")).toHaveText("100");
-    await page.screenshot({ path: info.outputPath("jump-success.png") });
+    await page.screenshot({ path: info.outputPath("duck-success.png") });
     await page.locator("#lost").check();
     await page.clock.runFor(500);
     const beforeLoss = await progress.getAttribute("aria-valuenow");
@@ -62,11 +69,16 @@ for (const viewport of [
     await expect(page.getByRole("heading", { name: "Valeu a aventura!" })).toBeVisible();
     await expect(page.getByRole("img", { name: "0 vidas" })).toBeVisible();
     await page.screenshot({ path: info.outputPath("result.png") });
-    await page.getByRole("button", { name: "Correr de novo ↻" }).click();
-    await page.clock.runFor(200);
+    // Studio pointer supplies a camera wrist: replay must work by dwell, without clicking.
+    await page.mouse.move(viewport.width * 0.9, viewport.height * 0.5);
+    await page.clock.runFor(100);
+    const replay = await page.getByRole("button", { name: "Correr de novo ↻" }).boundingBox();
+    if (!replay) throw new Error("Missing replay control");
+    await page.mouse.move(replay.x + replay.width / 2, replay.y + replay.height / 2);
+    await page.clock.runFor(1100);
     await expect(page.getByRole("img", { name: "3 vidas" })).toBeVisible();
     await expect(page.locator(".race-score strong")).toHaveText("0");
-    await expect(page.getByRole("heading", { name: "Pronto para ir mais longe?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
     expect(errors).toEqual([]);
   });
 }
@@ -85,14 +97,15 @@ test("approaching pose wall carries the live skeleton and turns green only for t
   await page.locator("#crouch").uncheck();
   await page.clock.runFor(800);
   const progress = page.getByRole("progressbar", { name: "Percurso" });
-  // The course is fixed; trigger each early jump using visible whole-second run time.
+  // Duck through level one using visible whole-second run time.
   for (let at = 7; at < 57; at += Math.max(4, 6 - at / 150)) {
     const target = Math.floor(at - 0.2);
     while (Number(await progress.getAttribute("aria-valuenow")) < target)
       await page.clock.runFor(100);
     await page.clock.runFor(400);
-    await page.locator("#jump").click();
-    await page.clock.runFor(1100);
+    await page.locator("#crouch").check();
+    await page.clock.runFor(1400);
+    await page.locator("#crouch").uncheck();
   }
   while (Number(await progress.getAttribute("aria-valuenow")) < 65) await page.clock.runFor(100);
   await expect(page.getByRole("img", { name: "3 vidas" })).toBeVisible();

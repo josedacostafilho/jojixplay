@@ -58,11 +58,11 @@ it("normalizes body proportions and position, keeps missing limbs absent, and re
   }
   expect(matchesPose(normalizePose(body(), 16 / 9), "asas")).toBe(false);
 });
-it("camera uses one bounded smooth arc and eased crouching anywhere, with a stable horizon", () => {
+it("camera uses one bounded smooth arc and eased accepted crouching, with a stable horizon", () => {
   const camera = new CameraMotion();
   let previous = 2.45;
   let peak = previous;
-  for (let t = 0; t <= 1400; t += 16) {
+  for (let t = 0; t <= 2600; t += 16) {
     const y = camera.update(t, false, t >= 200 ? 1 : 0, true, false);
     expect(Math.abs(y - previous)).toBeLessThan(0.13);
     previous = y;
@@ -70,13 +70,13 @@ it("camera uses one bounded smooth arc and eased crouching anywhere, with a stab
   }
   expect(peak).toBeGreaterThan(3.4);
   expect(previous).toBeCloseTo(2.45, 1);
-  for (let t = 1416; t < 2500; t += 16) {
+  for (let t = 2616; t < 3700; t += 16) {
     const y = camera.update(t, true, 1, true, false);
     expect(Math.abs(y - previous)).toBeLessThan(0.1);
     previous = y;
   }
   expect(previous).toBeCloseTo(1.25, 1);
-  for (let t = 2500; t < 3600; t += 16) previous = camera.update(t, true, 1, false, false);
+  for (let t = 3700; t < 4800; t += 16) previous = camera.update(t, true, 1, false, false);
   expect(previous).toBeCloseTo(2.45, 1);
 });
 
@@ -92,8 +92,8 @@ it("ignores a single upward outlier instead of throwing the camera into a jump",
 });
 it("does not create a phantom jump when replay resets the gesture counter", () => {
   const motion = new CameraMotion();
-  for (let t = 0; t <= 1600; t += 20) motion.update(t, false, 1, true, false);
-  for (let t = 1620; t < 2500; t += 20)
+  for (let t = 0; t <= 2600; t += 20) motion.update(t, false, 1, true, false);
+  for (let t = 2620; t < 3500; t += 20)
     expect(motion.update(t, false, 0, true, false)).toBeCloseTo(2.45, 1);
 });
 
@@ -139,4 +139,30 @@ it("matches both anatomical shoulder orders and keeps the mirrored preview arms 
       expect(Math.sign(skeleton.leftShoulder.x)).toBe(Math.sign(0.5 - shoulder.x));
     }
   }
+});
+
+it("keeps an accepted jump airborne beyond one second", () => {
+  const motion = new CameraMotion();
+  for (let t = 0; t <= 1300; t += 20) motion.update(t, false, 1, true, false);
+  expect(motion.height).toBeGreaterThan(3);
+});
+
+it("does not turn a single downward tracking outlier into a symbolic jump", () => {
+  const movement = new Movement();
+  for (let t = 0; t < 1000; t += 20) movement.sample(body(), 16 / 9, t, true);
+  movement.sample(body({ lift: -0.19 }), 16 / 9, 1000, true);
+  for (let t = 1020; t < 1800; t += 20) {
+    movement.sample(body(), 16 / 9, t, true);
+    expect(movement.jumped).toBe(false);
+  }
+});
+
+it("accepts a small dip and return without feet leaving the floor", () => {
+  const movement = new Movement();
+  let jumps = 0;
+  for (let t = 0; t < 1600; t += 20) {
+    movement.sample(body({ lift: t >= 600 && t < 1000 ? -0.06 : 0 }), 16 / 9, t, true);
+    jumps += Number(movement.jumped);
+  }
+  expect(jumps).toBe(1);
 });

@@ -578,3 +578,24 @@ a:focus-visible {
   margin: 5px;
   font-weight: 800;
 }
+
+/* Race controls are viewed across the room, including host-owned exit. */
+.game-stage:has(.race-game) > .game-back {
+  top: 12px;
+  right: 3%;
+  min-height: 54px;
+  font-size: 22px;
+  font-weight: 900;
+}
+.game-stage:has(.race-game) > .draw-dialog {
+  max-width: min(650px, 90vw);
+  font-size: 22px;
+  text-align: center;
+}
+.game-stage:has(.race-game) > .draw-dialog h2 {
+  font-size: 32px;
+}
+.game-stage:has(.race-game) > .draw-dialog button {
+  font-size: 22px;
+  min-height: 58px;
+}

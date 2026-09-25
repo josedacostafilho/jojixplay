@@ -1,3 +1,12 @@
+/** Expand the central hand workspace for games that do not overlay the camera.
+ * Display and hit testing must use this same point; raw body coordinates stay unchanged. */
+export function reachableHand(x: number, y: number): { x: number; y: number } {
+  return {
+    x: Math.max(0.02, Math.min(0.98, 0.5 + (0.5 - x) * 2)),
+    y: Math.max(0.02, Math.min(0.98, 0.5 + (y - 0.45) / 0.6)),
+  };
+}
+
 export interface ControlPoint {
   readonly key: string;
   readonly x: number;

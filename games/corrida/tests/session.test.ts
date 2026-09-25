@@ -66,12 +66,12 @@ it("plays the complete deterministic five-minute course with three levels, fixed
   expect(
     makeCourse()
       .filter((o) => o.at < 60)
-      .every((o) => o.kind === "jump"),
+      .every((o) => o.kind === "duck"),
   ).toBe(true);
   expect(
     makeCourse()
       .filter((o) => o.at < 150)
-      .some((o) => o.kind === "duck"),
+      .some((o) => o.kind === "jump"),
   ).toBe(false);
 });
 it("ends on the third miss without negative lives or duplicate penalties", () => {
@@ -127,16 +127,19 @@ it("freezes time on tracking loss, modal pause and stale frames, and waits befor
   expect(d.s.lives).toBe(3);
 });
 it("accepts early and late jumps inside the timing window, but not unrelated earlier jumps", () => {
-  for (const offset of [-0.5, 0.25, -2]) {
+  for (const offset of [-1.8, 0.65, -3]) {
     const d = driver();
     d.start();
-    const first = d.s.next;
+    const index = d.s.course.findIndex((o) => o.kind === "jump");
+    const first = d.s.course[index];
     if (!first) throw new Error("course");
-    while (d.s.elapsed < first.at + 0.8) {
+    d.s.nextIndex = index;
+    d.s.elapsed = first.at - 4;
+    while (d.s.elapsed < first.at + 1.1) {
       const since = d.s.elapsed - (first.at + offset);
       d.step(body({ lift: since >= 0 && since < 0.4 ? 0.12 : 0 }));
     }
-    expect(d.s.score).toBe(offset === -2 ? 0 : 100);
+    expect(d.s.score).toBe(offset === -3 ? 0 : 100);
   }
 });
 it("wall preview requires observed arms, and only matching at arrival scores", () => {
@@ -162,4 +165,43 @@ it("does not treat a previous two-person packet's array slot as the solo player"
   expect(s.phase).toBe("ready");
   expect(s.countdown).toBe(0);
   expect(s.tracking).toBe(false);
+});
+
+it("accepts a symbolic dip-and-rise before a jump without ducking the camera", () => {
+  const d = driver();
+  d.start();
+  const index = d.s.course.findIndex((o) => o.kind === "jump");
+  const obstacle = d.s.course[index];
+  if (!obstacle) throw new Error("jump");
+  d.s.nextIndex = index;
+  d.s.elapsed = obstacle.at - 2.5;
+  d.hold(400);
+  d.hold(250, body({ duck: true }));
+  expect(d.s.cameraCrouched).toBe(false);
+  d.hold(350);
+  expect(d.s.jumpSerial).toBe(1);
+  while (d.s.elapsed < obstacle.at + 1.3) d.step();
+  expect(d.s.score).toBe(100);
+});
+
+it("keeps the camera upright outside the matching obstacle context", () => {
+  const d = driver();
+  d.hold(500);
+  d.hold(1000, body({ duck: true }));
+  expect(d.s.cameraCrouched).toBe(false);
+  d.start();
+  d.hold(300, body({ lift: 0.04 }));
+  expect(d.s.jumpSerial).toBe(0);
+  d.s.elapsed = 4;
+  d.hold(300, body({ duck: true }));
+  expect(d.s.cameraCrouched).toBe(true);
+  const index = d.s.course.findIndex((o) => o.kind === "wall");
+  const wall = d.s.course[index];
+  if (!wall) throw new Error("wall");
+  d.s.nextIndex = index;
+  d.s.elapsed = wall.at - 3;
+  d.hold(300, body({ duck: true }));
+  expect(d.s.cameraCrouched).toBe(false);
+  d.hold(300, body({ lift: 0.04 }));
+  expect(d.s.jumpSerial).toBe(0);
 });

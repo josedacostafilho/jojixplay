@@ -16,9 +16,9 @@ last_verified: 2026-09-25
 
 ## Games
 
-Desenhar supports solo and shared two-person painting. It uses isolated rules, bounded instanced Three.js paint, independent colors/widths/hand preference, wrist hover or touch controls, undo and confirmed clear. See [Desenhar](../product/desenhar.md). Corrida dos Blocos is a single-player five-minute first-person run: held-crouch entry, jumping, normalized pose walls, ducking, three lives per level and scored victory. Camera jumps and crouches use bounded animation rather than raw tracking. Tracking loss and dialogs pause the run. See [Corrida](../product/corrida.md). Future games remain the owner's choice.
+Desenhar supports solo and shared two-person painting. It uses isolated rules, bounded instanced Three.js paint, independent colors/widths/hand preference, wrist hover or touch controls, undo and confirmed clear. See [Desenhar](../product/desenhar.md). Corrida dos Blocos is a single-player five-minute first-person run: held-crouch entry, ducking in level one, normalized pose walls in level two, jumping in level three, three lives per level and scored victory. Camera gestures are gated by the approaching obstacle; symbolic jumps accept dip-and-rise and use a longer bounded animation. Original pixel textures, larger race copy and visible amplified hand controls replace the initial presentation. Tracking loss and dialogs pause the run. See [Corrida](../product/corrida.md). Future games remain the owner's choice.
 
-The owner reports tracking works on the Galaxy S22. This confirms their movement check; new game ergonomics and sustained two-person painting still need phone acceptance.
+The owner reports tracking works on the Galaxy S22. Their first Corrida trial exposed difficult jumps, jump/duck ambiguity and poor across-room controls/readability. The revised implementation addresses those reports, but its phone/TV comfort and sustained two-person painting still need acceptance.
 
 ## Unknown / acceptance risks
 

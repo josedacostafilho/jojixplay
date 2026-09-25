@@ -10,26 +10,77 @@ export function createScene(container: HTMLElement) {
   renderer.domElement.setAttribute("aria-label", "Pista de Corrida dos Blocos");
   container.append(renderer.domElement);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#b8e6df");
-  scene.fog = new THREE.Fog("#b8e6df", 35, 110);
+  scene.background = new THREE.Color("#9fd9e5");
+  scene.fog = new THREE.Fog("#9fd9e5", 35, 110);
   const camera = new THREE.PerspectiveCamera(63, 1, 0.1, 145);
   camera.position.set(0, 2.45, 4);
   camera.lookAt(0, 2.2, -30);
-  scene.add(new THREE.HemisphereLight(0xfff5d6, 0x456b78, 2.5));
-  const sunLight = new THREE.DirectionalLight(0xffe4bd, 2);
+  scene.add(new THREE.HemisphereLight(0xfff5d6, 0x456b78, 1.9));
+  const sunLight = new THREE.DirectionalLight(0xffe4bd, 1.7);
   sunLight.position.set(-10, 22, 8);
   scene.add(sunLight);
   const box = new THREE.BoxGeometry(1, 1, 1);
   const materials: THREE.Material[] = [];
   const geometries: THREE.BufferGeometry[] = [box];
-  const material = (color: string) => {
-    const m = new THREE.MeshLambertMaterial({ color });
+  const textures: THREE.DataTexture[] = [];
+  // Original seamless pixel art, generated once. No image requests or Canvas renderer.
+  function texture(kind: "bark" | "leaf" | "earth" | "stone" | "path") {
+    const size = 32;
+    const pixels = new Uint8Array(size * size * 4);
+    const noise = (x: number, y: number) => {
+      const n = Math.imul(x + 17, 374761393) ^ Math.imul(y + 31, 668265263);
+      return ((n ^ (n >>> 13)) >>> 0) % 97;
+    };
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const n = noise(Math.floor(x / 2), Math.floor(y / 2));
+        let value = 205 + (n % 42);
+        if (kind === "bark") {
+          value = 180 + (noise(Math.floor(x / 3), Math.floor(y / 12)) % 65);
+          if (x % 8 === 0 || (x % 8 === 1 && y % 16 < 10)) value = 135;
+          if ((x - 18) ** 2 + ((y - 15) / 2) ** 2 < 9) value = 145;
+        } else if (kind === "leaf") {
+          value = 170 + (n % 80);
+          if ((x + y) % 8 === 0) value = 255;
+        } else if (kind === "stone") {
+          const seam = y % 8 === 0 || (x + (Math.floor(y / 8) % 2) * 8) % 16 === 0;
+          value = seam ? 125 : y % 8 === 1 ? 250 : 190 + (n % 45);
+        } else if (kind === "earth") {
+          value = n < 22 ? 155 : 205 + (n % 45);
+        } else if (n < 12) value = 170;
+        const offset = (y * size + x) * 4;
+        pixels[offset] = value;
+        pixels[offset + 1] = value;
+        pixels[offset + 2] = value;
+        pixels[offset + 3] = 255;
+      }
+    }
+    const result = new THREE.DataTexture(pixels, size, size);
+    result.colorSpace = THREE.SRGBColorSpace;
+    result.magFilter = THREE.NearestFilter;
+    result.minFilter = THREE.NearestMipmapLinearFilter;
+    result.generateMipmaps = true;
+    result.wrapS = result.wrapT = THREE.RepeatWrapping;
+    result.needsUpdate = true;
+    textures.push(result);
+    return result;
+  }
+  const barkTexture = texture("bark"),
+    leafTexture = texture("leaf"),
+    earthTexture = texture("earth"),
+    stoneTexture = texture("stone"),
+    pathTexture = texture("path");
+  pathTexture.repeat.set(3.5, 80);
+  const groundTexture = texture("earth");
+  groundTexture.repeat.set(90, 80);
+  const material = (color: string, map: THREE.Texture | null = null) => {
+    const m = new THREE.MeshLambertMaterial({ color, map });
     materials.push(m);
     return m;
   };
-  const sand = material("#f7dfaf"),
-    grass = material("#73ac70"),
-    wood = material("#ad663f"),
+  const sand = material("#f5ce8b", pathTexture),
+    grass = material("#83b85c", groundTexture),
+    wood = material("#b27645", barkTexture),
     dark = material("#283f48"),
     gold = material("#ffcd52");
   function cube(
@@ -61,33 +112,53 @@ export function createScene(container: HTMLElement) {
     h: number;
     d: number;
     color: string;
+    surface: "leaf" | "bark" | "earth" | "plain";
   }[] = [];
-  const add = (x: number, y: number, z: number, w: number, h: number, d: number, color: string) =>
-    blocks.push({ x, y, z, w, h, d, color });
+  const add = (
+    x: number,
+    y: number,
+    z: number,
+    w: number,
+    h: number,
+    d: number,
+    color: string,
+    surface: "leaf" | "bark" | "earth" | "plain" = "leaf",
+  ) => blocks.push({ x, y, z, w, h, d, color, surface });
   for (let i = 0; i < 30; i++) {
     const z = -i * 6;
     for (const sign of [-1, 1]) {
       const x = sign * (6 + (i % 3) * 1.4),
         height = 3 + (i % 4) * 0.55;
-      add(x, height / 2, z, 0.8, height, 0.8, "#8f6244");
+      add(x, height / 2, z, 0.8, height, 0.8, "#aa7749", "bark");
       add(x, height + 0.6, z, 3.5, 2.1, 3.4, i % 3 ? "#4a9467" : "#86b759");
       add(x + sign * 0.45, height + 1.8, z, 2.4, 1, 2.5, "#91bd6a");
-      add(sign * 4.9, 0.2, z + 2, 2.2, 0.4, 2.4, "#96bd78");
-      add(sign * (9 + (i % 5)), 0.8, z + 3, 4, 1.6, 3, "#598c75");
+      add(sign * 4.9, 0.2, z + 2, 2.2, 0.4, 2.4, "#9bc773", "earth");
+      add(sign * (9 + (i % 5)), 0.8, z + 3, 4, 1.6, 3, "#729b65", "earth");
       add(sign * 4.1, 0.32, z + 1, 0.15, 0.55, 0.15, "#4c8661");
       add(sign * 4.1, 0.62, z + 1, 0.4, 0.3, 0.35, i % 2 ? "#ffe08b" : "#e99885");
-      add(sign * 3.4, 0.05, z, 0.14, 0.06, 2.4, "#fff0cc");
+      add(sign * 3.4, 0.05, z, 0.14, 0.06, 2.4, "#fff0cc", "plain");
     }
-    if (i % 3 === 0) add(((i % 5) - 2) * 8, 12 + (i % 4), z, 8, 1.1, 2.5, "#fff8e5");
+    if (i % 3 === 0) add(((i % 5) - 2) * 8, 12 + (i % 4), z, 8, 1.1, 2.5, "#fff8e5", "plain");
   }
-  const terrainMaterial = material("#ffffff");
-  const terrain = new THREE.InstancedMesh(box, terrainMaterial, blocks.length);
-  terrain.frustumCulled = false;
   const transform = new THREE.Object3D();
-  blocks.forEach((block, i) => {
-    terrain.setColorAt(i, new THREE.Color(block.color));
+  const terrain = (["leaf", "bark", "earth", "plain"] as const).map((surface) => {
+    const entries = blocks.filter((block) => block.surface === surface);
+    const map =
+      surface === "leaf"
+        ? leafTexture
+        : surface === "bark"
+          ? barkTexture
+          : surface === "earth"
+            ? earthTexture
+            : null;
+    const mesh = new THREE.InstancedMesh(box, material("#ffffff", map), entries.length);
+    mesh.frustumCulled = false;
+    entries.forEach((block, i) => {
+      mesh.setColorAt(i, new THREE.Color(block.color));
+    });
+    scene.add(mesh);
+    return { mesh, entries };
   });
-  scene.add(terrain);
   const sunGeometry = new THREE.IcosahedronGeometry(3, 1);
   geometries.push(sunGeometry);
   const sunMaterial = new THREE.MeshBasicMaterial({ color: "#fff0b9" });
@@ -113,7 +184,7 @@ export function createScene(container: HTMLElement) {
       );
   const obstacleGroup = new THREE.Group();
   scene.add(obstacleGroup);
-  const wallMaterial = material("#ffc94c");
+  const wallMaterial = material("#ffc94c", stoneTexture);
   const silhouetteMaterial = new THREE.MeshBasicMaterial({
     color: "#153c46",
     transparent: true,
@@ -253,13 +324,17 @@ export function createScene(container: HTMLElement) {
   function render(session: RaceSession, now: number) {
     if (disposed) return;
     const distance = distanceAt(session.elapsed);
-    blocks.forEach((b, i) => {
-      transform.position.set(b.x, b.y, ((((b.z + distance + 180) % 180) + 180) % 180) - 165);
-      transform.scale.set(b.w, b.h, b.d);
-      transform.updateMatrix();
-      terrain.setMatrixAt(i, transform.matrix);
-    });
-    terrain.instanceMatrix.needsUpdate = true;
+    pathTexture.offset.y = (distance / 2) % 1;
+    groundTexture.offset.y = (distance / 2) % 1;
+    for (const { mesh, entries } of terrain) {
+      entries.forEach((b, i) => {
+        transform.position.set(b.x, b.y, ((((b.z + distance + 180) % 180) + 180) % 180) - 165);
+        transform.scale.set(b.w, b.h, b.d);
+        transform.updateMatrix();
+        mesh.setMatrixAt(i, transform.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    }
     buildObstacle(session);
     const obstacle = session.next;
     const ahead = obstacle ? distanceAt(obstacle.at) - distance : 200;
@@ -302,7 +377,7 @@ export function createScene(container: HTMLElement) {
     gate.position.z = 2 - finishAhead;
     camera.position.y = motion.update(
       now,
-      session.movement.crouched,
+      session.cameraCrouched,
       session.jumpSerial,
       session.tracking,
       reduced.matches,
@@ -323,7 +398,12 @@ export function createScene(container: HTMLElement) {
       materials.forEach((m) => {
         m.dispose();
       });
-      terrain.dispose();
+      textures.forEach((t) => {
+        t.dispose();
+      });
+      terrain.forEach(({ mesh }) => {
+        mesh.dispose();
+      });
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

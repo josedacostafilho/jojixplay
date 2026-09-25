@@ -1,6 +1,7 @@
 import {
   isFresh,
   mountMovementControls,
+  reachableHand,
   type BodyFrame,
   type ControlPoint,
 } from "@jojixplay/game-sdk";
@@ -80,10 +81,11 @@ export function MovementNavigation({
             .filter((point) => point !== undefined)
             .sort((a, b) => a.x - b.x);
           wrists.forEach((wrist, i) => {
+            const point = race ? reachableHand(wrist.x, wrist.y) : { x: 1 - wrist.x, y: wrist.y };
             points.push({
               key: `${isLeft}-${i}`,
-              x: left + (1 - wrist.x) * width,
-              y: top + wrist.y * height,
+              x: left + point.x * width,
+              y: top + point.y * height,
             });
           });
         }

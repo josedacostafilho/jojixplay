@@ -113,7 +113,13 @@ for (const viewport of [
         for (const y of [0.4, 0.3, 0.5, 0.6])
           for (const x of [0.5, 0.4, 0.6, 0.3]) {
             if (!document.elementFromPoint(left + x * width, top + y * height)?.closest("button")) {
-              Reflect.set(window, "testWrist", { x, y: y + (paper || race ? 0 : 0.035) });
+              Reflect.set(
+                window,
+                "testWrist",
+                race
+                  ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
+                  : { x, y: y + (paper ? 0 : 0.035) },
+              );
               return { x: left + x * width, y: top + y * height, game };
             }
           }
@@ -165,15 +171,23 @@ for (const viewport of [
           : paper
             ? paper.top + (paper.height - height) / 2
             : (innerHeight - height) / 2;
-        return {
-          x: (b.x + b.width / 2 - left) / width,
-          y: (b.y + b.height / 2 - top) / height + (paper || race ? 0 : 0.035),
-        };
+        const x = (b.x + b.width / 2 - left) / width;
+        const y = (b.y + b.height / 2 - top) / height;
+        return race
+          ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
+          : { x, y: y + (paper ? 0 : 0.035) };
       });
       expect(point.x).toBeGreaterThanOrEqual(0);
       expect(point.x).toBeLessThanOrEqual(1);
       expect(point.y).toBeGreaterThanOrEqual(0);
       expect(point.y).toBeLessThanOrEqual(1);
+      if (await page.locator(".race-game").count()) {
+        expect(point.x).toBeGreaterThanOrEqual(0.25);
+        expect(point.x).toBeLessThanOrEqual(0.75);
+        expect(point.y).toBeGreaterThanOrEqual(0.15);
+        expect(point.y).toBeLessThanOrEqual(0.75);
+        await expect(page.locator(".movement-pointer:visible").first()).toBeVisible();
+      }
       await page.evaluate((point) => Reflect.set(window, "testWrist", point), point);
       await expect
         .poll(() => page.evaluate(() => Reflect.get(window, "testSelected")), { timeout: 10000 })
@@ -227,7 +241,7 @@ for (const viewport of [
     await select("← Voltar");
     await select("Sair e apagar");
     await select("Corrida dos Blocos · 1 pessoa");
-    await expect(page.getByRole("heading", { name: "Pronto para ir mais longe?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
     await expect(page.locator("video")).toHaveCSS("opacity", "0");
     await select("? Como jogar");
     await expect(page.getByRole("heading", { name: "Seu corpo joga!" })).toBeVisible();

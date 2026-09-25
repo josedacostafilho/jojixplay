@@ -38,7 +38,8 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0024](0024-movement-navigation.md) | Accepted | Operate the complete post-setup journey through movement |
 | [0025](0025-camera-menu-and-authored-hands.md) | Accepted | Fullscreen camera menus with aligned authored hand controls |
 | [0026](0026-circle-menu-pointer.md) | Accepted | Replace hand meshes with bounded index-aim circles |
-| [0027](0027-corrida-gesture-camera.md) | Accepted | Keep first-person gesture feedback and normalized pose walls game-owned |
+| [0027](0027-corrida-gesture-camera.md) | Superseded | Keep first-person gesture feedback and normalized pose walls game-owned |
+| [0028](0028-contextual-race-actions.md) | Accepted | Disambiguate race gestures by obstacle and share reachable visible race controls |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

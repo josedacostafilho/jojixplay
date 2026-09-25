@@ -28,7 +28,7 @@ export class CameraMotion {
     }
     // Complete an already accepted jump; a dropped frame must not snap its arc shut.
     this.duck += ((this.heldCrouch ? 1 : 0) - this.duck) * (1 - Math.exp(-dt / 150));
-    const t = (now - this.jumpingAt) / 850;
+    const t = (now - this.jumpingAt) / 1800;
     const arc = t >= 0 && t < 1 ? Math.sin(Math.PI * t) ** 2 : 0;
     const target = 2.45 - this.duck * 1.2 + arc * (reduced ? 0.65 : 1.25);
     this.height += (target - this.height) * (1 - Math.exp(-dt / 65));

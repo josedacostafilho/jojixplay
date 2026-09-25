@@ -110,7 +110,7 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair e apagar" }).click();
   await page.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }).click();
-  await expect(page.getByRole("heading", { name: "Pronto para ir mais longe?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
   await expect(captureSource).toHaveCSS("opacity", "0");
   await expect(page.locator("canvas")).toHaveCount(1);
   await page.getByRole("button", { name: "← Voltar" }).click();
@@ -126,7 +126,7 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await page.getByRole("button", { name: "Vamos começar" }).click();
   await expect(page.getByRole("button", { name: "Encerrar brincadeira" })).toBeVisible();
   await page.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }).click();
-  await expect(page.getByRole("heading", { name: "Pronto para ir mais longe?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { name: "Vire o celular" })).toBeVisible();
   await expect(page.locator("video")).toHaveCount(0);

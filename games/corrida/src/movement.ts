@@ -5,9 +5,13 @@ export const TOLERANCE = {
   centerMargin: 0.12,
   crouchDrop: 0.3,
   crouchKneeDegrees: 145,
-  jumpRise: 0.22,
+  jumpRise: 0.12,
   neutralMs: 350,
   jumpEvidenceMs: 60,
+  dipDrop: 0.025,
+  dipRise: 0.035,
+  dipHoldMs: 100,
+  jumpCooldownMs: 1800,
   poseAngleDegrees: 38,
   poseHoldMs: 120,
   noiseMs: 120,
@@ -145,15 +149,21 @@ export class Movement {
   private neutralSince: number | null = null;
   private armed = false;
   private riseSince: number | null = null;
+  private dipY: number | null = null;
+  private dipSince: number | null = null;
+  private dipRiseSince: number | null = null;
+  private lastJumpAt = -Infinity;
   reset() {
     this.standingY = this.standingHipY = this.lastY = null;
     this.neutralSince = this.riseSince = null;
     this.lastAt = 0;
+    this.dipY = this.dipSince = this.dipRiseSince = null;
+    this.lastJumpAt = -Infinity;
     this.torso = 0.2;
     this.armed = this.centered = this.crouched = this.jumped = false;
     this.skeleton = {};
   }
-  sample(body: Body, aspect: number, now: number) {
+  sample(body: Body, aspect: number, now: number, jumpExpected = false) {
     this.jumped = false;
     this.skeleton = normalizePose(body, aspect);
     const shoulder = midpoint(body.leftShoulder, body.rightShoulder);
@@ -192,17 +202,43 @@ export class Movement {
     this.crouched =
       bent ||
       y - baseline > Math.max(0.045, this.torso * TOLERANCE.crouchDrop * (this.crouched ? 0.7 : 1));
-    const risen = baseline - y > Math.max(0.035, this.torso * TOLERANCE.jumpRise);
+    if (!jumpExpected) this.dipY = this.dipSince = this.dipRiseSince = null;
+    else if (y - baseline > TOLERANCE.dipDrop) {
+      this.dipSince ??= now;
+      if (now - this.dipSince >= TOLERANCE.dipHoldMs) this.dipY = Math.max(this.dipY ?? y, y);
+    } else this.dipSince = null;
+    const symbolicRise = this.dipY !== null && this.dipY - y > TOLERANCE.dipRise;
+    if (symbolicRise) this.dipRiseSince ??= now;
+    else this.dipRiseSince = null;
+    const risen = baseline - y > Math.max(0.022, this.torso * TOLERANCE.jumpRise);
     const hipRisen =
       !hip || this.standingHipY === null || this.standingHipY - hip.y > this.torso * 0.1;
-    if (this.crouched) {
+    if (
+      jumpExpected &&
+      this.dipRiseSince !== null &&
+      now - this.dipRiseSince >= TOLERANCE.jumpEvidenceMs &&
+      this.centered &&
+      now - this.lastJumpAt > TOLERANCE.jumpCooldownMs
+    ) {
+      this.jumped = true;
+      this.lastJumpAt = now;
+      this.dipY = null;
       this.armed = false;
+      this.neutralSince = this.riseSince = null;
+    } else if (this.crouched) {
+      if (!jumpExpected) this.armed = false;
       this.neutralSince = this.riseSince = null;
     } else if (risen) {
       if (hipRisen && this.centered) {
         this.riseSince ??= now;
-        if (this.armed && now - this.riseSince >= TOLERANCE.jumpEvidenceMs) {
+        if (
+          this.armed &&
+          now - this.lastJumpAt > TOLERANCE.jumpCooldownMs &&
+          now - this.riseSince >= TOLERANCE.jumpEvidenceMs
+        ) {
           this.jumped = true;
+          this.lastJumpAt = now;
+          this.dipY = null;
           this.armed = false;
         }
         // A held higher stance is repositioning, not an endless flight.

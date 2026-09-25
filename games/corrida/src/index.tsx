@@ -1,6 +1,7 @@
 import {
   isFresh,
   mountMovementControls,
+  reachableHand,
   type BodyFrame,
   type ControlPoint,
   type Experience,
@@ -45,32 +46,28 @@ function Modal({ mode, onClose }: { mode: "pause" | "help"; onClose: () => void 
   }, []);
   return (
     <dialog ref={ref} class="race-dialog" onCancel={onClose}>
-      <span class="race-eyebrow">
-        {mode === "help" ? "CADA MOVIMENTO É UMA AVENTURA" : "UMA RESPIRADA"}
-      </span>
       <h2>{mode === "help" ? "Seu corpo joga!" : "A pista espera por você"}</h2>
       {mode === "help" ? (
         <div class="race-help-grid">
           <div>
-            <ActionIcon kind="jump" />
-            <strong>Pule</strong>
-            <p>Salte quando a barreira chegar.</p>
+            <ActionIcon kind="duck" />
+            <strong>Agache</strong>
+            <p>Abaixe quando o tronco chegar.</p>
           </div>
           <div>
             <ActionIcon kind="wall" />
             <strong>Copie</strong>
-            <p>Seu boneco está no muro. Acerte os braços e mantenha o verde até passar!</p>
+            <p>Copie os braços. Segure o verde!</p>
           </div>
           <div>
-            <ActionIcon kind="duck" />
-            <strong>Agache</strong>
-            <p>Abaixe para passar por baixo.</p>
+            <ActionIcon kind="jump" />
+            <strong>Pule</strong>
+            <p>Dê um pulinho. Vale só fazer o movimento!</p>
           </div>
         </div>
       ) : (
-        <p>Mexa a mão até o botão e espere o círculo completar.</p>
+        <p>Leve o círculo da mão até uma escolha e segure.</p>
       )}
-      <p class="race-small">Cada fase renova seus 3 corações. Sem corações, a corrida termina.</p>
       <button type="button" onClick={onClose}>
         Vamos nessa →
       </button>
@@ -102,12 +99,6 @@ function RaceUI({
   return (
     <div class={`race-ui ${feedback && !feedback.success ? "race-ui--miss" : ""}`}>
       <header class="race-hud">
-        <div class="race-brand">
-          <span aria-hidden="true">▰</span>
-          <div>
-            CORRIDA<small>DOS BLOCOS</small>
-          </div>
-        </div>
         <div class="race-score">
           <small>PONTOS</small>
           <strong>{s.score.toLocaleString("pt-BR")}</strong>
@@ -122,6 +113,7 @@ function RaceUI({
           </span>
         </div>
       </header>
+      <p class="race-control-hint">Mova a mão • segure no botão</p>
       <nav class="race-tools" aria-label="Controles da corrida">
         <button type="button" onClick={() => onModal("pause")}>
           Ⅱ Pausa
@@ -132,15 +124,7 @@ function RaceUI({
       </nav>
       {ready && !error && (
         <section class="race-start" aria-label="Preparar corrida">
-          <span class="race-eyebrow">SEU CORPO. SUA AVENTURA.</span>
-          <h1>
-            Pronto para
-            <br />
-            <em>ir mais longe?</em>
-          </h1>
-          <p>
-            Venha para o meio e <strong>agache para começar.</strong>
-          </p>
+          <h1>Agache para começar</h1>
           <div class="race-start-cue">
             <ActionIcon kind="duck" />
             <div>
@@ -151,9 +135,8 @@ function RaceUI({
                     ? "Fique de frente para o celular"
                     : !s.movement.centered
                       ? "Um pouquinho mais para o meio"
-                      : "Agache e segure a posição"}
+                      : "No meio, segure por 3 segundos"}
               </strong>
-              <small>Deixe espaço para pular e os pés à vista.</small>
             </div>
           </div>
           {s.phase === "countdown" && (
@@ -164,20 +147,17 @@ function RaceUI({
               <span>SEGURA AÍ…</span>
             </div>
           )}
-          <span class="race-start-meta">
-            1 pessoa <i /> 3 fases <i /> 5 minutos
-          </span>
         </section>
       )}
       {levelIntro && (
         <div class="race-level" role="status" key={s.level}>
           <span>FASE {s.level} / 3</span>
           <strong>
-            {s.level === 1 ? "Bora pular!" : s.level === 2 ? "Entre na pose!" : "Abaixa e vai!"}
+            {s.level === 1 ? "Abaixa e vai!" : s.level === 2 ? "Entre na pose!" : "Bora pular!"}
           </strong>
           <small>
             {s.level === 1
-              ? "Pule as barreiras"
+              ? "Passe por baixo dos troncos"
               : s.level === 2
                 ? "Agora também tem muros de poses"
                 : "Novos obstáculos · corações renovados"}
@@ -190,7 +170,7 @@ function RaceUI({
         !trackingPaused &&
         obstacle &&
         until < 5.5 &&
-        until > -0.7 && (
+        until > -1.1 && (
           <div
             class={`race-action ${s.matching && obstacle.kind === "wall" ? "race-action--matched" : ""}`}
           >
@@ -208,7 +188,9 @@ function RaceUI({
               <small>
                 {obstacle.kind === "wall"
                   ? "Combine seu boneco com o desenho"
-                  : "Quando chegar pertinho"}
+                  : obstacle.kind === "jump"
+                    ? "Vale um pulinho de mentirinha"
+                    : "Passe por baixo do tronco"}
               </small>
             </div>
           </div>
@@ -220,7 +202,7 @@ function RaceUI({
           key={feedback.id}
         >
           <b>{feedback.success ? "Boa!" : "Ops!"}</b>
-          <span>{feedback.success ? "+100" : "Na próxima você consegue"}</span>
+          <span>{feedback.success ? "+100" : "Tente o próximo!"}</span>
         </div>
       )}
       {trackingPaused && (
@@ -241,9 +223,6 @@ function RaceUI({
           class={`race-result ${s.phase === "won" ? "race-result--won" : ""}`}
           aria-label="Resultado da corrida"
         >
-          <span class="race-trophy" aria-hidden="true">
-            {s.phase === "won" ? "★" : "⚑"}
-          </span>
           <span class="race-eyebrow">
             {s.phase === "won" ? "VOCÊ CRUZOU A CHEGADA" : `VOCÊ CHEGOU À FASE ${s.level}`}
           </span>
@@ -273,7 +252,7 @@ function RaceUI({
       <footer class="race-route">
         <span>
           FASE {s.level}
-          <small>{["PULAR", "COPIAR", "AGACHAR"][s.level - 1]}</small>
+          <small>{["AGACHAR", "COPIAR", "PULAR"][s.level - 1]}</small>
         </span>
         <div
           class="race-progress"
@@ -320,7 +299,7 @@ export function mountCorrida(container: HTMLElement): Experience {
     lastUI = -Infinity,
     disposed = false,
     error = false;
-  const controls = mountMovementControls(root, () => true, "target");
+  const controls = mountMovementControls(root);
   const onModal = (next: typeof modal) => {
     modal = next;
     controls.reset();
@@ -358,12 +337,14 @@ export function mountCorrida(container: HTMLElement): Experience {
       const r = root.getBoundingClientRect();
       for (const side of ["left", "right"] as const) {
         const wrist = frame.bodies[0]?.[`${side}Wrist`];
-        if (wrist)
+        if (wrist) {
+          const point = reachableHand(wrist.x, wrist.y);
           points.push({
             key: side,
-            x: r.left + (1 - wrist.x) * r.width,
-            y: r.top + wrist.y * r.height,
+            x: r.left + point.x * r.width,
+            y: r.top + point.y * r.height,
           });
+        }
       }
     }
     controls.update(points, now);

@@ -3,7 +3,7 @@ import { matchesPose, Movement, POSES, TOLERANCE, type PoseName } from "./moveme
 
 export const RUN_SECONDS = 300;
 export const LEVEL_STARTS = [0, 60, 150] as const;
-export const JUMP_WINDOW = 0.65;
+export const JUMP_WINDOW = 2;
 export interface Obstacle {
   readonly id: number;
   readonly at: number;
@@ -24,12 +24,12 @@ export function makeCourse(): readonly Obstacle[] {
     for (let at = start + 7; at < end - 3; at += Math.max(4, 6 - at / 150)) {
       const kind =
         index === 0
-          ? "jump"
+          ? "duck"
           : index === 1
             ? step % 2
-              ? "jump"
+              ? "duck"
               : "wall"
-            : ((["duck", "wall", "jump"] as const)[step % 3] ?? "jump");
+            : ((["jump", "wall", "duck"] as const)[step % 3] ?? "jump");
       result.push({
         id: result.length,
         at,
@@ -71,6 +71,14 @@ export class RaceSession {
   private actionSeen = false;
   get next(): Obstacle | undefined {
     return this.course[this.nextIndex];
+  }
+  get action(): "jump" | "duck" | "wall" | null {
+    if (this.phase !== "running" || this.recovering) return null;
+    const obstacle = this.next;
+    return obstacle && obstacle.at - this.elapsed <= 5.5 ? obstacle.kind : null;
+  }
+  get cameraCrouched(): boolean {
+    return this.action === "duck" && this.movement.crouched;
   }
   private clearEvidence() {
     this.countdown = 0;
@@ -114,8 +122,13 @@ export class RaceSession {
     }
     const sampled = frame.sequence !== this.sequence;
     if (sampled) {
-      this.movement.sample(body, frame.width / frame.height, frame.capturedAtMs);
-      if (this.movement.jumped) this.jumpSerial++;
+      this.movement.sample(
+        body,
+        frame.width / frame.height,
+        frame.capturedAtMs,
+        this.action === "jump",
+      );
+      if (this.movement.jumped && this.action === "jump") this.jumpSerial++;
       this.sequence = frame.sequence;
       this.capturedAt = frame.capturedAtMs;
     }
@@ -173,11 +186,10 @@ export class RaceSession {
         matches && this.matchSince !== null && now - this.matchSince >= TOLERANCE.poseHoldMs;
       if (obstacle.kind === "jump" && Math.abs(this.jumpAt - obstacle.at) <= JUMP_WINDOW)
         this.actionSeen = true;
-      if (obstacle.kind === "duck" && Math.abs(this.duckAt - obstacle.at) <= 0.45)
+      if (obstacle.kind === "duck" && Math.abs(this.duckAt - obstacle.at) <= 1)
         this.actionSeen = true;
       const deadline =
-        obstacle.at +
-        (obstacle.kind === "wall" ? 0 : obstacle.kind === "jump" ? JUMP_WINDOW : 0.35);
+        obstacle.at + (obstacle.kind === "wall" ? 0 : obstacle.kind === "jump" ? 1 : 0.6);
       if (this.elapsed >= deadline) {
         const success = obstacle.kind === "wall" ? this.matching : this.actionSeen;
         if (success) {

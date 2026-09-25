@@ -60,4 +60,4 @@ export function isFresh(frame: BodyFrame, now: number): boolean {
   return age >= 0 && age <= BODY_FRESHNESS_MS;
 }
 
-export { mountMovementControls, type ControlPoint } from "./movement-controls";
+export { mountMovementControls, reachableHand, type ControlPoint } from "./movement-controls";

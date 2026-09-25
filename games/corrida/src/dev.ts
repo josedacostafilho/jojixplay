@@ -68,7 +68,7 @@ const timer = setInterval(() => {
       body[`${side}Wrist`] = joint(center + sign * 0.085, y + 0.22);
     }
   }
-  if (pointer) body.rightWrist = joint(1 - pointer.x, pointer.y);
+  if (pointer) body.rightWrist = joint(0.5 + (0.5 - pointer.x) / 2, 0.45 + (pointer.y - 0.5) * 0.6);
   view.update({
     sequence: sequence++,
     capturedAtMs: now,
