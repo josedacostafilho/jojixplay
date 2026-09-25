@@ -1,4 +1,11 @@
 import * as THREE from "three";
+import barkUrl from "../assets/kenney-voxel/trunk_side.png?no-inline";
+import woodUrl from "../assets/kenney-voxel/wood.png?no-inline";
+import leafUrl from "../assets/kenney-voxel/leaves.png?no-inline";
+import grassUrl from "../assets/kenney-voxel/grass_top.png?no-inline";
+import earthUrl from "../assets/kenney-voxel/dirt_grass.png?no-inline";
+import stoneUrl from "../assets/kenney-voxel/brick_grey.png?no-inline";
+import sandUrl from "../assets/kenney-voxel/sand.png?no-inline";
 import { CameraMotion } from "./camera-motion";
 import { BONES, targetPose, type Point, type Skeleton } from "./movement";
 import { distanceAt, RUN_SECONDS, type RaceSession } from "./session";
@@ -22,65 +29,68 @@ export function createScene(container: HTMLElement) {
   const box = new THREE.BoxGeometry(1, 1, 1);
   const materials: THREE.Material[] = [];
   const geometries: THREE.BufferGeometry[] = [box];
-  const textures: THREE.DataTexture[] = [];
-  // Original seamless pixel art, generated once. No image requests or Canvas renderer.
-  function texture(kind: "bark" | "leaf" | "earth" | "stone" | "path") {
-    const size = 32;
-    const pixels = new Uint8Array(size * size * 4);
-    const noise = (x: number, y: number) => {
-      const n = Math.imul(x + 17, 374761393) ^ Math.imul(y + 31, 668265263);
-      return ((n ^ (n >>> 13)) >>> 0) % 97;
-    };
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const n = noise(Math.floor(x / 2), Math.floor(y / 2));
-        let value = 205 + (n % 42);
-        if (kind === "bark") {
-          value = 180 + (noise(Math.floor(x / 3), Math.floor(y / 12)) % 65);
-          if (x % 8 === 0 || (x % 8 === 1 && y % 16 < 10)) value = 135;
-          if ((x - 18) ** 2 + ((y - 15) / 2) ** 2 < 9) value = 145;
-        } else if (kind === "leaf") {
-          value = 170 + (n % 80);
-          if ((x + y) % 8 === 0) value = 255;
-        } else if (kind === "stone") {
-          const seam = y % 8 === 0 || (x + (Math.floor(y / 8) % 2) * 8) % 16 === 0;
-          value = seam ? 125 : y % 8 === 1 ? 250 : 190 + (n % 45);
-        } else if (kind === "earth") {
-          value = n < 22 ? 155 : 205 + (n % 45);
-        } else if (n < 12) value = 170;
-        const offset = (y * size + x) * 4;
-        pixels[offset] = value;
-        pixels[offset + 1] = value;
-        pixels[offset + 2] = value;
-        pixels[offset + 3] = 255;
-      }
-    }
-    const result = new THREE.DataTexture(pixels, size, size);
+  let disposed = false;
+  const textures: THREE.Texture[] = [];
+  const bitmaps: ImageBitmap[] = [];
+  const pending: Promise<void>[] = [];
+  const downloads = new AbortController();
+  const timeout = window.setTimeout(() => downloads.abort(), 20000);
+  // Assets belong to this mount: fetch only on entry, abort and release on exit.
+  function texture(url: string) {
+    const result = new THREE.Texture();
     result.colorSpace = THREE.SRGBColorSpace;
     result.magFilter = THREE.NearestFilter;
     result.minFilter = THREE.NearestMipmapLinearFilter;
-    result.generateMipmaps = true;
     result.wrapS = result.wrapT = THREE.RepeatWrapping;
-    result.needsUpdate = true;
     textures.push(result);
+    pending.push(
+      (async () => {
+        const response = await fetch(url, { signal: downloads.signal });
+        if (!response.ok) throw new Error(`Race texture failed: ${response.status}`);
+        const bitmap = await createImageBitmap(await response.blob(), {
+          imageOrientation: "flipY",
+        });
+        if (disposed || downloads.signal.aborted) {
+          bitmap.close();
+          throw new DOMException("Race texture load cancelled", "AbortError");
+        }
+        bitmaps.push(bitmap);
+        result.image = bitmap;
+      })(),
+    );
     return result;
   }
-  const barkTexture = texture("bark"),
-    leafTexture = texture("leaf"),
-    earthTexture = texture("earth"),
-    stoneTexture = texture("stone"),
-    pathTexture = texture("path");
+  const barkTexture = texture(barkUrl),
+    woodTexture = texture(woodUrl),
+    leafTexture = texture(leafUrl),
+    grassTexture = texture(grassUrl),
+    earthTexture = texture(earthUrl),
+    stoneTexture = texture(stoneUrl),
+    pathTexture = texture(sandUrl);
   pathTexture.repeat.set(3.5, 80);
-  const groundTexture = texture("earth");
+  const groundTexture = grassTexture.clone();
+  textures.push(groundTexture);
   groundTexture.repeat.set(90, 80);
+  const ready = Promise.all(pending)
+    .then(() => {
+      if (!disposed)
+        textures.forEach((t) => {
+          t.needsUpdate = true;
+        });
+    })
+    .catch((error: unknown) => {
+      downloads.abort();
+      throw error;
+    })
+    .finally(() => clearTimeout(timeout));
   const material = (color: string, map: THREE.Texture | null = null) => {
     const m = new THREE.MeshLambertMaterial({ color, map });
     materials.push(m);
     return m;
   };
-  const sand = material("#f5ce8b", pathTexture),
-    grass = material("#83b85c", groundTexture),
-    wood = material("#b27645", barkTexture),
+  const sand = material("#ffffff", pathTexture),
+    grass = material("#ffffff", groundTexture),
+    wood = material("#ffffff", woodTexture),
     dark = material("#283f48"),
     gold = material("#ffcd52");
   function cube(
@@ -129,13 +139,13 @@ export function createScene(container: HTMLElement) {
     for (const sign of [-1, 1]) {
       const x = sign * (6 + (i % 3) * 1.4),
         height = 3 + (i % 4) * 0.55;
-      add(x, height / 2, z, 0.8, height, 0.8, "#aa7749", "bark");
-      add(x, height + 0.6, z, 3.5, 2.1, 3.4, i % 3 ? "#4a9467" : "#86b759");
-      add(x + sign * 0.45, height + 1.8, z, 2.4, 1, 2.5, "#91bd6a");
-      add(sign * 4.9, 0.2, z + 2, 2.2, 0.4, 2.4, "#9bc773", "earth");
-      add(sign * (9 + (i % 5)), 0.8, z + 3, 4, 1.6, 3, "#729b65", "earth");
-      add(sign * 4.1, 0.32, z + 1, 0.15, 0.55, 0.15, "#4c8661");
-      add(sign * 4.1, 0.62, z + 1, 0.4, 0.3, 0.35, i % 2 ? "#ffe08b" : "#e99885");
+      add(x, height / 2, z, 0.8, height, 0.8, "#ffffff", "bark");
+      add(x, height + 0.6, z, 3.5, 2.1, 3.4, i % 3 ? "#ffffff" : "#e2edc2");
+      add(x + sign * 0.45, height + 1.8, z, 2.4, 1, 2.5, "#e6f2ce");
+      add(sign * 4.9, 0.2, z + 2, 2.2, 0.4, 2.4, "#ffffff", "earth");
+      add(sign * (9 + (i % 5)), 0.8, z + 3, 4, 1.6, 3, "#e2edce", "earth");
+      add(sign * 4.1, 0.32, z + 1, 0.15, 0.55, 0.15, "#4c8661", "plain");
+      add(sign * 4.1, 0.62, z + 1, 0.4, 0.3, 0.35, i % 2 ? "#ffe08b" : "#e99885", "plain");
       add(sign * 3.4, 0.05, z, 0.14, 0.06, 2.4, "#fff0cc", "plain");
     }
     if (i % 3 === 0) add(((i % 5) - 2) * 8, 12 + (i % 4), z, 8, 1.1, 2.5, "#fff8e5", "plain");
@@ -151,7 +161,12 @@ export function createScene(container: HTMLElement) {
           : surface === "earth"
             ? earthTexture
             : null;
-    const mesh = new THREE.InstancedMesh(box, material("#ffffff", map), entries.length);
+    const side = material("#ffffff", map);
+    const faces =
+      surface === "earth"
+        ? [side, side, material("#ffffff", grassTexture), side, side, side]
+        : side;
+    const mesh = new THREE.InstancedMesh(box, faces, entries.length);
     mesh.frustumCulled = false;
     entries.forEach((block, i) => {
       mesh.setColorAt(i, new THREE.Color(block.color));
@@ -220,7 +235,6 @@ export function createScene(container: HTMLElement) {
   let obstacleId = -1;
   let wallGeometry: THREE.ShapeGeometry | null = null;
   let holeGeometry: THREE.ShapeGeometry | null = null;
-  let disposed = false;
   const motion = new CameraMotion();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const up = new THREE.Vector3(0, 1, 0),
@@ -386,9 +400,16 @@ export function createScene(container: HTMLElement) {
     renderer.render(scene, camera);
   }
   return {
+    ready,
     render,
     dispose() {
+      if (disposed) return;
       disposed = true;
+      downloads.abort();
+      clearTimeout(timeout);
+      bitmaps.forEach((bitmap) => {
+        bitmap.close();
+      });
       observer.disconnect();
       wallGeometry?.dispose();
       holeGeometry?.dispose();

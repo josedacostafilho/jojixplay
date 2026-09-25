@@ -5,7 +5,7 @@ last_verified: 2026-09-25
 
 # Corrida dos Blocos
 
-A single-player, first-person obstacle run for ages 4–7 with an adult nearby. An original procedural block forest supplies trees, grass, flowers, wooden barriers and a finish gate. Original seamless pixel textures distinguish bark, foliage, earth, stone walls and the moving path. They are generated once as Three.js DataTextures, use mipmaps for distance, and are disposed with the scene. No Minecraft names, characters or assets are used. No dodging, smashing, enemies, persistence or online scoreboards exist.
+A single-player, first-person obstacle run for ages 4–7 with an adult nearby. An original procedural block forest supplies trees, grass, flowers, wooden barriers and a finish gate. Seven unchanged CC0 textures from Kenney’s Voxel Pack distinguish bark, wood, foliage, grass, earth, brick walls and the moving path. Their combined PNG size is 23,183 bytes; [provenance and license](../../games/corrida/assets/kenney-voxel/README.md) live with the game. The scene requests these files only on mount, uses mipmaps for distance, and releases textures and decoded images on exit. Loading blocks the start countdown; an asset failure or 20-second timeout displays an actionable error and releases the scene. Exiting aborts pending downloads. No Minecraft names, characters or assets are used. No dodging, smashing, enemies, persistence or online scoreboards exist.
 
 ## Entry and controls
 

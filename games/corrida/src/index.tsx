@@ -247,7 +247,7 @@ function RaceUI({
         <section class="race-result" role="alert">
           <h1>A pista parou</h1>
           <p>
-            Não foi possível continuar o desenho da pista. Volte ao menu e abra a corrida novamente.
+            Não foi possível carregar ou desenhar a pista. Volte ao menu e abra a corrida novamente.
           </p>
         </section>
       )}
@@ -300,6 +300,7 @@ export function mountCorrida(container: HTMLElement): Experience {
   let request = 0,
     lastUI = -Infinity,
     disposed = false,
+    loaded = false,
     error = false;
   const controls = mountMovementControls(root);
   const onModal = (next: typeof modal) => {
@@ -314,16 +315,36 @@ export function mountCorrida(container: HTMLElement): Experience {
   };
   function drawUI() {
     render(
-      <RaceUI
-        session={session}
-        modal={modal}
-        error={error}
-        onModal={onModal}
-        onReplay={onReplay}
-      />,
+      !loaded && !error ? (
+        <p class="race-loading" role="status">
+          Preparando a floresta…
+        </p>
+      ) : (
+        <RaceUI
+          session={session}
+          modal={modal}
+          error={error}
+          onModal={onModal}
+          onReplay={onReplay}
+        />
+      ),
       ui,
     );
   }
+  world.hidden = true;
+  void scene.ready
+    .then(() => {
+      if (disposed) return;
+      loaded = true;
+      world.hidden = false;
+      drawUI();
+    })
+    .catch(() => {
+      if (disposed) return;
+      error = true;
+      scene.dispose();
+      drawUI();
+    });
   const contextLost = (event: Event) => {
     event.preventDefault();
     error = true;
@@ -333,7 +354,7 @@ export function mountCorrida(container: HTMLElement): Experience {
   world.querySelector("canvas")?.addEventListener("webglcontextlost", contextLost);
   function tick(now: number) {
     if (disposed) return;
-    session.tick(now, frame, !!modal || document.hidden || error);
+    session.tick(now, frame, !!modal || document.hidden || error || !loaded);
     const points: ControlPoint[] = [];
     if (frame && isFresh(frame, now) && frame.bodies.length === 1) {
       const r = root.getBoundingClientRect();
@@ -350,7 +371,7 @@ export function mountCorrida(container: HTMLElement): Experience {
       }
     }
     controls.update(points, now);
-    if (!error) scene.render(session, now);
+    if (loaded && !error) scene.render(session, now);
     if (now - lastUI >= 80) {
       drawUI();
       lastUI = now;

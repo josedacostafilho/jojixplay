@@ -75,6 +75,12 @@ The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. I
 - The production artifact is published at `https://josedacostafilho.github.io/jojixplay/`; GitHub Actions is the configured Pages source.
 - Rollback is a new deployment of the chosen earlier Git commit. Do not keep an alternate runtime or compatibility path in the application.
 
+## Free hosting and asset growth
+
+The owner requires hosting and asset services to remain free. Keep the current GitHub Pages deployment; no external asset bucket or metered paid service is configured. Game-specific loading works on the existing host and does not require a CDN migration. Published size and visitor transfer are separate: deploying an asset does not request it in the browser.
+
+If actual site size or traffic approaches GitHub Pages limits, reassess free static hosting. Cloudflare Workers Static Assets is the preferred candidate from the 2026-09-25 discussion, not an implemented deployment. Prefer moving the whole static site; split asset hosting only for a demonstrated need. Do not enable R2 or another overage-billed service merely because it has a free allowance. Recheck provider terms before a future migration. Source code can remain on GitHub regardless of the website host.
+
 ## Selection criteria
 
 Choose tools against confirmed product and deployment requirements. Prefer:

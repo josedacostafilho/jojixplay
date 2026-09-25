@@ -12,6 +12,10 @@ test("requires landscape before exposing camera activation", async ({ page }) =>
 test("phone play reaches a real local pose packet with a fullscreen menu camera and no peer transport", async ({
   page,
 }) => {
+  const textureRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith(".png")) textureRequests.push(request.url());
+  });
   // This journey starts two real GPU sessions, each with bounded model warm-up.
   test.setTimeout(90_000);
   await page.addInitScript(() => {
@@ -109,8 +113,14 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await expect(page.getByText("Lado direito", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair e apagar" }).click();
+  expect(textureRequests).toEqual([]);
   await page.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }).click();
   await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
+  expect(new Set(textureRequests).size).toBe(7);
+  expect(textureRequests.every((url) => new URL(url).origin === new URL(page.url()).origin)).toBe(
+    true,
+  );
+
   await expect(captureSource).toHaveCSS("opacity", "0");
   await expect(page.locator("canvas")).toHaveCount(1);
   await page.getByRole("button", { name: "← Voltar" }).click();

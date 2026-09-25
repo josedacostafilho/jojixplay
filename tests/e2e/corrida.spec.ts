@@ -131,3 +131,22 @@ test("approaching pose wall carries the live skeleton and turns green only for t
     (before + 100).toLocaleString("pt-BR"),
   );
 });
+
+test("texture loading blocks entry and a failed asset releases the scene with an actionable error", async ({
+  page,
+}) => {
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/assets/leaves-*.png", async (route) => {
+    await pending;
+    await route.fulfill({ status: 503, body: "Unavailable" });
+  });
+  await page.goto("http://127.0.0.1:4176");
+  await expect(page.getByRole("status")).toHaveText("Preparando a floresta…");
+  await expect(page.getByRole("heading", { name: "Agache para começar" })).toHaveCount(0);
+  release();
+  await expect(page.getByRole("alert")).toContainText("Volte ao menu");
+  await expect(page.locator("canvas")).toHaveCount(0);
+});
