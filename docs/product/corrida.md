@@ -27,7 +27,7 @@ Five minutes means active running time, excluding entry, pauses and tracking rec
 
 Each obstacle awards 100 points on success, with **Boa!** and a point pop. A miss awards no points, shows **Ops!**, and removes exactly one heart. Each level starts with three hearts, never more; reaching zero ends the entire run immediately. Level three has no further refill. Reaching the finish at 300 seconds with hearts remaining is victory. Successful runs can have different scores.
 
-Jump evidence is accepted from two seconds before to one second after arrival. Duck evidence is accepted from one second before to 600 ms after arrival. Evidence is consumed once per obstacle. These are deliberately forgiving action windows, not precise collision simulations.
+Jump evidence is accepted from two seconds before to one second after arrival. Duck evidence is accepted from one second before to 600 ms after arrival. The early jump cue says **Prepare o pulinho** and switches to **Pule!** when the accepted window opens. Evidence is consumed once per obstacle. These are deliberately forgiving action windows, not precise collision simulations.
 
 ## Pose walls
 

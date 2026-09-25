@@ -10,7 +10,7 @@ import { render } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { poseLabels } from "./movement";
 import { createScene } from "./scene";
-import { LEVEL_STARTS, RaceSession, RUN_SECONDS } from "./session";
+import { JUMP_WINDOW, LEVEL_STARTS, RaceSession, RUN_SECONDS } from "./session";
 import "./style.css";
 
 function ActionIcon({ kind }: { kind: "jump" | "duck" | "wall" }) {
@@ -182,7 +182,9 @@ function RaceUI({
                     ? "Isso! Segure a pose"
                     : poseLabels[obstacle.pose]
                   : obstacle.kind === "jump"
-                    ? "Pule!"
+                    ? until > JUMP_WINDOW
+                      ? "Prepare o pulinho"
+                      : "Pule!"
                     : "Agache!"}
               </strong>
               <small>
