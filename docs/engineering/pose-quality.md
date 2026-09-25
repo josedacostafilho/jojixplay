@@ -15,7 +15,7 @@ Sources: [Google pose model family](https://developers.google.com/edge/mediapipe
 
 The first inference shares the 30-second startup allowance because GPU kernels may compile on the first frame; after the first validated result, a five-second watchdog bounds each estimate. Neither allowance changes the 250 ms freshness limit for gameplay.
 
-Freshness is measured from capture, not arrival. The SDK rejects observations older than 250 ms. The parent panel displays elapsed capture age and current observation count locally; no coordinates are logged or stored. Menu hands use the exact fresh projection consumed by hit testing, with no extra presentation smoothing or reach offset. Fullscreen camera rotation, mirroring and cover cropping share one coordinate mapping.
+Freshness is measured from capture, not arrival. The SDK rejects observations older than 250 ms. The parent panel displays elapsed capture age and current observation count locally; no coordinates are logged or stored. Menu circles use the same bounded index estimate for display and hit testing, with no extra presentation smoothing or amplified reach. This approximates a fingertip, not articulated finger tracking. Fullscreen camera rotation, mirroring and cover cropping share one coordinate mapping.
 
 ## Exploratory image check (2026-09-24)
 

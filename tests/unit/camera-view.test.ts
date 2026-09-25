@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { cameraCover, handCenter } from "../../apps/jojixplay/src/domain/camera-view";
+import { cameraCover, estimateIndexPoint } from "../../apps/jojixplay/src/domain/camera-view";
 import {
   resolveCameraFrameNormalization,
   rotateNormalizedPoint,
@@ -37,18 +37,20 @@ it.each([0, 90, 270] as const)(
     expect(projected.y).toBeCloseTo(195 + x * Math.sin(a) + y * Math.cos(a));
   },
 );
-it("anchors at the coarse hand itself, retains wrist-only control and requires no torso", () => {
-  const wrist = { x: 0.4, y: 0.5, z: 0, confidence: 1 };
-  expect(handCenter({ rightWrist: wrist }, false)).toBe(wrist);
-  const center = handCenter(
-    {
-      rightWrist: wrist,
-      rightIndex: { ...wrist, y: 0.44 },
-      rightPinky: { ...wrist, x: 0.46, y: 0.44 },
-    },
+it("estimates near the index, supports wrist-only input and bounds reach without mutating joints", () => {
+  const wrist = Object.freeze({ x: 0.4, y: 0.5, z: 0, confidence: 1 });
+  expect(estimateIndexPoint({}, false, 2)).toBeUndefined();
+  expect(estimateIndexPoint({ rightWrist: wrist }, false, 2)?.y).toBeCloseTo(0.465);
+  const index = estimateIndexPoint(
+    { rightWrist: wrist, rightIndex: { ...wrist, y: 0.44 } },
     false,
+    2,
   );
-  expect(center?.x).toBeCloseTo(0.42);
-  expect(center?.y).toBeCloseTo(0.46);
-  expect(handCenter({}, false)).toBeUndefined();
+  expect(index?.y).toBeCloseTo(0.434);
+  const elbow = estimateIndexPoint({ leftWrist: wrist, leftElbow: { ...wrist, y: 0.7 } }, true, 2);
+  expect(elbow?.y).toBeCloseTo(0.456);
+  const far = estimateIndexPoint({ rightWrist: wrist, rightIndex: { ...wrist, x: 1 } }, false, 2);
+  expect(far?.x).toBeCloseTo(0.44);
+  expect(estimateIndexPoint({ leftWrist: { ...wrist, y: 0.01 } }, true, 2)?.y).toBe(0);
+  expect(wrist.y).toBe(0.5);
 });

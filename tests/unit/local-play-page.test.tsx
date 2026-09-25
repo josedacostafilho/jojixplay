@@ -4,8 +4,6 @@ import { LocalPlayPage } from "../../apps/jojixplay/src/pages/local-play-page";
 import type { CameraPoseLifecycle } from "../../apps/jojixplay/src/pose/use-camera-pose";
 
 const mocks = vi.hoisted(() => ({
-  update: vi.fn(),
-  dispose: vi.fn(),
   start: vi.fn(),
   stop: vi.fn(),
   immersiveStop: vi.fn(),
@@ -15,9 +13,6 @@ let camera: CameraPoseLifecycle;
 vi.mock("../../apps/jojixplay/src/pose/use-camera-pose", () => ({ useCameraPose: () => camera }));
 vi.mock("../../apps/jojixplay/src/components/draw-game", () => ({
   DrawGame: ({ players }: { players: 1 | 2 }) => <div data-testid="drawing">{players} pessoas</div>,
-}));
-vi.mock("@jojixplay/movement-view", () => ({
-  mountHandView: async () => ({ update: mocks.update, dispose: mocks.dispose }),
 }));
 vi.mock("../../apps/jojixplay/src/platform/capabilities", () => ({
   inspectLocalPlayCapabilities: () => ({ supported: true, missing: [] }),

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && npm run build --workspace @jojixplay/game-dev && npm run build --workspace @jojixplay/desenhar",
+    "build": "tsc -b && vite build && npm run build --workspace @jojixplay/desenhar",
     "preview": "vite preview",
     "format": "biome format --write .",
     "format:check": "biome format .",
@@ -24,7 +24,6 @@
     "verify:assets": "node scripts/verify-assets.mjs",
     "check": "npm run verify:toolchain && npm run verify:boundaries && npm run format:check && npm run lint && npm run test && npm run verify:assets && npm run build",
     "validate": "npm run check && npm run test:e2e && npm run audit",
-    "dev:game": "npm run dev --workspace @jojixplay/game-dev",
     "verify:boundaries": "node scripts/verify-boundaries.mjs",
     "dev:draw": "npm run dev --workspace @jojixplay/desenhar"
   },

@@ -9,7 +9,7 @@ export interface ControlPoint {
 export function mountMovementControls(
   root: HTMLElement,
   accepts: (button: HTMLButtonElement) => boolean = () => true,
-  pointer: "always" | "target" | "none" = "always",
+  pointer: "always" | "target" = "always",
 ) {
   const states = new Map<
     string,
@@ -63,8 +63,7 @@ export function mountMovementControls(
           cursor.setAttribute("aria-hidden", "true");
           cursor.className = "movement-pointer";
           cursor.style.cssText =
-            "position:fixed;width:38px;height:38px;border-radius:50%;border:3px solid white;box-shadow:0 0 0 2px #294b4b;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);display:grid;place-items:center;color:#294b4b;font-size:21px;background:#f7c853";
-          cursor.textContent = "✋";
+            "position:fixed;width:26px;height:26px;border-radius:50%;border:3px solid white;box-shadow:0 0 0 2px #294b4b;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);display:block;background:#f7c853";
           state = { point, cursor, button: null, since: now, armed: false };
           states.set(point.key, state);
         }
@@ -97,9 +96,8 @@ export function mountMovementControls(
         if (button) button.style.setProperty("--dwell", `${progress * 100}%`);
         // A modal's top layer requires its cursor to live inside that modal.
         if (state.cursor.parentElement !== scope) scope.append(state.cursor);
-        state.cursor.hidden =
-          pointer === "none" || !targets.length || (pointer === "target" && !button && !modal);
-        state.cursor.style.display = state.cursor.hidden ? "none" : "grid";
+        state.cursor.hidden = !targets.length || (pointer === "target" && !button && !modal);
+        state.cursor.style.display = state.cursor.hidden ? "none" : "block";
         state.cursor.style.left = `${point.x}px`;
         state.cursor.style.top = `${point.y}px`;
         state.cursor.style.background = `conic-gradient(#72c49d ${progress * 100}%, #f7c853 0)`;

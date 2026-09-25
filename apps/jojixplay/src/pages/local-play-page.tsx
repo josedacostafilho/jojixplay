@@ -128,7 +128,7 @@ export function LocalPlayPage() {
         normalization={camera.normalization}
         visible={!drawing}
       />
-      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} onError={setError} />
+      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} />
       <header class="room-header" hidden={drawing}>
         <span class="brand">
           jojix<span>play</span>

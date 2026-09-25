@@ -71,7 +71,9 @@ for (const viewport of [
     await page.goto("/");
     await page.getByRole("button", { name: "Vamos começar" }).click();
     await expect(page.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" })).toBeVisible();
-    await expect(page.locator(".hand-layer canvas")).toBeVisible();
+    await expect(page.locator(".movement-pointer").first()).toBeVisible();
+    await expect(page.locator(".movement-pointer").first()).toHaveText("");
+    await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator(".camera-backdrop")).toHaveCSS("opacity", "1");
     await expect(page.getByText("Em breve", { exact: true })).toHaveCount(2);
     expect(await page.locator(".game-card--soon button").count()).toBe(0);
@@ -97,7 +99,7 @@ for (const viewport of [
         for (const y of [0.4, 0.3, 0.5, 0.6])
           for (const x of [0.5, 0.4, 0.6, 0.3]) {
             if (!document.elementFromPoint(left + x * width, top + y * height)?.closest("button")) {
-              Reflect.set(window, "testWrist", { x, y });
+              Reflect.set(window, "testWrist", { x, y: y + (paper ? 0 : 0.035) });
               return;
             }
           }
@@ -116,7 +118,10 @@ for (const viewport of [
         const height = width / aspect;
         const left = paper ? paper.left + (paper.width - width) / 2 : (innerWidth - width) / 2;
         const top = paper ? paper.top + (paper.height - height) / 2 : (innerHeight - height) / 2;
-        return { x: (b.x + b.width / 2 - left) / width, y: (b.y + b.height / 2 - top) / height };
+        return {
+          x: (b.x + b.width / 2 - left) / width,
+          y: (b.y + b.height / 2 - top) / height + (paper ? 0 : 0.035),
+        };
       });
       expect(point.x).toBeGreaterThanOrEqual(0);
       expect(point.x).toBeLessThanOrEqual(1);
@@ -162,7 +167,7 @@ for (const viewport of [
     await select("← Voltar");
     await select("Sair e apagar");
     await expect(page.locator("video")).toHaveCSS("opacity", "1");
-    await expect(page.locator(".hand-layer canvas")).toBeVisible();
+    await expect(page.locator(".movement-pointer").first()).toBeVisible();
     await select("Desenhar · 1 ou 2 pessoas");
     await select("Desenhar em dupla");
     await expect(page.getByText("Lado esquerdo", { exact: true })).toBeVisible();

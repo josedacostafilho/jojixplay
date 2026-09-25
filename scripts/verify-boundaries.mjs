@@ -59,7 +59,6 @@ for (const [directory, manifest] of manifests) {
             !target ||
             target.startsWith("apps/") ||
             (target.startsWith("games/") && !directory.startsWith("apps/")) ||
-            target === "packages/game-dev" ||
             dependency !== specifier
           )
             throw new Error(`${file}: forbidden workspace dependency ${specifier}`);

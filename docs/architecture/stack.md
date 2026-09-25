@@ -42,7 +42,6 @@ These commands are executable and are the only canonical paths for their concern
 | Start local development | `npm run dev` |
 | Independent Desenhar development | `npm run dev:draw` |
 | Desenhar unit tests | `npm test --workspace @jojixplay/desenhar` |
-| Independent hand asset lab | `npm run dev:game` |
 | Workspace import boundaries | `npm run verify:boundaries` |
 | Format | `npm run format` |
 | Check formatting | `npm run format:check` |
@@ -54,7 +53,7 @@ These commands are executable and are the only canonical paths for their concern
 | Run the full validation suite | `npm run validate` |
 | Build a production artifact | `npm run build` |
 | Verify the Node/npm baseline | `npm run verify:toolchain` |
-| Verify vendored model and hand integrity | `npm run verify:assets` |
+| Verify vendored model integrity | `npm run verify:assets` |
 | Audit dependencies | `npm run audit` |
 | Apply database migrations | Not applicable yet |
 
@@ -62,7 +61,7 @@ These commands are executable and are the only canonical paths for their concern
 
 ## Rendering and game development
 
-Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:game` opens the independent authored hand asset lab; its separate build is included in `npm run build`. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run build` also builds this standalone game page. `npm test` runs both platform and isolated game suites. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. The menu hand is an existing MIT-licensed GLB; its source, notice and checksum are committed under `packages/movement-view/assets`. No Blender tooling is required for it.
+Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run build` also builds this standalone game page. `npm test` runs both platform and isolated game suites. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles; no hand assets or asset lab remain.
 
 The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. It is not suppressed; target-phone startup and memory remain acceptance risks.
 

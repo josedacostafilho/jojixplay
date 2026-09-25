@@ -9,10 +9,10 @@ last_verified: 2026-09-24
 
 - Phone-only landscape entry and teardown; external screen mirroring only.
 - Brazilian Portuguese product UI and movement-operated navigation, help, Desenhar entry, confirmations and return after trusted camera setup.
-- npm workspace isolation with a renderer-independent named-joint SDK and independent hand asset and game input labs.
-- Main game list with Desenhar and unnamed placeholders, over a fullscreen mirrored camera. Lightweight authored Three.js hands share exact hit-test projection; the diagnostic stick figure/toy renderer is removed.
+- npm workspace isolation with a renderer-independent named-joint SDK and an independent game input lab.
+- Main game list with Desenhar and unnamed placeholders, over a fullscreen mirrored camera. Simple DOM circles near the estimated index position share exact hit-test projection. The 3D hand renderer, asset and asset lab are removed.
 - MediaPipe Full GPU replaces Lite; one worker, one estimate in flight, one local capture, visible behind menus and hidden inside Desenhar.
-- Independent per-joint availability, capture-age expiry and presentation-only jitter filtering. No whole-body prerequisite.
+- Independent per-joint availability, capture-age expiry. No whole-body prerequisite.
 
 ## First game
 
@@ -30,4 +30,4 @@ GitHub Pages deploys validated `main` pushes to [JojixPlay](https://josedacostaf
 
 ## Validation
 
-The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, all three production builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory; the audit reports two existing moderate development-tool advisories in Vitest/mocker.
+The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, both production builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory; the audit reports two existing moderate development-tool advisories in Vitest/mocker.

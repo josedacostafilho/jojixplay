@@ -5,6 +5,8 @@ last_verified: 2026-09-24
 
 # Fullscreen camera menu and authored hand controls
 
+The hand mesh and palm-placement clauses below are superseded by [ADR-0026](0026-circle-menu-pointer.md). The camera and menu contract remains active.
+
 After trusted camera setup, the phone shows a main game menu over its live camera. Desenhar is the sole playable entry, followed by a one-/two-person choice; unnamed noninteractive “Em breve” cards reserve visual space without choosing future games for the owner. Confirmed game exit returns to the game list.
 
 This replaces hidden-camera and procedural body-view clauses in ADR-0021/0022. The single capture video fills the entire viewport with an aspect-preserving cover crop. Canonical source rotation, horizontal mirroring and crop scale are shared with control projection. The controller publishes committed normalization metadata to the host. No second capture, copied camera canvas, stretched viewport mapping, offset cursor or amplified reach exists. Video and observations stay on-device. Desenhar keeps its own opaque scene; future games choose their presentation independently.

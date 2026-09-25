@@ -4,14 +4,13 @@ A landscape, phone-powered playroom for children aged 4–7 and their grown-ups.
 
 All product UI is Brazilian Portuguese. After the movement check, open **Desenhar sozinho** or **Desenhar em dupla** to paint with your hands. Old games remain retired.
 
-Rotate the phone, tap **Vamos começar**, and wave. Shoulders and hands can be tracked without visible feet. The main game menu overlays an edge-to-edge mirrored camera and authored 3D hands; video stays on-device. The Full GPU model's real-phone accuracy and performance still require acceptance testing.
+Rotate the phone, tap **Vamos começar**, and wave. Shoulders and hands can be tracked without visible feet. The main game menu overlays an edge-to-edge mirrored camera and simple circles near the estimated index position; video stays on-device. The Full GPU model's real-phone accuracy and performance still require acceptance testing.
 
 Use Node 24.19.0 and npm 11.17.0:
 
 ```sh
 npm ci
 npm run dev
-npm run dev:game
 npm run dev:draw
 npm run validate
 ```
