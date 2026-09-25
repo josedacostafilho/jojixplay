@@ -1,0 +1,22 @@
+{
+  "name": "@jojixplay/swinging",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.tsx",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5177",
+    "build": "vite build",
+    "test": "vitest run",
+    "preview": "vite preview --host 127.0.0.1 --port 4177"
+  },
+  "dependencies": {
+    "@jojixplay/game-sdk": "*",
+    "preact": "10.29.8",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

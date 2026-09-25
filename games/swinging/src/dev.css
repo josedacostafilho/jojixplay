@@ -1,0 +1,59 @@
+html {
+  height: 100%;
+}
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  background: #142b3a;
+  color: #fff;
+}
+#game {
+  width: 100%;
+  height: 100%;
+}
+#game canvas {
+  display: block;
+}
+.studio {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #102330e8;
+}
+.studio strong {
+  padding: 0 7px;
+}
+.studio button {
+  min-height: 48px;
+  padding: 7px 14px;
+  border: 2px solid #b9dbe7;
+  border-radius: 9px;
+  background: #24516a;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  touch-action: none;
+}
+.studio button[aria-pressed="true"] {
+  background: #e7ab42;
+  border-color: #fff4d1;
+  color: #152c39;
+}
+.studio button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.studio output {
+  flex: 1 1 260px;
+  font-size: 14px;
+}

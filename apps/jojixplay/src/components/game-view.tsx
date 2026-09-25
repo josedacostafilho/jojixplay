@@ -8,7 +8,7 @@ export function GameView({
 }: {
   frame: BodyFrame | null;
   players: 1 | 2;
-  game: "desenhar" | "corrida";
+  game: "desenhar" | "corrida" | "swinging";
 }) {
   const host = useRef<HTMLDivElement>(null),
     experience = useRef<Experience | null>(null),
@@ -25,7 +25,9 @@ export function GameView({
               (host: HTMLElement) =>
                 mountDesenhar(host, players),
           )
-        : import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida);
+        : game === "corrida"
+          ? import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida)
+          : import("@jojixplay/swinging").then(({ mountSwinging }) => mountSwinging);
     setLoading(true);
     setError(false);
     void load
@@ -54,13 +56,22 @@ export function GameView({
     <div class="game-mount" ref={host}>
       {loading ? (
         <p class="game-loading" role="status">
-          {game === "desenhar" ? "Preparando suas cores…" : "Preparando a pista…"}
+          {game === "desenhar"
+            ? "Preparando suas cores…"
+            : game === "corrida"
+              ? "Preparando a pista…"
+              : "Preparando a cidade…"}
         </p>
       ) : null}
       {error ? (
         <p class="inline-error" role="alert">
-          Não foi possível abrir {game === "desenhar" ? "Desenhar" : "Corrida dos Blocos"}. Volte e
-          tente novamente.
+          Não foi possível abrir{" "}
+          {game === "desenhar"
+            ? "Desenhar"
+            : game === "corrida"
+              ? "Corrida dos Blocos"
+              : "o protótipo de teias"}
+          . Volte e tente novamente.
         </p>
       ) : null}
     </div>

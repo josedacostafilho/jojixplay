@@ -1,0 +1,129 @@
+.swing-game * {
+  box-sizing: border-box;
+}
+.swing-game,
+.swing-world,
+.swing-ui-root {
+  position: absolute;
+  inset: 0;
+}
+.swing-game {
+  overflow: hidden;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+}
+.swing-world canvas {
+  display: block;
+}
+.swing-ui-root {
+  pointer-events: none;
+}
+.swing-ui {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.swing-ui button {
+  pointer-events: auto;
+  min-height: 54px;
+  border: 2px solid #fff5d1;
+  border-radius: 12px;
+  padding: 10px 20px;
+  background: #f7c853;
+  color: #162b3c;
+  font: inherit;
+  font-size: clamp(18px, 2.2vw, 26px);
+  font-weight: 800;
+}
+.swing-ui button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+.swing-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(520px, 75vw);
+  transform: translate(-50%, -50%);
+  border: 2px solid #b9e5ef;
+  border-radius: 20px;
+  padding: 20px 28px;
+  background: #102330e8;
+  text-align: center;
+}
+.swing-panel h1,
+.swing-help h2 {
+  margin: 0 0 10px;
+  font-size: clamp(28px, 4vw, 46px);
+}
+.swing-panel p,
+.swing-help p {
+  margin: 8px 0 16px;
+  font-size: clamp(17px, 2vw, 23px);
+  line-height: 1.35;
+}
+.swing-progress {
+  width: 100%;
+  height: 18px;
+  overflow: hidden;
+  border: 2px solid #fff;
+  border-radius: 20px;
+}
+.swing-progress i {
+  display: block;
+  height: 100%;
+  background: #f7c853;
+}
+.swing-hud,
+.swing-tracking {
+  position: absolute;
+  left: 16px;
+  border-radius: 12px;
+  padding: 8px 14px;
+  background: #102330c9;
+  font-size: clamp(16px, 1.8vw, 22px);
+  font-weight: 700;
+}
+.swing-hud {
+  top: 8px;
+}
+.swing-tracking {
+  bottom: 8px;
+  background: #5c2b1fec;
+}
+.swing-help-button {
+  position: absolute;
+  right: 2%;
+  bottom: 12px;
+}
+.swing-help {
+  position: absolute;
+  inset: 8% 16%;
+  z-index: 2;
+  overflow: auto;
+  border: 2px solid #b9e5ef;
+  border-radius: 20px;
+  padding: 20px 30px;
+  background: #102330f5;
+  text-align: center;
+}
+@media (max-height: 420px) {
+  .swing-help {
+    inset: 4% 12%;
+    padding: 8px 16px;
+  }
+  .swing-help h2 {
+    margin-bottom: 4px;
+    font-size: 24px;
+  }
+  .swing-help p {
+    margin: 4px 0;
+    font-size: 15px;
+    line-height: 1.15;
+  }
+  .swing-help button {
+    min-height: 46px;
+    margin-top: 4px;
+    font-size: 18px;
+  }
+}

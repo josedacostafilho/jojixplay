@@ -17,7 +17,7 @@ export function LocalPlayPage() {
   const [confirmExit, setConfirmExit] = useState(false);
   const exitDialog = useRef<HTMLDialogElement>(null);
   const [choosingPlayers, setChoosingPlayers] = useState(false);
-  const [game, setGame] = useState<"desenhar" | "corrida" | null>(null);
+  const [game, setGame] = useState<"desenhar" | "corrida" | "swinging" | null>(null);
   const drawing = game === "desenhar";
   const playing = game !== null;
   const opening = useRef(false);
@@ -97,7 +97,7 @@ export function LocalPlayPage() {
     starting.current = false;
     if (!started) void immersive.stop();
   }
-  async function openGame(next: "desenhar" | "corrida", players: 1 | 2) {
+  async function openGame(next: "desenhar" | "corrida" | "swinging", players: 1 | 2) {
     if (opening.current || changingPlayers) return;
     opening.current = true;
     const currentRun = run.current;
@@ -149,7 +149,13 @@ export function LocalPlayPage() {
       {active && game ? (
         <section
           class="game-stage"
-          aria-label={drawing ? "Ateliê Desenhar" : "Pista Corrida dos Blocos"}
+          aria-label={
+            drawing
+              ? "Ateliê Desenhar"
+              : game === "corrida"
+                ? "Pista Corrida dos Blocos"
+                : "Protótipo de teias"
+          }
         >
           <GameView
             game={game}
@@ -160,14 +166,26 @@ export function LocalPlayPage() {
             ← Voltar
           </button>
           <dialog class="draw-dialog" ref={exitDialog} onCancel={() => setConfirmExit(false)}>
-            <h2>{drawing ? "Guardar na imaginação?" : "Sair da corrida?"}</h2>
+            <h2>
+              {drawing
+                ? "Guardar na imaginação?"
+                : game === "corrida"
+                  ? "Sair da corrida?"
+                  : "Sair da cidade?"}
+            </h2>
             <p>
               {drawing
                 ? "Ao sair, este desenho será apagado."
-                : "Ao sair, esta corrida termina e os pontos não são guardados."}
+                : game === "corrida"
+                  ? "Ao sair, esta corrida termina e os pontos não são guardados."
+                  : "Ao sair, esta tentativa termina."}
             </p>
             <button type="button" onClick={() => setConfirmExit(false)}>
-              {drawing ? "Continuar desenhando" : "Continuar correndo"}
+              {drawing
+                ? "Continuar desenhando"
+                : game === "corrida"
+                  ? "Continuar correndo"
+                  : "Continuar balançando"}
             </button>
             <button
               type="button"
@@ -177,7 +195,11 @@ export function LocalPlayPage() {
                 setChoosingPlayers(false);
               }}
             >
-              {drawing ? "Sair e apagar" : "Sair da corrida"}
+              {drawing
+                ? "Sair e apagar"
+                : game === "corrida"
+                  ? "Sair da corrida"
+                  : "Sair da cidade"}
             </button>
           </dialog>
         </section>
@@ -193,6 +215,7 @@ export function LocalPlayPage() {
             onBack={() => setChoosingPlayers(false)}
             onPlay={(players) => void openGame("desenhar", players)}
             onRace={() => void openGame("corrida", 1)}
+            onSwing={() => void openGame("swinging", 1)}
           />
           <div class="menu-footer">
             <span class="tracking-note" role="status">

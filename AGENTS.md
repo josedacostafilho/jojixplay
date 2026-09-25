@@ -31,6 +31,10 @@ The owner selects games. All old games are retired. The first new game, Desenhar
 - Game input and lifecycle contracts stay narrow. Games own interpretation and effects. The host owns permissions and session resources.
 - Target-phone tracking quality, heat and mirroring latency require real-device measurement; browser tests cannot establish them.
 
+## Tests
+
+Test distinct, observable behavior. Before keeping a test, identify the plausible defect it would catch. Remove tautological implementation assertions, duplicate coverage and scripted scenarios whose expected outcome does not follow from a product requirement. One input route is not an acceptance gate for a changed mechanic.
+
 ## Implementation and verification
 
 Follow strict TypeScript, explicit ownership, actionable failures, keyboard accessibility and reduced motion. Read affected callers before editing. Prefer the smallest complete design. Use pinned dependencies and canonical commands from the stack document. Run proportional behavioral tests and the canonical quality suite. Defects need regression coverage; do not skip or quarantine failing tests. Update current docs, status and consequential ADRs in the same change. Review the diff for dead code, secrets, obsolete references and unrelated changes. Report exactly what was verified and remaining hardware limitations.

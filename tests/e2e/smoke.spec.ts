@@ -125,6 +125,11 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await expect(page.locator("canvas")).toHaveCount(1);
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair da corrida" }).click();
+  await page.getByRole("button", { name: "Protótipo de teias · 1 pessoa" }).click();
+  await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
+  await expect(page.locator("canvas")).toHaveCount(1);
+  await page.getByRole("button", { name: "← Voltar" }).click();
+  await page.getByRole("button", { name: "Sair da cidade" }).click();
   await page.getByRole("button", { name: "Encerrar brincadeira" }).click();
   await expect(page.getByRole("heading", { name: "Preparar… brincar!" })).toBeVisible();
   await expect

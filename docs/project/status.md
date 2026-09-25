@@ -10,15 +10,16 @@ last_verified: 2026-09-25
 - Phone-only landscape entry and teardown; external screen mirroring only.
 - Brazilian Portuguese product UI and movement-operated navigation, help, game entry, confirmations and return after trusted camera setup.
 - npm workspace isolation with a renderer-independent named-joint SDK and independent game studios.
-- Main game list with Desenhar, Corrida dos Blocos and one unnamed placeholder, over a fullscreen mirrored camera. Simple DOM circles near the estimated index position share exact hit-test projection. The 3D hand renderer, asset and asset lab are removed.
+- Main game list with Desenhar, Corrida dos Blocos and a provisionally named swinging prototype, over a fullscreen mirrored camera. Simple DOM circles near the estimated index position share exact hit-test projection. The 3D hand renderer, asset and asset lab are removed.
 - MediaPipe Full GPU replaces Lite; one worker, one estimate in flight, one local capture, visible behind menus and hidden inside games.
 - Independent per-joint availability, capture-age expiry. No whole-body prerequisite.
+- A host-mounted swinging prototype with three-second crouch entry, binary arm gestures, elbow-only control when a wrist leaves view, a dip-and-rise jump pulse and a tracking warning that never pauses physics. Its independent keyboard/touch studio fills the viewport. Plain buildings, automatic anchors, bounded elastic web pull, wall/roof/ground collision and simple first-person web/arm placeholders remain prototype visuals.
 
 ## Games
 
 Desenhar supports solo and shared two-person painting. It uses isolated rules, bounded instanced Three.js paint, independent colors/widths/hand preference, wrist hover or touch controls, undo and confirmed clear. See [Desenhar](../product/desenhar.md). Corrida dos Blocos is a single-player five-minute first-person run: held-crouch entry, ducking in level one, normalized pose walls in level two, jumping in level three, three lives per level and scored victory. Camera gestures are gated by the approaching obstacle; symbolic jumps accept dip-and-rise and use a longer bounded animation. Kenney CC0 voxel textures loaded only on game entry, larger race copy and visible amplified hand controls replace the initial presentation. Tracking loss and dialogs pause the run. See [Corrida](../product/corrida.md). Future games remain the owner's choice.
 
-The owner reports tracking works on the Galaxy S22. Their first Corrida trial exposed difficult jumps, jump/duck ambiguity and poor across-room controls/readability. The revised implementation addresses those reports, but its phone/TV comfort and sustained two-person painting still need acceptance.
+The owner reports tracking works on the Galaxy S22. Their first Corrida trial exposed difficult jumps, jump/duck ambiguity and poor across-room controls/readability. The revised implementation addresses those reports, but its phone/TV comfort and sustained two-person painting still need acceptance. The [swinging game](../product/swinging-game-plan.md) now has camera controls, host entry, a measured elastic drop/climb/release and timed initial turns in both directions. Repeated city cornering, swing-feel tuning, final city art and phone acceptance remain unverified or unimplemented.
 
 ## Unknown / acceptance risks
 
@@ -32,4 +33,4 @@ GitHub Pages deploys validated `main` pushes to [JojixPlay](https://josedacostaf
 
 ## Validation
 
-The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, all three production builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory; the audit reports two existing moderate development-tool advisories in Vitest/mocker.
+The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, the app and three studio builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. Swinging prototype tests include balanced forward travel, side-directed elastic drop/climb/release, timed left/right corners without facade contact, wall sliding, roof landing, dual anchors, jump pulses, partial-arm gestures, tracking loss and long-frame handling; Chromium checks its full-viewport standalone studio, host entry and movement-only help/exit. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory; the audit reports two existing moderate development-tool advisories in Vitest/mocker.

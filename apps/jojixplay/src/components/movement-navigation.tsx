@@ -29,7 +29,7 @@ export function MovementNavigation({
     if (!root || !container || !active) return;
     const controls = mountMovementControls(
       root,
-      (button) => !button.closest(".draw-game, .race-game"),
+      (button) => !button.closest(".draw-game, .race-game, .swing-game"),
       playing ? "target" : "always",
     );
     let request = 0;
@@ -43,7 +43,9 @@ export function MovementNavigation({
         const paper = drawing ? root?.querySelector(".draw-paper")?.getBoundingClientRect() : null;
         const cover = cameraCover(frame.width, frame.height, innerWidth, innerHeight);
         const race =
-          !drawing && playing ? root?.querySelector(".race-game")?.getBoundingClientRect() : null;
+          !drawing && playing
+            ? root?.querySelector(".race-game, .swing-game")?.getBoundingClientRect()
+            : null;
         const width = race
           ? race.width
           : paper

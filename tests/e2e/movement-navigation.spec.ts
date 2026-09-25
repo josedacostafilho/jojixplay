@@ -75,8 +75,7 @@ for (const viewport of [
     await expect(page.locator(".movement-pointer").first()).toHaveText("");
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator(".camera-backdrop")).toHaveCSS("opacity", "1");
-    await expect(page.getByText("Em breve", { exact: true })).toHaveCount(1);
-    expect(await page.locator(".game-card--soon button").count()).toBe(0);
+    await expect(page.getByRole("button", { name: "Protótipo de teias · 1 pessoa" })).toBeVisible();
     const cameraBounds = await page.locator("video").boundingBox();
     expect(cameraBounds?.x).toBeLessThanOrEqual(0);
     expect(cameraBounds?.y).toBeLessThanOrEqual(0);
@@ -87,10 +86,10 @@ for (const viewport of [
     async function select(name: string) {
       const game = await page
         .getByRole("button", { name, exact: true })
-        .evaluate((button) => !!button.closest(".draw-game, .race-game"));
+        .evaluate((button) => !!button.closest(".draw-game, .race-game, .swing-game"));
       const neutral = await page.evaluate((game) => {
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
-        const race = document.querySelector(".race-game")?.getBoundingClientRect();
+        const race = document.querySelector(".race-game, .swing-game")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
@@ -132,7 +131,7 @@ for (const viewport of [
               [
                 ...document.querySelectorAll<HTMLElement>(
                   game
-                    ? ".draw-game .movement-pointer, .race-game .movement-pointer"
+                    ? ".draw-game .movement-pointer, .race-game .movement-pointer, .swing-game .movement-pointer"
                     : ".movement-pointer",
                 ),
               ].some(
@@ -151,7 +150,7 @@ for (const viewport of [
         });
         const b = button.getBoundingClientRect();
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
-        const race = document.querySelector(".race-game")?.getBoundingClientRect();
+        const race = document.querySelector(".race-game, .swing-game")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
@@ -181,7 +180,7 @@ for (const viewport of [
       expect(point.x).toBeLessThanOrEqual(1);
       expect(point.y).toBeGreaterThanOrEqual(0);
       expect(point.y).toBeLessThanOrEqual(1);
-      if (await page.locator(".race-game").count()) {
+      if (await page.locator(".race-game, .swing-game").count()) {
         expect(point.x).toBeGreaterThanOrEqual(0.25);
         expect(point.x).toBeLessThanOrEqual(0.75);
         expect(point.y).toBeGreaterThanOrEqual(0.15);
@@ -255,6 +254,16 @@ for (const viewport of [
     await select("Sair da corrida");
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator("video")).toHaveCSS("opacity", "1");
+    await select("Protótipo de teias · 1 pessoa");
+    await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
+    await select("? Como jogar");
+    await expect(page.getByRole("heading", { name: "Balance com as teias" })).toBeVisible();
+    await select("Entendi");
+    await select("← Voltar");
+    await select("Continuar balançando");
+    await select("← Voltar");
+    await select("Sair da cidade");
+    await expect(page.locator("canvas")).toHaveCount(0);
     await select("Encerrar brincadeira");
     await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
   });

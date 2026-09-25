@@ -247,15 +247,6 @@ a:focus-visible {
 .game-card--duo {
   background: #b5e5edf2;
 }
-.game-card--soon {
-  background: #ede5f2e8;
-  color: #605a75;
-  box-shadow: 0 5px 0 #24434820;
-}
-.game-card--soon-1 {
-  background: #dcebdde8;
-  color: #536e60;
-}
 .game-card strong {
   font-size: 23px;
   letter-spacing: -0.5px;
@@ -271,9 +262,6 @@ a:focus-visible {
 .pencil-art {
   transform: rotate(-18deg);
   color: #be573e;
-}
-.game-card--soon .card-art {
-  opacity: 0.55;
 }
 .menu-return {
   position: absolute;
@@ -526,6 +514,10 @@ a:focus-visible {
   background: #a9dac6f5;
   color: #244f43;
 }
+.game-card--swing {
+  background: #a9d1e8f5;
+  color: #23445d;
+}
 .game-card--race strong {
   font-size: clamp(15px, 2.2vw, 23px);
 }
@@ -580,22 +572,22 @@ a:focus-visible {
 }
 
 /* Race controls are viewed across the room, including host-owned exit. */
-.game-stage:has(.race-game) > .game-back {
+.game-stage:has(.race-game, .swing-game) > .game-back {
   top: 12px;
   right: 3%;
   min-height: 54px;
   font-size: 22px;
   font-weight: 900;
 }
-.game-stage:has(.race-game) > .draw-dialog {
+.game-stage:has(.race-game, .swing-game) > .draw-dialog {
   max-width: min(650px, 90vw);
   font-size: 22px;
   text-align: center;
 }
-.game-stage:has(.race-game) > .draw-dialog h2 {
+.game-stage:has(.race-game, .swing-game) > .draw-dialog h2 {
   font-size: 32px;
 }
-.game-stage:has(.race-game) > .draw-dialog button {
+.game-stage:has(.race-game, .swing-game) > .draw-dialog button {
   font-size: 22px;
   min-height: 58px;
 }

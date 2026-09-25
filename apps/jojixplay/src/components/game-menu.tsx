@@ -5,6 +5,7 @@ export function GameMenu({
   onBack,
   onPlay,
   onRace,
+  onSwing,
 }: {
   choosing: boolean;
   busy: boolean;
@@ -12,6 +13,7 @@ export function GameMenu({
   onBack: () => void;
   onPlay: (players: 1 | 2) => void;
   onRace: () => void;
+  onSwing: () => void;
 }) {
   return (
     <section class="game-menu" aria-labelledby="menu-title">
@@ -86,15 +88,21 @@ export function GameMenu({
               <span>1 pessoa · pule, copie, agache!</span>
             </button>
           </li>
-          {["✳"].map((symbol, index) => (
-            <li class={`game-card game-card--soon game-card--soon-${index}`} key={symbol}>
+          <li>
+            <button
+              class="game-card game-card--swing"
+              type="button"
+              disabled={busy}
+              onClick={onSwing}
+              aria-label="Protótipo de teias · 1 pessoa"
+            >
               <span class="card-art" aria-hidden="true">
-                {symbol}
+                ◈
               </span>
-              <strong>Em breve</strong>
-              <span>Mais brincadeiras por aqui</span>
-            </li>
-          ))}
+              <strong>Protótipo de teias</strong>
+              <span>1 pessoa · balance pela cidade</span>
+            </button>
+          </li>
         </ul>
       )}
       {busy ? (

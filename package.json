@@ -9,13 +9,13 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && npm run build --workspace @jojixplay/desenhar && npm run build --workspace @jojixplay/corrida",
+    "build": "tsc -b && vite build && npm run build --workspace @jojixplay/desenhar && npm run build --workspace @jojixplay/corrida && npm run build --workspace @jojixplay/swinging",
     "preview": "vite preview",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
     "typecheck": "tsc -b",
-    "test": "vitest run && npm test --workspace @jojixplay/desenhar && npm test --workspace @jojixplay/corrida",
+    "test": "vitest run && npm test --workspace @jojixplay/desenhar && npm test --workspace @jojixplay/corrida && npm test --workspace @jojixplay/swinging",
     "test:watch": "vitest",
     "pretest:e2e": "npm run build",
     "test:e2e": "playwright test",
@@ -26,7 +26,8 @@
     "validate": "npm run check && npm run test:e2e && npm run audit",
     "verify:boundaries": "node scripts/verify-boundaries.mjs",
     "dev:draw": "npm run dev --workspace @jojixplay/desenhar",
-    "dev:race": "npm run dev --workspace @jojixplay/corrida"
+    "dev:race": "npm run dev --workspace @jojixplay/corrida",
+    "dev:swinging": "npm run dev --workspace @jojixplay/swinging"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",
