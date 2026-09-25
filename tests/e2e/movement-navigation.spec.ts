@@ -85,7 +85,10 @@ for (const viewport of [
 
     // All further selections change only synthetic camera joints, never click/tap.
     async function select(name: string) {
-      const neutral = await page.evaluate(() => {
+      const game = await page
+        .getByRole("button", { name, exact: true })
+        .evaluate((button) => !!button.closest(".draw-game"));
+      const neutral = await page.evaluate((game) => {
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
@@ -100,16 +103,20 @@ for (const viewport of [
           for (const x of [0.5, 0.4, 0.6, 0.3]) {
             if (!document.elementFromPoint(left + x * width, top + y * height)?.closest("button")) {
               Reflect.set(window, "testWrist", { x, y: y + (paper ? 0 : 0.035) });
-              return { x: left + x * width, y: top + y * height };
+              return { x: left + x * width, y: top + y * height, game };
             }
           }
         throw new Error("No reachable neutral area");
-      });
+      }, game);
       await expect
         .poll(() =>
           page.evaluate(
-            ({ x, y }) =>
-              [...document.querySelectorAll<HTMLElement>(".movement-pointer")].some(
+            ({ x, y, game }) =>
+              [
+                ...document.querySelectorAll<HTMLElement>(
+                  game ? ".draw-game .movement-pointer" : ".movement-pointer",
+                ),
+              ].some(
                 (pointer) =>
                   Math.abs(parseFloat(pointer.style.left) - x) < 1 &&
                   Math.abs(parseFloat(pointer.style.top) - y) < 1,

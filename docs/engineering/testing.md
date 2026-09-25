@@ -10,6 +10,8 @@ scope: Automated test strategy and release quality gates
 
 Vitest, Testing Library, Playwright, Biome, TypeScript, production building, and dependency auditing are the selected quality gates for the first slice. Exact commands live in [Stack](../architecture/stack.md).
 
+Browser tests use one worker so software GPU inference and game rendering do not compete for the runner’s CPU budget. Freshness limits remain unchanged.
+
 ## Platform coverage
 
 - Unit tests cover canonical orientation, packet validation, independent visible joints, freshness, fullscreen camera/hand projection across source rotations, worker GPU configuration, camera single-flight inference, player reconfiguration and resource cleanup.
