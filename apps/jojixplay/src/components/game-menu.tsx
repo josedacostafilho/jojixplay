@@ -4,12 +4,14 @@ export function GameMenu({
   onChoose,
   onBack,
   onPlay,
+  onRace,
 }: {
   choosing: boolean;
   busy: boolean;
   onChoose: () => void;
   onBack: () => void;
   onPlay: (players: 1 | 2) => void;
+  onRace: () => void;
 }) {
   return (
     <section class="game-menu" aria-labelledby="menu-title">
@@ -57,6 +59,7 @@ export function GameMenu({
               class="game-card game-card--draw"
               type="button"
               onClick={onChoose}
+              disabled={busy}
               aria-label="Desenhar · 1 ou 2 pessoas"
             >
               <span class="card-art pencil-art" aria-hidden="true">
@@ -66,7 +69,24 @@ export function GameMenu({
               <span>1 ou 2 pessoas</span>
             </button>
           </li>
-          {["✦", "✳"].map((symbol, index) => (
+          <li>
+            <button
+              class="game-card game-card--race"
+              type="button"
+              disabled={busy}
+              onClick={onRace}
+              aria-label="Corrida dos Blocos · 1 pessoa"
+            >
+              <span class="card-art blocks-art" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <strong>Corrida dos Blocos</strong>
+              <span>1 pessoa · pule, copie, agache!</span>
+            </button>
+          </li>
+          {["✳"].map((symbol, index) => (
             <li class={`game-card game-card--soon game-card--soon-${index}`} key={symbol}>
               <span class="card-art" aria-hidden="true">
                 {symbol}

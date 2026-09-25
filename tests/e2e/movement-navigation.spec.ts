@@ -75,7 +75,7 @@ for (const viewport of [
     await expect(page.locator(".movement-pointer").first()).toHaveText("");
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator(".camera-backdrop")).toHaveCSS("opacity", "1");
-    await expect(page.getByText("Em breve", { exact: true })).toHaveCount(2);
+    await expect(page.getByText("Em breve", { exact: true })).toHaveCount(1);
     expect(await page.locator(".game-card--soon button").count()).toBe(0);
     const cameraBounds = await page.locator("video").boundingBox();
     expect(cameraBounds?.x).toBeLessThanOrEqual(0);
@@ -87,22 +87,33 @@ for (const viewport of [
     async function select(name: string) {
       const game = await page
         .getByRole("button", { name, exact: true })
-        .evaluate((button) => !!button.closest(".draw-game"));
+        .evaluate((button) => !!button.closest(".draw-game, .race-game"));
       const neutral = await page.evaluate((game) => {
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
+        const race = document.querySelector(".race-game")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
-        const width = paper
-          ? Math.min(paper.width, paper.height * aspect)
-          : Math.max(innerWidth, innerHeight * aspect);
-        const height = width / aspect;
-        const left = paper ? paper.left + (paper.width - width) / 2 : (innerWidth - width) / 2;
-        const top = paper ? paper.top + (paper.height - height) / 2 : (innerHeight - height) / 2;
+        const width = race
+          ? race.width
+          : paper
+            ? Math.min(paper.width, paper.height * aspect)
+            : Math.max(innerWidth, innerHeight * aspect);
+        const height = race ? race.height : width / aspect;
+        const left = race
+          ? race.left
+          : paper
+            ? paper.left + (paper.width - width) / 2
+            : (innerWidth - width) / 2;
+        const top = race
+          ? race.top
+          : paper
+            ? paper.top + (paper.height - height) / 2
+            : (innerHeight - height) / 2;
         for (const y of [0.4, 0.3, 0.5, 0.6])
           for (const x of [0.5, 0.4, 0.6, 0.3]) {
             if (!document.elementFromPoint(left + x * width, top + y * height)?.closest("button")) {
-              Reflect.set(window, "testWrist", { x, y: y + (paper ? 0 : 0.035) });
+              Reflect.set(window, "testWrist", { x, y: y + (paper || race ? 0 : 0.035) });
               return { x: left + x * width, y: top + y * height, game };
             }
           }
@@ -114,7 +125,9 @@ for (const viewport of [
             ({ x, y, game }) =>
               [
                 ...document.querySelectorAll<HTMLElement>(
-                  game ? ".draw-game .movement-pointer" : ".movement-pointer",
+                  game
+                    ? ".draw-game .movement-pointer, .race-game .movement-pointer"
+                    : ".movement-pointer",
                 ),
               ].some(
                 (pointer) =>
@@ -132,18 +145,29 @@ for (const viewport of [
         });
         const b = button.getBoundingClientRect();
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
+        const race = document.querySelector(".race-game")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
-        const width = paper
-          ? Math.min(paper.width, paper.height * aspect)
-          : Math.max(innerWidth, innerHeight * aspect);
-        const height = width / aspect;
-        const left = paper ? paper.left + (paper.width - width) / 2 : (innerWidth - width) / 2;
-        const top = paper ? paper.top + (paper.height - height) / 2 : (innerHeight - height) / 2;
+        const width = race
+          ? race.width
+          : paper
+            ? Math.min(paper.width, paper.height * aspect)
+            : Math.max(innerWidth, innerHeight * aspect);
+        const height = race ? race.height : width / aspect;
+        const left = race
+          ? race.left
+          : paper
+            ? paper.left + (paper.width - width) / 2
+            : (innerWidth - width) / 2;
+        const top = race
+          ? race.top
+          : paper
+            ? paper.top + (paper.height - height) / 2
+            : (innerHeight - height) / 2;
         return {
           x: (b.x + b.width / 2 - left) / width,
-          y: (b.y + b.height / 2 - top) / height + (paper ? 0 : 0.035),
+          y: (b.y + b.height / 2 - top) / height + (paper || race ? 0 : 0.035),
         };
       });
       expect(point.x).toBeGreaterThanOrEqual(0);
@@ -202,6 +226,21 @@ for (const viewport of [
     ).toHaveAttribute("aria-pressed", "true");
     await select("← Voltar");
     await select("Sair e apagar");
+    await select("Corrida dos Blocos · 1 pessoa");
+    await expect(page.getByRole("heading", { name: "Pronto para ir mais longe?" })).toBeVisible();
+    await expect(page.locator("video")).toHaveCSS("opacity", "0");
+    await select("? Como jogar");
+    await expect(page.getByRole("heading", { name: "Seu corpo joga!" })).toBeVisible();
+    await select("Vamos nessa →");
+    await select("Ⅱ Pausa");
+    await expect(page.getByRole("heading", { name: "A pista espera por você" })).toBeVisible();
+    await select("Vamos nessa →");
+    await select("← Voltar");
+    await select("Continuar correndo");
+    await select("← Voltar");
+    await select("Sair da corrida");
+    await expect(page.locator("canvas")).toHaveCount(0);
+    await expect(page.locator("video")).toHaveCSS("opacity", "1");
     await select("Encerrar brincadeira");
     await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
   });

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 scope: Automated test strategy and release quality gates
 ---
 
@@ -20,6 +20,7 @@ Browser tests use one worker so software GPU inference and game rendering do not
 - Desenhar has its own isolated rules suite for solo/duo ownership, missing input, continuity, undo, handedness and bounded paint. Production browser coverage verifies both live-camera game entries and the standalone game's visible paint, tracking loss, clear cancellation and clear confirmation.
 - A production browser journey injects synthetic worker observations and operates menus, help scrolling, solo/duo entry, palette selection, clear/exit confirmations and stop without any post-setup click. Shared dwell regression coverage verifies neutral arming, loss reset, modal exclusivity and single activation.
 - Unit coverage checks bounded index estimation, wrist-only input and partial-body observations. Browser coverage checks visible circles and movement-only navigation.
+- Corrida has isolated full-run, scoring, life-reset, countdown, partial-joint, timing-window, normalized-pose and bounded-camera tests. Its standalone production studio exercises held crouch, movement feedback, points, loss, pause, help and replay at two phone-sized viewports. The app movement-only journey also enters Corrida after duo mode and exercises help, pause and confirmed exit.
 - Actual phones must pass [tracking acceptance](pose-quality.md). Automation is not hardware acceptance.
 
 ## Principles

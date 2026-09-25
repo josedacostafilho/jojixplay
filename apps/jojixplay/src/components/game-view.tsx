@@ -1,7 +1,15 @@
 import type { BodyFrame, Experience } from "@jojixplay/game-sdk";
 import { useEffect, useRef, useState } from "preact/hooks";
 
-export function DrawGame({ frame, players }: { frame: BodyFrame | null; players: 1 | 2 }) {
+export function GameView({
+  frame,
+  players,
+  game,
+}: {
+  frame: BodyFrame | null;
+  players: 1 | 2;
+  game: "desenhar" | "corrida";
+}) {
   const host = useRef<HTMLDivElement>(null),
     experience = useRef<Experience | null>(null),
     latest = useRef(frame);
@@ -10,10 +18,20 @@ export function DrawGame({ frame, players }: { frame: BodyFrame | null; players:
   latest.current = frame;
   useEffect(() => {
     let cancelled = false;
-    void import("@jojixplay/desenhar")
-      .then(({ mountDesenhar }) => {
+    const load =
+      game === "desenhar"
+        ? import("@jojixplay/desenhar").then(
+            ({ mountDesenhar }) =>
+              (host: HTMLElement) =>
+                mountDesenhar(host, players),
+          )
+        : import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida);
+    setLoading(true);
+    setError(false);
+    void load
+      .then((mount) => {
         if (cancelled || !host.current) return;
-        experience.current = mountDesenhar(host.current, players);
+        experience.current = mount(host.current);
         experience.current.update(latest.current);
         setLoading(false);
       })
@@ -28,7 +46,7 @@ export function DrawGame({ frame, players }: { frame: BodyFrame | null; players:
       experience.current?.dispose();
       experience.current = null;
     };
-  }, [players]);
+  }, [players, game]);
   useEffect(() => {
     experience.current?.update(frame);
   }, [frame]);
@@ -36,12 +54,13 @@ export function DrawGame({ frame, players }: { frame: BodyFrame | null; players:
     <div class="game-mount" ref={host}>
       {loading ? (
         <p class="game-loading" role="status">
-          Preparando suas cores…
+          {game === "desenhar" ? "Preparando suas cores…" : "Preparando a pista…"}
         </p>
       ) : null}
       {error ? (
         <p class="inline-error" role="alert">
-          Não foi possível abrir Desenhar. Volte e tente novamente.
+          Não foi possível abrir {game === "desenhar" ? "Desenhar" : "Corrida dos Blocos"}. Volte e
+          tente novamente.
         </p>
       ) : null}
     </div>

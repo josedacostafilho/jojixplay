@@ -12,10 +12,12 @@ export function MovementNavigation({
   frame,
   active,
   drawing,
+  playing,
 }: {
   frame: BodyFrame | null;
   active: boolean;
   drawing: boolean;
+  playing: boolean;
 }) {
   const layer = useRef<HTMLDivElement>(null);
   const latest = useRef(frame);
@@ -26,8 +28,8 @@ export function MovementNavigation({
     if (!root || !container || !active) return;
     const controls = mountMovementControls(
       root,
-      (button) => !button.closest(".draw-game"),
-      drawing ? "target" : "always",
+      (button) => !button.closest(".draw-game, .race-game"),
+      playing ? "target" : "always",
     );
     let request = 0;
     let epoch: number | undefined;
@@ -39,19 +41,39 @@ export function MovementNavigation({
         epoch = frame.epoch;
         const paper = drawing ? root?.querySelector(".draw-paper")?.getBoundingClientRect() : null;
         const cover = cameraCover(frame.width, frame.height, innerWidth, innerHeight);
-        const width = paper
-          ? Math.min(paper.width, (paper.height * frame.width) / frame.height)
-          : cover.width;
-        const height = paper ? (width * frame.height) / frame.width : cover.height;
-        const left = paper ? paper.left + (paper.width - width) / 2 : drawing ? 0 : cover.left;
-        const top = paper ? paper.top + (paper.height - height) / 2 : drawing ? 0 : cover.top;
+        const race =
+          !drawing && playing ? root?.querySelector(".race-game")?.getBoundingClientRect() : null;
+        const width = race
+          ? race.width
+          : paper
+            ? Math.min(paper.width, (paper.height * frame.width) / frame.height)
+            : cover.width;
+        const height = race
+          ? race.height
+          : paper
+            ? (width * frame.height) / frame.width
+            : cover.height;
+        const left = race
+          ? race.left
+          : paper
+            ? paper.left + (paper.width - width) / 2
+            : drawing
+              ? 0
+              : cover.left;
+        const top = race
+          ? race.top
+          : paper
+            ? paper.top + (paper.height - height) / 2
+            : drawing
+              ? 0
+              : cover.top;
         const back = root?.querySelector<HTMLElement>(".game-back");
         if (back && paper) back.style.right = `${Math.max(14, (paper.width - width) / 2 + 14)}px`;
         for (const isLeft of [false, true]) {
           // Spatial hand slots only: no body/torso prerequisite or detector-array identity.
           const wrists = frame.bodies
             .map((body) =>
-              drawing
+              playing
                 ? body[isLeft ? "leftWrist" : "rightWrist"]
                 : estimateIndexPoint(body, isLeft, frame.width / frame.height),
             )
@@ -74,6 +96,6 @@ export function MovementNavigation({
       cancelAnimationFrame(request);
       controls.dispose();
     };
-  }, [active, drawing]);
+  }, [active, drawing, playing]);
   return <div ref={layer} aria-hidden="true" />;
 }

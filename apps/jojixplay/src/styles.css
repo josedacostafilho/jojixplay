@@ -56,7 +56,7 @@ a:focus-visible {
 .camera-backdrop--visible {
   opacity: 1;
 }
-.playroom--live:not(.playroom--drawing)::before {
+.playroom--live:not(.playroom--game)::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -395,7 +395,7 @@ a:focus-visible {
   right: 5%;
   z-index: 12;
 }
-.playroom--drawing {
+.playroom--game {
   padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
 }
 .game-stage {
@@ -520,4 +520,61 @@ a:focus-visible {
   .game-menu {
     gap: 5px;
   }
+}
+
+.game-card--race {
+  background: #a9dac6f5;
+  color: #244f43;
+}
+.game-card--race strong {
+  font-size: clamp(15px, 2.2vw, 23px);
+}
+.blocks-art {
+  width: 64px;
+  height: 54px;
+  position: relative;
+}
+.blocks-art i {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  background: #548f69;
+  box-shadow:
+    inset 0 7px #92ba65,
+    4px 4px 0 #396e57;
+  transform: skewY(-8deg);
+  bottom: 4px;
+  left: 0;
+}
+.blocks-art i:nth-child(2) {
+  left: 31px;
+  bottom: 4px;
+}
+.blocks-art i:nth-child(3) {
+  left: 15px;
+  bottom: 31px;
+  background: #ad7549;
+  box-shadow:
+    inset 0 7px #79a95b,
+    4px 4px 0 #755b40;
+}
+.playroom--game .draw-dialog {
+  border: 2px solid #e5e4cd;
+  border-radius: 24px;
+  background: #fff9e9;
+  color: #263f41;
+  padding: 24px;
+  max-width: 440px;
+}
+.playroom--game .draw-dialog::backdrop {
+  background: #132d4199;
+}
+.playroom--game .draw-dialog button {
+  border: 0;
+  border-radius: 12px;
+  background: #f7c853;
+  color: #263f41;
+  padding: 12px;
+  margin: 5px;
+  font-weight: 800;
 }

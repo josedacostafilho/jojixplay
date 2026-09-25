@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
 }));
 let camera: CameraPoseLifecycle;
 vi.mock("../../apps/jojixplay/src/pose/use-camera-pose", () => ({ useCameraPose: () => camera }));
-vi.mock("../../apps/jojixplay/src/components/draw-game", () => ({
-  DrawGame: ({ players }: { players: 1 | 2 }) => <div data-testid="drawing">{players} pessoas</div>,
+vi.mock("../../apps/jojixplay/src/components/game-view", () => ({
+  GameView: ({ players, game }: { players: 1 | 2; game: string }) => (
+    <div data-testid={game === "desenhar" ? "drawing" : "racing"}>{players} pessoas</div>
+  ),
 }));
 vi.mock("../../apps/jojixplay/src/platform/capabilities", () => ({
   inspectLocalPlayCapabilities: () => ({ supported: true, missing: [] }),
@@ -151,4 +153,50 @@ it("enters solo directly and waits for two-person inference before opening a duo
   fireEvent.click(screen.getByRole("button", { name: "Desenhar sozinho" }));
   await act(async () => {});
   expect(screen.getByTestId("drawing")).toHaveTextContent("1 pessoas");
+});
+
+it("waits for single-person inference before mounting Corrida after duo play", async () => {
+  camera = { ...camera, state: "tracking", poseLimit: 2 };
+  let apply: () => void = () => {};
+  mocks.setPoseLimit.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        apply = resolve;
+      }),
+  );
+  const view = render(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
+  expect(mocks.setPoseLimit).toHaveBeenCalledWith(1);
+  expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
+  camera = { ...camera, poseLimit: 1 };
+  await act(async () => {
+    apply();
+  });
+  view.rerender(<LocalPlayPage />);
+  expect(screen.getByTestId("racing")).toHaveTextContent("1 pessoas");
+  camera = { ...camera, state: "error" };
+  view.rerender(<LocalPlayPage />);
+  await act(async () => {});
+  expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
+});
+it("does not mount a pending race after capture fails", async () => {
+  camera = { ...camera, state: "tracking", poseLimit: 2 };
+  let apply: () => void = () => {};
+  mocks.setPoseLimit.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        apply = resolve;
+      }),
+  );
+  const view = render(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
+  camera = { ...camera, state: "error" };
+  view.rerender(<LocalPlayPage />);
+  await act(async () => {
+    apply();
+  });
+  camera = { ...camera, state: "tracking", poseLimit: 1 };
+  view.rerender(<LocalPlayPage />);
+  expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" })).toBeVisible();
 });

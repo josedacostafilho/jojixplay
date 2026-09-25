@@ -25,6 +25,12 @@ export default defineConfig({
   ],
   webServer: [
     {
+      command: "npm run preview --workspace @jojixplay/corrida",
+      url: "http://127.0.0.1:4176",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
       command: "npm run preview -- --host 127.0.0.1 --port 4173",
       url: "http://127.0.0.1:4173",
       reuseExistingServer: !process.env.CI,

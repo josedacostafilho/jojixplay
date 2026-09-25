@@ -3,7 +3,7 @@ import { CameraBackdrop } from "../components/camera-backdrop";
 import { GameMenu } from "../components/game-menu";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { MovementNavigation } from "../components/movement-navigation";
-import { DrawGame } from "../components/draw-game";
+import { GameView } from "../components/game-view";
 import { UnsupportedPanel } from "../components/unsupported-panel";
 import { inspectLocalPlayCapabilities } from "../platform/capabilities";
 import { LocalImmersiveSession } from "../platform/local-immersive-session";
@@ -17,7 +17,9 @@ export function LocalPlayPage() {
   const [confirmExit, setConfirmExit] = useState(false);
   const exitDialog = useRef<HTMLDialogElement>(null);
   const [choosingPlayers, setChoosingPlayers] = useState(false);
-  const [drawing, setDrawing] = useState(false);
+  const [game, setGame] = useState<"desenhar" | "corrida" | null>(null);
+  const drawing = game === "desenhar";
+  const playing = game !== null;
   const opening = useRef(false);
   const [grownups, setGrownups] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +30,8 @@ export function LocalPlayPage() {
   const starting = useRef(false);
   const active = camera.state === "tracking";
   const busy = camera.state === "starting";
+  const trackingActive = useRef(active);
+  trackingActive.current = active;
   const bodyFrame = useMemo(
     () => (camera.packet ? toBodyFrame(camera.packet) : null),
     [camera.packet],
@@ -54,7 +58,7 @@ export function LocalPlayPage() {
 
   useEffect(() => {
     if (!active) {
-      setDrawing(false);
+      setGame(null);
       setChoosingPlayers(false);
       setConfirmExit(false);
       if (camera.state === "error") void immersive.stop();
@@ -72,7 +76,7 @@ export function LocalPlayPage() {
   }, [active, bodyFrame, camera.state, immersive]);
 
   function stop() {
-    setDrawing(false);
+    setGame(null);
     setConfirmExit(false);
     run.current += 1;
     starting.current = false;
@@ -93,7 +97,7 @@ export function LocalPlayPage() {
     starting.current = false;
     if (!started) void immersive.stop();
   }
-  async function openDrawing(players: 1 | 2) {
+  async function openGame(next: "desenhar" | "corrida", players: 1 | 2) {
     if (opening.current || changingPlayers) return;
     opening.current = true;
     const currentRun = run.current;
@@ -101,13 +105,14 @@ export function LocalPlayPage() {
     setError(null);
     try {
       if (camera.poseLimit !== players) await camera.setPoseLimit(players);
-      if (mounted.current && run.current === currentRun) {
+      if (mounted.current && trackingActive.current && run.current === currentRun) {
         setGrownups(false);
         setChoosingPlayers(false);
-        setDrawing(true);
+        setGame(next);
       }
     } catch {
-      if (mounted.current) setError("Não foi possível preparar as pessoas. Tente novamente.");
+      if (mounted.current && trackingActive.current && run.current === currentRun)
+        setError("Não foi possível preparar as pessoas. Tente novamente.");
     } finally {
       opening.current = false;
       if (mounted.current) setChangingPlayers(false);
@@ -120,16 +125,14 @@ export function LocalPlayPage() {
       : 0;
   const delay = camera.packet ? Math.round(performance.now() - camera.packet.capturedAtMs) : null;
   return (
-    <main
-      class={`playroom ${active ? "playroom--live" : ""} ${drawing ? "playroom--drawing" : ""}`}
-    >
+    <main class={`playroom ${active ? "playroom--live" : ""} ${playing ? "playroom--game" : ""}`}>
       <CameraBackdrop
         videoRef={camera.videoRef}
         normalization={camera.normalization}
-        visible={!drawing}
+        visible={!playing}
       />
-      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} />
-      <header class="room-header" hidden={drawing}>
+      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} playing={playing} />
+      <header class="room-header" hidden={playing}>
         <span class="brand">
           jojix<span>play</span>
           <i aria-hidden="true">✳</i>
@@ -143,9 +146,13 @@ export function LocalPlayPage() {
           Para os adultos <span aria-hidden="true">↗</span>
         </button>
       </header>
-      {active && drawing ? (
-        <section class="game-stage" aria-label="Ateliê Desenhar">
-          <DrawGame
+      {active && game ? (
+        <section
+          class="game-stage"
+          aria-label={drawing ? "Ateliê Desenhar" : "Pista Corrida dos Blocos"}
+        >
+          <GameView
+            game={game}
             frame={stale || grownups || confirmExit ? null : bodyFrame}
             players={camera.poseLimit}
           />
@@ -153,20 +160,24 @@ export function LocalPlayPage() {
             ← Voltar
           </button>
           <dialog class="draw-dialog" ref={exitDialog} onCancel={() => setConfirmExit(false)}>
-            <h2>Guardar na imaginação?</h2>
-            <p>Ao sair, este desenho será apagado.</p>
+            <h2>{drawing ? "Guardar na imaginação?" : "Sair da corrida?"}</h2>
+            <p>
+              {drawing
+                ? "Ao sair, este desenho será apagado."
+                : "Ao sair, esta corrida termina e os pontos não são guardados."}
+            </p>
             <button type="button" onClick={() => setConfirmExit(false)}>
-              Continuar desenhando
+              {drawing ? "Continuar desenhando" : "Continuar correndo"}
             </button>
             <button
               type="button"
               onClick={() => {
                 setConfirmExit(false);
-                setDrawing(false);
+                setGame(null);
                 setChoosingPlayers(false);
               }}
             >
-              Sair e apagar
+              {drawing ? "Sair e apagar" : "Sair da corrida"}
             </button>
           </dialog>
         </section>
@@ -180,7 +191,8 @@ export function LocalPlayPage() {
               setChoosingPlayers(true);
             }}
             onBack={() => setChoosingPlayers(false)}
-            onPlay={(players) => void openDrawing(players)}
+            onPlay={(players) => void openGame("desenhar", players)}
+            onRace={() => void openGame("corrida", 1)}
           />
           <div class="menu-footer">
             <span class="tracking-note" role="status">
@@ -199,7 +211,7 @@ export function LocalPlayPage() {
       ) : (
         <section class="welcome" aria-labelledby="welcome-title">
           <div class="welcome-copy">
-            <span class="little-label">OI, PEQUENO ARTISTA!</span>
+            <span class="little-label">OI, TURMINHA!</span>
             <h1 id="welcome-title">
               Preparar…
               <br />
@@ -244,7 +256,7 @@ export function LocalPlayPage() {
           <span>
             <b aria-hidden="true">☀</b> Para crianças de 4 a 7 anos
           </span>
-          <span>Solte a imaginação. Hoje é dia de desenhar!</span>
+          <span>Solte a imaginação. Hoje é dia de brincar!</span>
         </footer>
       )}
       {grownups ? (
@@ -287,7 +299,8 @@ export function LocalPlayPage() {
           <ol>
             <li>
               <strong>Prepare um espacinho.</strong> Apoie o celular em um lugar firme, de frente
-              para a criança. Deixe ombros e mãos visíveis; os pés podem ficar fora da imagem.
+              para a criança. No Desenhar, deixe ombros e mãos visíveis. Na Corrida dos Blocos,
+              tente mostrar também as pernas e os pés.
             </li>
             <li>
               <strong>Leve para a TV.</strong> Espelhe a tela usando os controles do celular ou um
@@ -302,6 +315,12 @@ export function LocalPlayPage() {
               ombro para pintar e abaixe para parar. Em dupla, cada pessoa fica de um lado. As cores
               podem ser escolhidas mantendo o pincel sobre elas até o círculo completar. Menus,
               voltar e confirmações também funcionam com a mão.
+            </li>
+            <li>
+              <strong>Corra entre os blocos.</strong> Corrida dos Blocos é para uma pessoa. Vá para
+              o meio e fique agachado durante a contagem. Pule barreiras, copie os braços do muro e
+              agache sob as traves. Cada fase renova os três corações. Mova a mão até Pausa, Como
+              jogar ou Voltar quando precisar.
             </li>
           </ol>
           <p>

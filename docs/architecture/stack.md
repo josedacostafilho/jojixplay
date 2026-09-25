@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -41,6 +41,8 @@ These commands are executable and are the only canonical paths for their concern
 | Install dependencies | `npm ci` |
 | Start local development | `npm run dev` |
 | Independent Desenhar development | `npm run dev:draw` |
+| Independent Corrida development | `npm run dev:race` |
+| Corrida unit tests | `npm test --workspace @jojixplay/corrida` |
 | Desenhar unit tests | `npm test --workspace @jojixplay/desenhar` |
 | Workspace import boundaries | `npm run verify:boundaries` |
 | Format | `npm run format` |
@@ -61,7 +63,7 @@ These commands are executable and are the only canonical paths for their concern
 
 ## Rendering and game development
 
-Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run build` also builds this standalone game page. `npm test` runs both platform and isolated game suites. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles; no hand assets or asset lab remain.
+Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run build` also builds this standalone game page. `npm run dev:race` runs Corrida independently with synthetic crouch, jump, pose and tracking-loss controls. `npm test` runs platform and both isolated game suites; `npm run build` builds all three artifacts. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles; no hand assets or asset lab remain.
 
 The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. It is not suppressed; target-phone startup and memory remain acceptance risks.
 

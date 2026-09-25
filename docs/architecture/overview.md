@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
 
 # Architecture
@@ -11,11 +11,12 @@ The static application runs entirely on a landscape phone. External screen mirro
 
 | Workspace | Owns | Public dependencies |
 | --- | --- | --- |
-| `apps/jojixplay` | Preact UI, permission, camera, worker, observation adapter, immersive lifecycle | SDK, movement view, Preact, MediaPipe |
+| `apps/jojixplay` | Preact UI, permission, camera, worker, observation adapter, immersive lifecycle | SDK, Desenhar, Corrida, Preact, MediaPipe |
 | `packages/game-sdk` | Readonly named-joint input, freshness, lifecycle and shared DOM dwell | None |
+| `games/corrida` | Run rules, gesture recognition, first-person Three.js world, Preact game UI, tests and standalone synthetic development | SDK, Three.js, Preact |
 | `games/desenhar` | Game rules, two independent brushes, Three.js paint, controls, tests and standalone synthetic development | SDK, Three.js |
 
-Desenhar is the first new game, in `games/desenhar`. The application lazy-loads its public mount function with the applied player count and passes SDK frames. Its standalone development page has no camera or application dependency. Future games follow the same isolated workspace pattern; the owner chooses their rules. Workspace imports must use declared public package exports; relative escapes, deep cross-package imports, imports of application internals and game-to-game imports fail `verify:boundaries`. Root TypeScript and validation coordinate shared checks. The development lab builds without the application or camera.
+Desenhar is the first new game, in `games/desenhar`. The application lazy-loads each game's public mount function; for Desenhar it mounts with the applied player count and passes SDK frames. Its standalone development page has no camera or application dependency. Corrida uses the same mount/update/dispose contract with confirmed one-person input; its rules and camera movement remain game-owned. Future games follow the same isolated workspace pattern; the owner chooses their rules. Workspace imports must use declared public package exports; relative escapes, deep cross-package imports, imports of application internals and game-to-game imports fail `verify:boundaries`. Root TypeScript and validation coordinate shared checks. The development lab builds without the application or camera.
 
 The SDK contains the shared DOM hand-dwell mechanism used by host navigation and game tools. It contains no menu state, scoring, player identity, tracking vendor types, renderer or game framework. See [ADR-0024](../decisions/0024-movement-navigation.md). The base `mount(container)` contract returns `update(frame | null)` and `dispose()`. Null clears unavailable input. Desenhar takes one additional explicit mount argument: the applied one-/two-person count, which remains fixed for that run. Each experience owns and disposes its scene resources. New game requirements may add narrowly justified host interactions later; there is no unused audio or scoring service today.
 
@@ -31,4 +32,4 @@ Portrait, stop, errors and unmount release camera/worker and immersive resources
 
 Three.js WebGL2 is the only scene renderer. Menus use DOM circles and load no 3D renderer. Blender-to-GLB is the chosen future authored-model workflow, not an implemented art pipeline or a claim that current forms were authored in Blender. Keep editable `.blend` sources alongside their game, export glTF binary with applied scale, and validate size, materials and draw calls on phones when the first authored asset exists.
 
-Root `dist/` is the deployable app. `games/desenhar/dist/` is a separate development artifact and is not deployed. GitHub Actions validates before publishing `main`. See [ADR-0022](../decisions/0022-independent-3d-platform.md).
+Root `dist/` is the deployable app. `games/desenhar/dist/` and `games/corrida/dist/` are separate development artifacts and are not deployed. GitHub Actions validates before publishing `main`. See [ADR-0022](../decisions/0022-independent-3d-platform.md).
