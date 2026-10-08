@@ -17,9 +17,11 @@ for (const viewport of [
       Reflect.set(window, "testLost", false);
       Reflect.set(window, "testHandsOnly", true);
       class SyntheticWorker {
+        mode = "pose";
         onmessage: ((event: { data: unknown }) => void) | null = null;
         postMessage(request: {
           type: string;
+          mode?: string;
           frame?: ImageBitmap;
           poseLimit?: number;
           sequence?: number;
@@ -27,8 +29,10 @@ for (const viewport of [
           cameraFrame?: unknown;
         }) {
           let response: unknown;
-          if (request.type === "initialize") response = { type: "ready" };
-          else if (request.type === "set-pose-limit")
+          if (request.type === "initialize") {
+            this.mode = request.mode ?? "pose";
+            response = { type: "ready" };
+          } else if (request.type === "set-pose-limit")
             response = { type: "pose-limit-set", poseLimit: request.poseLimit };
           else if (request.type === "reset-tracking") response = { type: "tracking-reset" };
           else {
@@ -40,23 +44,46 @@ for (const viewport of [
                 sequence: request.sequence,
                 capturedAtMs: request.capturedAtMs,
                 frame: request.cameraFrame,
-                poses: Reflect.get(window, "testLost")
-                  ? []
-                  : [
-                      {
-                        landmarks: Array.from({ length: 33 }, (_, i) => ({
-                          x: i === 16 ? 1 - wrist.x : i === 11 ? 0.7 : i === 12 ? 0.8 : 0.6,
-                          y: i === 16 ? wrist.y : i === 15 ? 0.7 : 0.4,
-                          z: 0,
-                          visibility: (Reflect.get(window, "testHandsOnly")
-                            ? [15, 16]
-                            : [11, 12, 15, 16]
-                          ).includes(i)
-                            ? 1
-                            : 0,
-                        })),
-                      },
-                    ],
+                ...(this.mode === "hands"
+                  ? {
+                      hands: Reflect.get(window, "testLost")
+                        ? []
+                        : [
+                            {
+                              handedness: "right",
+                              handednessScore: 1,
+                              landmarks: Array.from({ length: 21 }, () => ({
+                                x: 1 - wrist.x,
+                                y: wrist.y,
+                                z: 0,
+                              })),
+                              worldLandmarks: Array.from({ length: 21 }, (_, i) => ({
+                                x: i * 0.001,
+                                y: -i * 0.002,
+                                z: 0,
+                              })),
+                            },
+                          ],
+                    }
+                  : {}),
+                poses:
+                  this.mode === "hands" || Reflect.get(window, "testLost")
+                    ? []
+                    : [
+                        {
+                          landmarks: Array.from({ length: 33 }, (_, i) => ({
+                            x: i === 16 ? 1 - wrist.x : i === 11 ? 0.7 : i === 12 ? 0.8 : 0.6,
+                            y: i === 16 ? wrist.y : i === 15 ? 0.7 : 0.4,
+                            z: 0,
+                            visibility: (Reflect.get(window, "testHandsOnly")
+                              ? [15, 16]
+                              : [11, 12, 15, 16]
+                            ).includes(i)
+                              ? 1
+                              : 0,
+                          })),
+                        },
+                      ],
               },
             };
           }
@@ -115,9 +142,11 @@ for (const viewport of [
               Reflect.set(
                 window,
                 "testWrist",
-                race
-                  ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
-                  : { x, y: y + (paper ? 0 : 0.035) },
+                document.querySelector(".swing-game")
+                  ? { x, y }
+                  : race
+                    ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
+                    : { x, y: y + (paper ? 0 : 0.035) },
               );
               return { x: left + x * width, y: top + y * height, game };
             }
@@ -172,15 +201,17 @@ for (const viewport of [
             : (innerHeight - height) / 2;
         const x = (b.x + b.width / 2 - left) / width;
         const y = (b.y + b.height / 2 - top) / height;
-        return race
-          ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
-          : { x, y: y + (paper ? 0 : 0.035) };
+        return document.querySelector(".swing-game")
+          ? { x, y }
+          : race
+            ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
+            : { x, y: y + (paper ? 0 : 0.035) };
       });
       expect(point.x).toBeGreaterThanOrEqual(0);
       expect(point.x).toBeLessThanOrEqual(1);
       expect(point.y).toBeGreaterThanOrEqual(0);
       expect(point.y).toBeLessThanOrEqual(1);
-      if (await page.locator(".race-game, .swing-game").count()) {
+      if (await page.locator(".race-game").count()) {
         expect(point.x).toBeGreaterThanOrEqual(0.25);
         expect(point.x).toBeLessThanOrEqual(0.75);
         expect(point.y).toBeGreaterThanOrEqual(0.15);
@@ -255,7 +286,7 @@ for (const viewport of [
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator("video")).toHaveCSS("opacity", "1");
     await select("Protótipo de teias · 1 pessoa");
-    await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mostre as mãos abertas" })).toBeVisible();
     await select("? Como jogar");
     await expect(page.getByRole("heading", { name: "Balance com as teias" })).toBeVisible();
     await select("Entendi");

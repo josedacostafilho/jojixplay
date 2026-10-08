@@ -7,6 +7,7 @@ export type PoseWorkerRequest =
       type: "initialize";
       wasmBaseUrl: string;
       modelUrl: string;
+      mode: "pose" | "hands";
       poseLimit: PoseLimit;
     }
   | {

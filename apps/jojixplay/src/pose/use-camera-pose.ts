@@ -15,6 +15,7 @@ export interface CameraPoseLifecycle {
   errorMessage: string | null;
   start: () => Promise<boolean>;
   stop: () => void;
+  setTrackingMode: (mode: "pose" | "hands") => Promise<void>;
   setPoseLimit: (poseLimit: PoseLimit) => Promise<void>;
 }
 
@@ -120,6 +121,13 @@ export function useCameraPose(): CameraPoseLifecycle {
     setPoseLimitState(nextPoseLimit);
   }, []);
 
+  const setTrackingMode = useCallback(async (mode: "pose" | "hands") => {
+    const controller = cameraController.current;
+    if (!controller) throw new Error("O reconhecimento não está ativo.");
+    setPacket(null);
+    await controller.setTrackingMode(mode);
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -140,5 +148,6 @@ export function useCameraPose(): CameraPoseLifecycle {
     start,
     stop,
     setPoseLimit,
+    setTrackingMode,
   };
 }

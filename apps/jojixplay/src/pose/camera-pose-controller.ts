@@ -65,7 +65,7 @@ function cameraErrorMessage(error: unknown): string {
 }
 
 export class CameraPoseController {
-  private readonly estimator = new PoseEstimator();
+  private estimator = new PoseEstimator();
   private stream: MediaStream | null = null;
   private frameCallbackId: number | null = null;
   private sequence = 0;
@@ -73,6 +73,7 @@ export class CameraPoseController {
   private changingPoseLimit = false;
   private poseLimit: PoseLimit;
   private active = false;
+  private mode: "pose" | "hands" = "pose";
   private activeNormalization: CameraFrameNormalization | null = null;
   private pendingNormalization: PendingFrameNormalization | null = null;
   private pendingNormalizationError: PendingFrameNormalizationError | null = null;
@@ -163,6 +164,47 @@ export class CameraPoseController {
         this.stop();
       }
       throw new Error("Não foi possível mudar o número de pessoas.");
+    } finally {
+      this.changingPoseLimit = false;
+    }
+  }
+
+  public async setTrackingMode(mode: "pose" | "hands"): Promise<void> {
+    if (!this.active || this.changingPoseLimit)
+      throw new Error("O reconhecimento não pode mudar agora.");
+    if (mode === this.mode) return;
+    this.changingPoseLimit = true;
+    try {
+      await this.processingPromise;
+      if (!this.active) throw new Error("O reconhecimento parou.");
+      this.estimator.close();
+      this.estimator = new PoseEstimator();
+      await this.estimator.initialize(
+        assetUrl("mediapipe/tasks-vision-1.0.1/wasm"),
+        assetUrl(
+          mode === "hands"
+            ? "mediapipe/hand-landmarker-float16-1/hand_landmarker.task"
+            : POSE_MODEL.assetPath,
+        ),
+        this.poseLimit,
+        mode,
+      );
+      if (!this.active) throw new Error("O reconhecimento parou.");
+      this.mode = mode;
+      if (this.activeNormalization)
+        this.commitFrameNormalization({
+          ...this.activeNormalization,
+          frame: {
+            ...this.activeNormalization.frame,
+            epoch: this.activeNormalization.frame.epoch + 1,
+          },
+        });
+    } catch {
+      if (this.active) {
+        this.options.onError("Não foi possível preparar o reconhecimento. Reinicie a brincadeira.");
+        this.stop();
+      }
+      throw new Error("Não foi possível mudar o reconhecimento.");
     } finally {
       this.changingPoseLimit = false;
     }

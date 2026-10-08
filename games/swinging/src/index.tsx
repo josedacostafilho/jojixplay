@@ -1,7 +1,6 @@
 import {
-  isFresh,
   mountMovementControls,
-  reachableHand,
+  projectHandLandmarks,
   type BodyFrame,
   type ControlPoint,
   type Experience,
@@ -11,7 +10,10 @@ import { createScene } from "./scene";
 import { SwingSession } from "./session";
 import "./style.css";
 
-export function mountSwinging(container: HTMLElement): Experience {
+export function mountSwinging(
+  container: HTMLElement,
+  onRunningChange: (running: boolean) => void,
+): Experience {
   const root = document.createElement("section");
   root.className = "swing-game";
   root.setAttribute("aria-label", "Protótipo de balanço com teias");
@@ -36,6 +38,7 @@ export function mountSwinging(container: HTMLElement): Experience {
   let disposed = false;
   let help = false;
   let error = false;
+  let running = false;
   const onContextLost = (event: Event) => {
     event.preventDefault();
     error = true;
@@ -44,19 +47,25 @@ export function mountSwinging(container: HTMLElement): Experience {
   world.querySelector("canvas")?.addEventListener("webglcontextlost", onContextLost);
   function drawUI() {
     const phase = session.physics.phase;
+    const nextRunning = !error && (phase === "roof" || phase === "air");
+    if (nextRunning !== running) {
+      running = nextRunning;
+      onRunningChange(running);
+      controls.reset();
+    }
     render(
       <div class="swing-ui">
         {phase === "ready" && !error && (
           <section class="swing-panel swing-start" aria-label="Preparar balanço">
-            <h1>Agache para começar</h1>
-            <p>Segure por 3 segundos. Depois, levante os braços para lançar teias.</p>
+            <h1>Mostre as mãos abertas</h1>
+            <p>Deixe as duas mãos confortáveis e paradas. Abra para mirar, feche para lançar.</p>
             <div
               class="swing-progress"
               role="progressbar"
-              aria-label="Tempo agachado"
+              aria-label="Preparação das mãos"
               aria-valuemin={0}
-              aria-valuemax={3}
-              aria-valuenow={Math.round(session.entryProgress * 3 * 10) / 10}
+              aria-valuemax={1.5}
+              aria-valuenow={Math.round(session.entryProgress * 1.5 * 10) / 10}
             >
               <i style={{ width: `${session.entryProgress * 100}%` }} />
             </div>
@@ -64,8 +73,17 @@ export function mountSwinging(container: HTMLElement): Experience {
         )}
         {phase === "air" && !error && (
           <p class="swing-hud" role="status">
-            {session.physics.webs.left ? "Teia esquerda presa" : "Esquerda livre"} ·{" "}
-            {session.physics.webs.right ? "Teia direita presa" : "Direita livre"}
+            {session.physics.webs.left
+              ? "Teia esquerda presa"
+              : session.gestures.hands.left.closed
+                ? "Esquerda: abra a mão"
+                : "Esquerda livre"}{" "}
+            ·{" "}
+            {session.physics.webs.right
+              ? "Teia direita presa"
+              : session.gestures.hands.right.closed
+                ? "Direita: abra a mão"
+                : "Direita livre"}
           </p>
         )}
         {phase === "lost" && !error && (
@@ -84,9 +102,9 @@ export function mountSwinging(container: HTMLElement): Experience {
             </button>
           </section>
         )}
-        {!session.gestures.tracking && phase !== "lost" && !error && (
+        {!session.tracking.detected && phase !== "lost" && !error && (
           <p class="swing-tracking" role="status">
-            Não vejo você. Volte para a câmera!
+            Mostre as mãos para a câmera!
           </p>
         )}
         {error ? (
@@ -95,6 +113,7 @@ export function mountSwinging(container: HTMLElement): Experience {
             <p>Não foi possível desenhar o jogo. Volte ao menu e tente novamente.</p>
           </section>
         ) : (
+          !running &&
           !help && (
             <button
               class="swing-help-button"
@@ -113,12 +132,12 @@ export function mountSwinging(container: HTMLElement): Experience {
           <section class="swing-help" aria-label="Como jogar">
             <h2>Balance com as teias</h2>
             <p>
-              Levante um braço para lançar e segurar a teia. Abaixe para soltar. Use os dois lados
-              para virar.
+              A mira acompanha a ponta do indicador. Feche o punho para lançar uma teia e mantenha
+              fechado para segurar. Abra para soltar.
             </p>
             <p>
-              Faça um pequeno agachamento e suba para dar um impulso. Não deixe a cidade chegar ao
-              chão!
+              A mira com contorno cheio aponta para um prédio. Se errar, abra a mão e tente de novo.
+              Cada mão controla uma teia.
             </p>
             <button
               type="button"
@@ -139,18 +158,21 @@ export function mountSwinging(container: HTMLElement): Experience {
   function tick(now: number) {
     if (disposed) return;
     if (!error) {
-      session.tick(now, frame);
-      scene.render(session.physics, now);
+      session.tick(now, (side) => scene.ray(session.gestures.hands[side].aim), !help);
+      if ((session.physics.phase === "roof" || session.physics.phase === "air") !== running)
+        drawUI();
+      scene.render(session.physics, now, session.gestures.hands, session.tracking.hands);
     }
     const points: ControlPoint[] = [];
-    if (frame && isFresh(frame, now) && frame.bodies.length === 1) {
+    if (!running && frame && session.hasRecentResult(now) && frame.hands) {
       const bounds = root.getBoundingClientRect();
-      for (const side of ["left", "right"] as const) {
-        const wrist = frame.bodies[0]?.[`${side}Wrist`];
-        if (!wrist) continue;
-        const point = reachableHand(wrist.x, wrist.y);
+      for (const hand of frame.hands) {
+        if (frame.hands.filter((other) => other.handedness === hand.handedness).length !== 1)
+          continue;
+        const point = projectHandLandmarks(hand.landmarks)[8];
+        if (!point) continue;
         points.push({
-          key: side,
+          key: hand.handedness,
           x: bounds.left + point.x * bounds.width,
           y: bounds.top + point.y * bounds.height,
         });
@@ -169,6 +191,7 @@ export function mountSwinging(container: HTMLElement): Experience {
     update(next) {
       if (!next || next.epoch !== frame?.epoch) controls.reset();
       frame = next;
+      session.update(next, performance.now());
     },
     dispose() {
       disposed = true;

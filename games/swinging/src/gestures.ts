@@ -1,184 +1,96 @@
-import type { Body, Joint } from "@jojixplay/game-sdk";
+import type { HandPoint, TrackedHand } from "@jojixplay/game-sdk";
 import type { Side } from "./physics";
+import { projectHand } from "./hand-view";
 
-const ARM_EVIDENCE_MS = 70;
-const ARM_LOSS_MS = 180;
-const NEUTRAL_MS = 250;
-const DIP_MS = 90;
-const RISE_MS = 60;
+import { sides, type TrackedHands } from "./tracking";
+const STABLE_MS = 70;
+const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
 
-class ArmGesture {
-  raised = false;
-  private candidate: boolean | null = null;
+/** Turning angle at the middle finger joint, independent of camera orientation. */
+export function fingerCurl(points: readonly HandPoint[], base: number): number | null {
+  const a = points[base],
+    b = points[base + 1],
+    c = points[base + 2];
+  if (!a || !b || !c) return null;
+  const u = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
+  const v = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
+  const length = Math.hypot(u.x, u.y, u.z) * Math.hypot(v.x, v.y, v.z);
+  return length < 1e-8
+    ? null
+    : Math.acos(clamp((u.x * v.x + u.y * v.y + u.z * v.z) / length, -1, 1));
+}
+
+export function handShape(hand: TrackedHand): "open" | "closed" | null {
+  const curls = [5, 9, 13, 17].map((base) => fingerCurl(hand.worldLandmarks, base));
+  if (curls.some((curl) => curl === null)) return null;
+  // ponytail: prototype curl thresholds; tune with sideways/occluded hands on the target phone.
+  if (curls.filter((curl) => curl !== null && curl > 1.05).length >= 3) return "closed";
+  if (curls.filter((curl) => curl !== null && curl < 0.45).length >= 3) return "open";
+  return null;
+}
+
+export class HandControl {
+  closed = false;
+  armed = false;
+  fired = false;
+  open = false;
+  aim: { x: number; y: number };
+  private lastWrist: HandPoint | null = null;
+  private candidate: "open" | "closed" | null = null;
   private candidateSince = 0;
-  private lastEvidence = -Infinity;
 
-  reset() {
-    this.raised = false;
-    this.candidate = null;
-    this.lastEvidence = -Infinity;
+  constructor(readonly side: Side) {
+    this.aim = { x: side === "left" ? 0.27 : 0.73, y: 0.4 };
   }
 
-  sample(
-    shoulder: Joint | undefined,
-    elbow: Joint | undefined,
-    wrist: Joint | undefined,
-    scale: number,
-    now: number,
-  ) {
-    let evidence: boolean | null = null;
-    if (shoulder) {
-      const height = wrist
-        ? (wrist.y - shoulder.y) / scale
-        : elbow
-          ? (elbow.y - shoulder.y) / scale
-          : null;
-      if (height !== null) {
-        if (height < (wrist ? -0.2 : -0.08)) evidence = true;
-        if (height > (wrist ? 0.3 : 0.22)) evidence = false;
+  reset() {
+    this.closed = this.armed = this.fired = this.open = false;
+    this.lastWrist = null;
+    this.candidate = null;
+  }
+
+  sample(hand: TrackedHand, capturedAt: number) {
+    const wrist = hand.landmarks[0];
+    if (!wrist) return;
+    if (this.lastWrist && Math.hypot(wrist.x - this.lastWrist.x, wrist.y - this.lastWrist.y) > 0.3)
+      this.reset();
+    this.lastWrist = wrist;
+    this.fired = false;
+    const shape = handShape(hand);
+    if (shape !== this.candidate) {
+      this.candidate = shape;
+      this.candidateSince = capturedAt;
+    }
+    this.open = shape === "open";
+    if (shape && capturedAt - this.candidateSince >= STABLE_MS) {
+      if (shape === "open") {
+        this.closed = false;
+        this.armed = true;
+      } else if (!this.closed && this.armed) {
+        this.closed = true;
+        this.fired = true;
+        this.armed = false;
       }
     }
-    if (evidence !== null) {
-      this.lastEvidence = now;
-      if (evidence === this.raised) this.candidate = null;
-      else if (this.candidate !== evidence) {
-        this.candidate = evidence;
-        this.candidateSince = now;
-      } else if (now - this.candidateSince >= ARM_EVIDENCE_MS) {
-        this.raised = evidence;
-        this.candidate = null;
-      }
-    } else if (now - this.lastEvidence > ARM_LOSS_MS) {
-      this.raised = false;
-      this.candidate = null;
+    // Freeze aim as soon as closure begins; fingertips curling must not shift the shot.
+    if (this.open && !this.closed) {
+      const index = projectHand(hand)[8];
+      if (index) this.aim = { x: index.x, y: index.y };
     }
-    return this.raised;
   }
 }
 
 export class SwingGestures {
-  readonly arms: Record<Side, boolean> = { left: false, right: false };
-  tracking = false;
-  jumped = false;
-  private readonly arm = { left: new ArmGesture(), right: new ArmGesture() };
-  private baseline: { shoulder: number; hip: number; scale: number } | null = null;
-  private torsoMask = 0;
-  private neutralSince: number | null = null;
-  private dipSince: number | null = null;
-  private dipped = false;
-  private riseSince: number | null = null;
-  private armed = false;
-
+  readonly hands = { left: new HandControl("left"), right: new HandControl("right") };
   reset() {
-    this.arm.left.reset();
-    this.arm.right.reset();
-    this.arms.left = this.arms.right = false;
-    this.tracking = this.jumped = false;
-    this.resetJump();
+    for (const side of sides) this.hands[side].reset();
   }
 
-  private resetJump() {
-    this.baseline = null;
-    this.torsoMask = 0;
-    this.neutralSince = this.dipSince = this.riseSince = null;
-    this.dipped = false;
-    this.armed = false;
-  }
-
-  sample(body: Body | null, now: number, jumpEnabled: boolean) {
-    this.jumped = false;
-    this.tracking =
-      !!body && !!(body.leftShoulder || body.rightShoulder || body.leftHip || body.rightHip);
-    for (const side of ["left", "right"] as const) {
-      const shoulder = body?.[`${side}Shoulder`];
-      const hip = body?.[`${side}Hip`];
-      const otherShoulder = body?.[`${side === "left" ? "right" : "left"}Shoulder`];
-      const scale =
-        hip && shoulder
-          ? Math.max(0.08, hip.y - shoulder.y)
-          : shoulder && otherShoulder
-            ? Math.max(0.08, Math.abs(shoulder.x - otherShoulder.x))
-            : 0.2;
-      this.arms[side] = this.arm[side].sample(
-        shoulder,
-        body?.[`${side}Elbow`],
-        body?.[`${side}Wrist`],
-        scale,
-        now,
-      );
-    }
-    if (!jumpEnabled) {
-      this.resetJump();
-      return;
-    }
-    const pairs = (["left", "right"] as const).flatMap((side) => {
-      const shoulder = body?.[`${side}Shoulder`],
-        hip = body?.[`${side}Hip`];
-      return shoulder && hip ? [{ shoulder, hip }] : [];
-    });
-    if (!pairs.length) {
-      this.resetJump();
-      return;
-    }
-    const mask =
-      Number(!!body?.leftShoulder) +
-      Number(!!body?.rightShoulder) * 2 +
-      Number(!!body?.leftHip) * 4 +
-      Number(!!body?.rightHip) * 8;
-    if (mask !== this.torsoMask) {
-      this.resetJump();
-      this.torsoMask = mask;
-    }
-    const shoulder = pairs.reduce((sum, pair) => sum + pair.shoulder.y, 0) / pairs.length;
-    const hip = pairs.reduce((sum, pair) => sum + pair.hip.y, 0) / pairs.length;
-    const scale = hip - shoulder;
-    if (scale < 0.08) {
-      this.resetJump();
-      return;
-    }
-    this.baseline ??= { shoulder, hip, scale };
-    const base = this.baseline;
-    const shoulderDrop = (shoulder - base.shoulder) / base.scale;
-    const hipDrop = (hip - base.hip) / base.scale;
-    const neutral = Math.abs(shoulderDrop) < 0.08 && Math.abs(hipDrop) < 0.08;
-    if (shoulderDrop < -0.18 && hipDrop < -0.18 && !this.dipped) {
-      this.baseline = { shoulder, hip, scale };
-      this.armed = false;
-      this.neutralSince = now;
-      this.dipSince = null;
-      return;
-    }
-    if (!this.armed) {
-      if (neutral) this.neutralSince ??= now;
-      else this.neutralSince = null;
-      if (this.neutralSince !== null && now - this.neutralSince >= NEUTRAL_MS) this.armed = true;
-      return;
-    }
-    if (shoulderDrop > 0.16 && hipDrop > 0.16) {
-      this.dipSince ??= now;
-      if (now - this.dipSince >= DIP_MS) this.dipped = true;
-      this.riseSince = null;
-    } else if (!this.dipped) {
-      this.dipSince = null;
-    } else if (neutral) {
-      this.riseSince ??= now;
-      if (now - this.riseSince >= RISE_MS) {
-        this.jumped = true;
-        this.armed = false;
-        this.neutralSince = now;
-        this.dipSince = this.riseSince = null;
-        this.dipped = false;
-      }
-    } else if (this.dipSince !== null && now - this.dipSince > 900) {
-      this.dipSince = this.riseSince = null;
-      this.dipped = false;
-    }
-    if (neutral && this.dipSince === null) {
-      this.baseline = {
-        shoulder: base.shoulder * 0.99 + shoulder * 0.01,
-        hip: base.hip * 0.99 + hip * 0.01,
-        scale: base.scale * 0.99 + scale * 0.01,
-      };
+  sample(observations: TrackedHands, capturedAt: number) {
+    for (const side of sides) {
+      const hand = observations[side];
+      if (hand) this.hands[side].sample(hand, capturedAt);
+      else this.hands[side].reset();
     }
   }
 }

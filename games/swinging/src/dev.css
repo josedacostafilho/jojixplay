@@ -57,3 +57,11 @@ body {
   flex: 1 1 260px;
   font-size: 14px;
 }
+
+.studio label {
+  font-size: 13px;
+}
+.studio input {
+  width: 80px;
+  vertical-align: middle;
+}

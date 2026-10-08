@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-25
+last_verified: 2026-09-27
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -18,7 +18,7 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | UI framework | Preact | 10.29.8 | `npm ls preact` |
 | Package manager | npm | 11.17.0 lockfile format | `npm run verify:toolchain` |
 | Build tool | Vite with Preact preset | 8.2.1 / 2.10.6 | `npm run build` |
-| Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Full GPU model and generated runtime assets |
+| Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Full Pose and Hand Landmarker models; one GPU task at a time |
 | 3D renderer | Three.js WebGL2 | 0.186.1 | `npm ls three` |
 | Workspace organization | npm workspaces | npm 11.17.0 | `npm run verify:boundaries` |
 | Formatter | Biome | 2.5.8 | `npm run format` |
@@ -65,7 +65,7 @@ These commands are executable and are the only canonical paths for their concern
 
 ## Rendering and game development
 
-Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run dev:race` runs Corrida independently with synthetic crouch, jump, pose and tracking-loss controls. `npm run dev:swinging` runs the independent plain-block swing studio with keyboard/touch arm switches and a jump button; the host mounts the same game with live camera gestures from its provisional menu entry. `npm test` runs platform and all three isolated game suites; `npm run build` builds the app and three standalone game pages. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles; no hand assets or asset lab remain.
+Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run dev:race` runs Corrida independently with synthetic crouch, jump, pose and tracking-loss controls. `npm run dev:swinging` runs the independent plain-block swing studio with keyboard/touch fist buttons and independent crosshair range controls; the host mounts the same game with live camera gestures from its provisional menu entry. `npm test` runs platform and all three isolated game suites; `npm run build` builds the app and three standalone game pages. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles. Swinging renders procedural tracked fingers and virtual arms; no authored hand assets or asset lab exist.
 
 The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. It is not suppressed; target-phone startup and memory remain acceptance risks.
 

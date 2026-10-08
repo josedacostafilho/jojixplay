@@ -75,32 +75,45 @@ function segmentBox(
   return entry >= 0 && entry <= 1 && exit >= 0 ? { time: entry, normal } : null;
 }
 
+/** First visible building along the exact crosshair ray, at most 150 game meters away. */
+export function rayTarget(origin: Vec3, direction: Vec3): Vec3 | null {
+  const length = Math.hypot(direction.x, direction.y, direction.z);
+  if (!Number.isFinite(length) || length < 1e-6) return null;
+  const to = {
+    x: origin.x + (direction.x / length) * 150,
+    y: origin.y + (direction.y / length) * 150,
+    z: origin.z + (direction.z / length) * 150,
+  };
+  let time = Infinity;
+  for (const building of buildings) {
+    const hit = segmentBox(origin, to, building, 0);
+    if (hit) time = Math.min(time, hit.time);
+  }
+  return time === Infinity
+    ? null
+    : {
+        x: origin.x + (to.x - origin.x) * time,
+        y: origin.y + (to.y - origin.y) * time,
+        z: origin.z + (to.z - origin.z) * time,
+      };
+}
+
 export class SwingPhysics {
   phase: "ready" | "roof" | "air" | "lost" = "ready";
   position: Vec3 = { x: 0, y: startBuilding.height + RADIUS, z: startBuilding.z };
   velocity: Vec3 = { x: 0, y: 0, z: -24 };
-  readonly raised: Record<Side, boolean> = { left: false, right: false };
   readonly webs: Record<Side, Web | null> = { left: null, right: null };
   private roof: Building | null = startBuilding;
   private previousRoof: Building | null = null;
-  private wallNormal: Vec3 | null = null;
-  private wallContactAge = Infinity;
-  private wallJumpUsed = false;
-  private jumpQueued: Vec3[] | null = null;
   private accumulator = 0;
 
   reset() {
     this.phase = "ready";
     this.position = { x: 0, y: startBuilding.height + RADIUS, z: startBuilding.z };
     this.velocity = { x: 0, y: 0, z: -24 };
-    this.raised.left = this.raised.right = false;
     this.webs.left = this.webs.right = null;
     this.roof = startBuilding;
     this.previousRoof = null;
-    this.wallNormal = null;
-    this.wallContactAge = Infinity;
-    this.wallJumpUsed = false;
-    this.jumpQueued = null;
     this.accumulator = 0;
   }
 
@@ -109,25 +122,14 @@ export class SwingPhysics {
     this.phase = "roof";
   }
 
-  setArm(side: Side, raised: boolean) {
-    this.raised[side] = raised;
-    if (!raised) this.webs[side] = null;
+  release(side: Side) {
+    this.webs[side] = null;
   }
 
-  jump() {
-    if ((this.phase !== "roof" && this.phase !== "air") || this.jumpQueued) return;
-    this.jumpQueued = [];
-    for (const side of ["left", "right"] as const) {
-      const web = this.webs[side];
-      if (!web) continue;
-      const length = distance(this.position, web.point);
-      if (length < web.length - 0.5) continue;
-      this.jumpQueued.push({
-        x: ((web.point.x - this.position.x) / length) * 8,
-        y: ((web.point.y - this.position.y) / length) * 8,
-        z: ((web.point.z - this.position.z) / length) * 8,
-      });
-    }
+  shoot(side: Side, origin: Vec3, direction: Vec3) {
+    if ((this.phase !== "air" && this.phase !== "roof") || this.webs[side]) return;
+    const point = rayTarget(origin, direction);
+    if (point) this.webs[side] = { point, length: distance(this.position, point) * 0.75 };
   }
 
   advance(seconds: number) {
@@ -142,85 +144,8 @@ export class SwingPhysics {
     if (count === 12) this.accumulator = 0;
   }
 
-  private aim(side: Side): Vec3 | null {
-    const speed = Math.hypot(this.velocity.x, this.velocity.z);
-    const forwardX = speed > 0.1 ? this.velocity.x / speed : 0,
-      forwardZ = speed > 0.1 ? this.velocity.z / speed : -1,
-      sign = side === "right" ? 1 : -1;
-    let best: Vec3 | null = null,
-      bestScore = Infinity;
-    for (const building of buildings) {
-      for (const x of [building.x - building.width / 2, building.x + building.width / 2]) {
-        for (const z of [building.z - building.depth / 2, building.z + building.depth / 2]) {
-          const point = { x, y: building.height - 1, z },
-            dx = x - this.position.x,
-            dz = z - this.position.z,
-            ahead = dx * forwardX + dz * forwardZ,
-            lateral = sign * (dx * -forwardZ + dz * forwardX);
-          if (ahead < 25 || ahead > 120 || lateral < 9 || lateral > 85) continue;
-          if (point.y < this.position.y + 3 || distance(point, this.position) > 150) continue;
-          const score =
-            Math.abs(ahead - 70) * 0.28 +
-            Math.abs(lateral - 36) * 0.4 -
-            (point.y - this.position.y) * 0.08;
-          if (score >= bestScore) continue;
-          if (
-            buildings.some((other) => {
-              const hit = segmentBox(this.position, point, other, 0);
-              return hit !== null && hit.time < 0.98;
-            })
-          )
-            continue;
-          best = point;
-          bestScore = score;
-        }
-      }
-    }
-    return best;
-  }
-
   private step() {
     if (this.phase === "ready" || this.phase === "lost") return;
-    if (this.jumpQueued) {
-      const webPulls = this.jumpQueued;
-      this.jumpQueued = null;
-      const impulses: Vec3[] = [];
-      if (this.phase === "roof") impulses.push({ x: 0, y: 9, z: 0 });
-      if (
-        this.phase === "air" &&
-        this.wallNormal &&
-        this.wallContactAge < 0.12 &&
-        !this.wallJumpUsed
-      ) {
-        impulses.push({
-          x: this.wallNormal.x * 9,
-          y: this.wallNormal.y * 9,
-          z: this.wallNormal.z * 9,
-        });
-        this.wallJumpUsed = true;
-      }
-      for (const pull of webPulls) {
-        impulses.push({
-          x: pull.x / webPulls.length,
-          y: pull.y / webPulls.length,
-          z: pull.z / webPulls.length,
-        });
-      }
-      const impulse = impulses.reduce(
-        (sum, part) => ({ x: sum.x + part.x, y: sum.y + part.y, z: sum.z + part.z }),
-        { x: 0, y: 0, z: 0 },
-      );
-      const magnitude = Math.hypot(impulse.x, impulse.y, impulse.z);
-      const scale = magnitude > 13 ? 13 / magnitude : 1;
-      this.velocity.x += impulse.x * scale;
-      this.velocity.y += impulse.y * scale;
-      this.velocity.z += impulse.z * scale;
-      if (this.phase === "roof") {
-        this.previousRoof = this.roof;
-        this.roof = null;
-        this.phase = "air";
-      }
-    }
     if (this.phase === "roof") {
       const speed = Math.hypot(this.velocity.x, this.velocity.z) || 1;
       this.velocity.x = (this.velocity.x / speed) * 24;
@@ -236,14 +161,6 @@ export class SwingPhysics {
     }
     if (this.previousRoof && !insideFootprint(this.position, this.previousRoof, RADIUS + 1))
       this.previousRoof = null;
-    for (const side of ["left", "right"] as const) {
-      if (!this.raised[side] || this.webs[side]) continue;
-      const point = this.aim(side);
-      if (point) {
-        const length = distance(this.position, point) * 0.75;
-        this.webs[side] = { point, length };
-      }
-    }
     this.velocity.y -= 12 * STEP;
     const pull = { x: 0, y: 0, z: 0 };
     for (const side of ["left", "right"] as const) {
@@ -282,8 +199,6 @@ export class SwingPhysics {
       y: from.y + this.velocity.y * STEP,
       z: from.z + this.velocity.z * STEP,
     };
-    this.wallContactAge += STEP;
-    if (this.wallContactAge > 0.12) this.wallJumpUsed = false;
     let first: { time: number; normal: Vec3; building: Building } | null = null;
     for (const building of buildings) {
       if (building === this.previousRoof) continue;
@@ -302,15 +217,8 @@ export class SwingPhysics {
         this.velocity.y = 0;
         this.webs.left = this.webs.right = null;
         this.roof = first.building;
-        this.wallNormal = null;
-        this.wallContactAge = Infinity;
-        this.wallJumpUsed = false;
         this.phase = "roof";
       } else {
-        if (first.normal.y === 0) {
-          this.wallNormal = first.normal;
-          this.wallContactAge = 0;
-        }
         const remaining = {
           x: next.x - this.position.x,
           y: next.y - this.position.y,

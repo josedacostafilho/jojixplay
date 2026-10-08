@@ -14,6 +14,11 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
+          src: "assets/models/hand_landmarker.task",
+          dest: "mediapipe/hand-landmarker-float16-1",
+          rename: { stripBase: true },
+        },
+        {
           src: "node_modules/@mediapipe/tasks-vision/wasm/*",
           dest: "mediapipe/tasks-vision-1.0.1/wasm",
           rename: { stripBase: true },

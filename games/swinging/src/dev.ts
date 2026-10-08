@@ -1,15 +1,17 @@
 import { SwingPhysics, type Side } from "./physics";
 import { createScene } from "./scene";
 import "./dev.css";
+import "./style.css";
+import { HandControl } from "./gestures";
+import { studioHand } from "./studio-hand";
+import type { TrackedHand } from "@jojixplay/game-sdk";
 
 const stage = document.querySelector<HTMLElement>("#game"),
   start = document.querySelector<HTMLButtonElement>("#start"),
   left = document.querySelector<HTMLButtonElement>("#left"),
   right = document.querySelector<HTMLButtonElement>("#right"),
-  jump = document.querySelector<HTMLButtonElement>("#jump"),
   status = document.querySelector<HTMLOutputElement>("#status");
-if (!stage || !start || !left || !right || !jump || !status)
-  throw new Error("Missing studio controls");
+if (!stage || !start || !left || !right || !status) throw new Error("Missing studio controls");
 
 const output: HTMLOutputElement = status;
 const physics = new SwingPhysics();
@@ -25,53 +27,71 @@ const held = {
   right: { pointer: false, key: false, focusKey: false },
 };
 const buttons = { left, right };
-function updateArm(side: Side) {
-  const raised = held[side].pointer || held[side].key || held[side].focusKey;
-  physics.setArm(side, raised);
-  buttons[side].setAttribute("aria-pressed", String(raised));
+const controls = { left: new HandControl("left"), right: new HandControl("right") };
+const hands: Record<Side, TrackedHand | null> = { left: null, right: null };
+for (const side of ["left", "right"] as const) {
+  for (const axis of ["x", "y"] as const) {
+    const input = document.querySelector<HTMLInputElement>(`#${side}-${axis}`);
+    input?.addEventListener("input", () => {
+      if (!controls[side].closed) controls[side].aim[axis] = Number(input.value);
+    });
+  }
 }
-function bindArm(side: Side) {
+
+function updateFist(side: Side) {
+  const closed = held[side].pointer || held[side].key || held[side].focusKey;
+  const control = controls[side];
+  if (closed && !control.closed) {
+    const ray = scene.ray(control.aim);
+    physics.shoot(side, ray.origin, ray.direction);
+  }
+  if (!closed) physics.release(side);
+  control.closed = closed;
+  const reference = studioHand(0, 0, false).landmarks[8];
+  hands[side] = studioHand(
+    1 - control.aim.x - (reference?.x ?? 0),
+    control.aim.y - (reference?.y ?? 0),
+    closed,
+  );
+  buttons[side].setAttribute("aria-pressed", String(closed));
+}
+function bindFist(side: Side) {
   const button = buttons[side];
   button.addEventListener("pointerdown", (event) => {
     button.setPointerCapture(event.pointerId);
     held[side].pointer = true;
-    updateArm(side);
+    updateFist(side);
   });
   for (const eventName of ["pointerup", "pointercancel", "lostpointercapture"])
     button.addEventListener(eventName, () => {
       held[side].pointer = false;
-      updateArm(side);
+      updateFist(side);
     });
   button.addEventListener("keydown", (event) => {
     if (event.code !== "Space" && event.code !== "Enter") return;
     held[side].focusKey = true;
-    updateArm(side);
+    updateFist(side);
     event.preventDefault();
   });
   button.addEventListener("keyup", (event) => {
     if (event.code !== "Space" && event.code !== "Enter") return;
     held[side].focusKey = false;
-    updateArm(side);
+    updateFist(side);
     event.preventDefault();
   });
 }
-bindArm("left");
-bindArm("right");
+bindFist("left");
+bindFist("right");
 start.addEventListener("click", () => physics.start());
-jump.addEventListener("click", () => physics.jump());
 window.addEventListener("keydown", (event) => {
   if (event.code === "Space" && !(event.target instanceof HTMLButtonElement)) {
     physics.start();
     event.preventDefault();
   }
-  if (event.code === "KeyW" && !event.repeat) {
-    physics.jump();
-    event.preventDefault();
-  }
   const side = event.code === "KeyA" ? "left" : event.code === "KeyD" ? "right" : null;
   if (side) {
     held[side].key = true;
-    updateArm(side);
+    updateFist(side);
     event.preventDefault();
   }
 });
@@ -79,7 +99,7 @@ window.addEventListener("keyup", (event) => {
   const side = event.code === "KeyA" ? "left" : event.code === "KeyD" ? "right" : null;
   if (side) {
     held[side].key = false;
-    updateArm(side);
+    updateFist(side);
   }
 });
 window.addEventListener("blur", () => {
@@ -87,18 +107,18 @@ window.addEventListener("blur", () => {
     held[side].key = false;
     held[side].pointer = false;
     held[side].focusKey = false;
-    updateArm(side);
+    updateFist(side);
   }
 });
 let request = 0,
   previous: number | null = null,
   lastStatus = -Infinity;
 function tick(now: number) {
-  updateArm("left");
-  updateArm("right");
+  updateFist("left");
+  updateFist("right");
   physics.advance(previous === null ? 0 : (now - previous) / 1000);
   previous = now;
-  scene.render(physics, now);
+  scene.render(physics, now, controls, hands);
   if (now - lastStatus > 150) {
     const phase = {
       ready: "Pronto para começar",

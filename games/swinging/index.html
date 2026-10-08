@@ -10,9 +10,12 @@
     <aside class="studio">
       <strong>Estúdio · Balanço</strong>
       <button id="start" type="button">Começar / recomeçar (Espaço)</button>
-      <button id="left" type="button" aria-pressed="false">Braço esquerdo (A)</button>
-      <button id="right" type="button" aria-pressed="false">Braço direito (D)</button>
-      <button id="jump" type="button">Pular (W)</button>
+      <button id="left" type="button" aria-pressed="false">Punho esquerdo (A)</button>
+      <button id="right" type="button" aria-pressed="false">Punho direito (D)</button>
+      <label>Mira E ↔ <input id="left-x" type="range" min="0.04" max="0.96" step="0.01" value="0.27" /></label>
+      <label>Mira E ↕ <input id="left-y" type="range" min="0.04" max="0.96" step="0.01" value="0.4" /></label>
+      <label>Mira D ↔ <input id="right-x" type="range" min="0.04" max="0.96" step="0.01" value="0.73" /></label>
+      <label>Mira D ↕ <input id="right-y" type="range" min="0.04" max="0.96" step="0.01" value="0.4" /></label>
       <output id="status"></output>
     </aside>
     <script type="module" src="/src/dev.ts"></script>

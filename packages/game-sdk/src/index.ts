@@ -38,6 +38,19 @@ export const jointNames = [
 export type JointName = (typeof jointNames)[number];
 export type Body = Readonly<Partial<Record<JointName, Joint>>>;
 
+/** Hand-local geometry in meters; image landmarks use canonical camera space and may extend beyond its edges. */
+export interface HandPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+export interface TrackedHand {
+  readonly handedness: "left" | "right";
+  readonly handednessScore: number;
+  readonly landmarks: readonly HandPoint[];
+  readonly worldLandmarks: readonly HandPoint[];
+}
+
 export interface BodyFrame {
   readonly sequence: number;
   readonly capturedAtMs: number;
@@ -46,6 +59,8 @@ export interface BodyFrame {
   readonly epoch: number;
   /** Observations, not stable player identities. */
   readonly bodies: readonly Body[];
+  /** Present only during dedicated hand inference; bodies is then empty. */
+  readonly hands?: readonly TrackedHand[];
 }
 
 /** Each mount owns its resources. dispose must release them; null input clears stale tracking. */
@@ -61,3 +76,5 @@ export function isFresh(frame: BodyFrame, now: number): boolean {
 }
 
 export { mountMovementControls, reachableHand, type ControlPoint } from "./movement-controls";
+
+export { projectHandLandmarks } from "./hand-projection";

@@ -1,4 +1,4 @@
-import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import { FilesetResolver, HandLandmarker, PoseLandmarker } from "@mediapipe/tasks-vision";
 import {
   type CameraFrame,
   type CameraRotation,
@@ -17,6 +17,7 @@ interface WorkerScope {
 const workerScope = self as unknown as WorkerScope;
 
 let landmarker: PoseLandmarker | null = null;
+let handLandmarker: HandLandmarker | null = null;
 let poseLimit: PoseLimit = 1;
 let reconfiguring = false;
 
@@ -28,8 +29,21 @@ async function initialize(
   wasmBaseUrl: string,
   modelUrl: string,
   initialPoseLimit: PoseLimit,
+  mode: "pose" | "hands",
 ): Promise<void> {
   const fileset = await FilesetResolver.forVisionTasks(wasmBaseUrl, true);
+  if (mode === "hands") {
+    handLandmarker = await HandLandmarker.createFromOptions(fileset, {
+      baseOptions: { delegate: "GPU", modelAssetPath: modelUrl },
+      runningMode: "VIDEO",
+      numHands: 2,
+      minHandDetectionConfidence: 0.5,
+      minHandPresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    respond({ type: "ready" });
+    return;
+  }
   landmarker = await PoseLandmarker.createFromOptions(fileset, {
     baseOptions: {
       delegate: "GPU",
@@ -69,6 +83,11 @@ async function setPoseLimit(nextPoseLimit: PoseLimit): Promise<void> {
 }
 
 async function resetTracking(): Promise<void> {
+  if (handLandmarker) {
+    await handLandmarker.setOptions({ numHands: 2 });
+    respond({ type: "tracking-reset" });
+    return;
+  }
   if (landmarker === null) {
     throw new Error("Pose engine is not initialized.");
   }
@@ -109,7 +128,7 @@ function estimate(
   rotation: CameraRotation,
 ): void {
   try {
-    if (landmarker === null) {
+    if (landmarker === null && handLandmarker === null) {
       throw new Error("Pose engine is not initialized.");
     }
     if (reconfiguring) {
@@ -126,6 +145,37 @@ function estimate(
     ) {
       throw new Error("Pose estimate request is invalid.");
     }
+    if (handLandmarker) {
+      const result = handLandmarker.detectForVideo(frame, capturedAtMs, {
+        rotationDegrees: rotation,
+      });
+      const hands = result.landmarks.flatMap((points, i) => {
+        const label = result.handedness[i]?.[0];
+        const world = result.worldLandmarks[i];
+        if (!label || !world || (label.categoryName !== "Left" && label.categoryName !== "Right"))
+          return [];
+        const landmarks = points.map((p) => ({ ...rotateNormalizedPoint(p, rotation), z: p.z }));
+        const radians = (rotation * Math.PI) / 180;
+        return [
+          {
+            handedness: label.categoryName === "Left" ? ("left" as const) : ("right" as const),
+            handednessScore: label.score,
+            landmarks,
+            worldLandmarks: world.map((p) => ({
+              x: p.x * Math.cos(radians) - p.y * Math.sin(radians),
+              y: p.x * Math.sin(radians) + p.y * Math.cos(radians),
+              z: p.z,
+            })),
+          },
+        ];
+      });
+      respond({
+        type: "result",
+        packet: { sequence, capturedAtMs, frame: { ...cameraFrame }, poses: [], hands },
+      });
+      return;
+    }
+    if (!landmarker) throw new Error("Pose engine is not initialized.");
     landmarker.detectForVideo(frame, capturedAtMs, { rotationDegrees: rotation }, (result) => {
       const packet: PosePacket = {
         sequence,
@@ -153,9 +203,11 @@ function estimate(
 workerScope.onmessage = (event: MessageEvent<PoseWorkerRequest>) => {
   const message = event.data;
   if (message.type === "initialize") {
-    void initialize(message.wasmBaseUrl, message.modelUrl, message.poseLimit).catch(() => {
-      respond({ type: "error", message: "The pose engine could not start." });
-    });
+    void initialize(message.wasmBaseUrl, message.modelUrl, message.poseLimit, message.mode).catch(
+      () => {
+        respond({ type: "error", message: "The pose engine could not start." });
+      },
+    );
     return;
   }
   if (message.type === "set-pose-limit") {

@@ -56,5 +56,6 @@ export function toBodyFrame(packet: PosePacket): BodyFrame {
     height: packet.frame.height,
     epoch: packet.frame.epoch,
     bodies,
+    ...(packet.hands ? { hands: packet.hands } : {}),
   };
 }

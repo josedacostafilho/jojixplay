@@ -127,3 +127,32 @@
     font-size: 18px;
   }
 }
+
+.swing-crosshair {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  transform: translate(-50%, -50%);
+  border: 3px dashed #fff;
+  border-radius: 50%;
+  color: white;
+  background: #162b3caa;
+  text-align: center;
+  font:
+    bold 20px / 32px system-ui,
+    sans-serif;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px #162b3c;
+}
+.swing-crosshair[data-state="target"] {
+  border-style: solid;
+  border-color: #8dffb0;
+}
+.swing-crosshair[data-state="held"] {
+  border-style: double;
+  border-width: 6px;
+  background: #23704c;
+}
+.swing-crosshair[data-state="miss"] {
+  border-color: #ff9b7d;
+}

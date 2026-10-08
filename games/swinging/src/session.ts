@@ -1,107 +1,108 @@
-import { isFresh, type Body, type BodyFrame, type Joint } from "@jojixplay/game-sdk";
+import type { BodyFrame } from "@jojixplay/game-sdk";
 import { SwingGestures } from "./gestures";
-import { SwingPhysics } from "./physics";
-
-function angle(a: Joint, b: Joint, c: Joint, aspect: number) {
-  const ux = (a.x - b.x) * aspect,
-    uy = a.y - b.y,
-    vx = (c.x - b.x) * aspect,
-    vy = c.y - b.y;
-  const length = Math.hypot(ux, uy) * Math.hypot(vx, vy);
-  return length < 0.00001
-    ? 180
-    : (Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / length))) * 180) / Math.PI;
-}
+import { sides, SwingTracking } from "./tracking";
+import { SwingPhysics, type Side, type Vec3 } from "./physics";
 
 export class SwingSession {
   readonly physics = new SwingPhysics();
+  readonly tracking = new SwingTracking();
   readonly gestures = new SwingGestures();
   entryProgress = 0;
+  private frame: BodyFrame | null = null;
+  private receivedAtMs = -Infinity;
   private epoch: number | null = null;
   private sequence = -1;
+  private gestureSequence = -1;
   private previousAt: number | null = null;
-  private standingY: number | null = null;
-  private crouchSince: number | null = null;
-  private lastCrouchAt = -Infinity;
+  private readySince: number | null = null;
+  private readyWrists: Partial<Record<Side, { x: number; y: number }>> = {};
 
   replay() {
     this.physics.reset();
     this.gestures.reset();
-    this.standingY = this.crouchSince = null;
-    this.lastCrouchAt = -Infinity;
+    this.gestureSequence = -1;
+    this.readySince = null;
+    this.readyWrists = {};
     this.entryProgress = 0;
   }
 
-  private entry(body: Body, now: number, aspect: number) {
-    const shoulder =
-      body.leftShoulder && body.rightShoulder
-        ? (body.leftShoulder.y + body.rightShoulder.y) / 2
-        : (body.leftShoulder ?? body.rightShoulder)?.y;
-    const hip =
-      body.leftHip && body.rightHip
-        ? (body.leftHip.y + body.rightHip.y) / 2
-        : (body.leftHip ?? body.rightHip)?.y;
-    if (shoulder === undefined || hip === undefined) {
-      if (now - this.lastCrouchAt > 120) {
-        this.crouchSince = null;
-        this.entryProgress = 0;
-      }
+  update(frame: BodyFrame | null, receivedAtMs: number) {
+    if (!frame?.hands) {
+      this.frame = null;
+      this.receivedAtMs = -Infinity;
       return;
     }
-    const torso = Math.max(0.08, hip - shoulder);
-    let bent = false;
-    for (const side of ["left", "right"] as const) {
-      const h = body[`${side}Hip`],
-        k = body[`${side}Knee`],
-        a = body[`${side}Ankle`];
-      if (h && k && a) bent ||= angle(h, k, a, aspect) < 145;
-      else if (h && k) bent ||= k.y - h.y < torso * 0.55;
-    }
-    if (this.standingY === null && !bent) this.standingY = shoulder;
-    const crouched =
-      bent || (this.standingY !== null && shoulder - this.standingY > Math.max(0.045, torso * 0.3));
-    if (crouched) {
-      this.crouchSince ??= now;
-      this.lastCrouchAt = now;
-    } else if (now - this.lastCrouchAt > 120) {
-      this.crouchSince = null;
-      this.standingY = shoulder;
-    }
-    this.entryProgress =
-      this.crouchSince === null ? 0 : Math.min(1, (now - this.crouchSince) / 3000);
-    if (this.entryProgress === 1) {
-      this.physics.start();
-      this.crouchSince = null;
-      this.entryProgress = 0;
-    }
+    if (frame.epoch === this.frame?.epoch && frame.sequence <= this.frame.sequence) return;
+    this.frame = frame;
+    this.receivedAtMs = receivedAtMs;
   }
 
-  tick(now: number, frame: BodyFrame | null) {
-    const valid = frame && isFresh(frame, now) && frame.bodies.length === 1 ? frame : null;
-    let jumped = false;
+  hasRecentResult(now: number) {
+    // Missing hands are handled by each result; this only guards a stalled result stream.
+    return this.frame !== null && now - this.receivedAtMs <= 1000;
+  }
+
+  tick(now: number, ray: (side: Side) => { origin: Vec3; direction: Vec3 }, enabled: boolean) {
+    const valid = this.hasRecentResult(now) ? this.frame : null;
     if (valid && valid.epoch !== this.epoch) {
+      this.tracking.reset();
+      this.gestureSequence = -1;
       this.gestures.reset();
+      for (const side of sides) this.physics.release(side);
       this.epoch = valid.epoch;
       this.sequence = -1;
-      this.crouchSince = null;
-      this.entryProgress = 0;
+      this.readySince = null;
+      this.readyWrists = {};
+    }
+    if (!valid) this.tracking.reset();
+    if (!valid || !enabled) {
+      this.gestures.reset();
+      this.gestureSequence = -1;
     }
     if (valid && valid.sequence !== this.sequence) {
       this.sequence = valid.sequence;
-      const body = valid.bodies[0] ?? null;
-      this.gestures.sample(body, now, this.physics.phase !== "ready");
-      jumped = this.gestures.jumped;
-      if (body && this.physics.phase === "ready") this.entry(body, now, valid.width / valid.height);
-    } else if (!valid) {
-      this.gestures.sample(null, now, this.physics.phase !== "ready");
-      if (now - this.lastCrouchAt > 120) {
-        this.crouchSince = null;
+      this.tracking.sample(valid.hands ?? []);
+    }
+    if (valid && enabled && valid.sequence !== this.gestureSequence) {
+      this.gestureSequence = valid.sequence;
+      this.gestures.sample(this.tracking.hands, valid.capturedAtMs);
+    }
+    if (this.physics.phase === "ready") {
+      const ready = sides.every(
+        (side) => enabled && this.tracking.hands[side] && this.gestures.hands[side].open,
+      );
+      if (!ready) {
+        this.readySince = null;
+        this.readyWrists = {};
         this.entryProgress = 0;
+      } else {
+        const moved = sides.some((side) => {
+          const wrist = this.tracking.hands[side]?.landmarks[0],
+            reference = this.readyWrists[side];
+          return (
+            wrist && reference && Math.hypot(wrist.x - reference.x, wrist.y - reference.y) > 0.035
+          );
+        });
+        if (this.readySince === null || moved) {
+          this.readySince = now;
+          for (const side of sides) {
+            const wrist = this.tracking.hands[side]?.landmarks[0];
+            if (wrist) this.readyWrists[side] = { ...wrist };
+          }
+        }
+        this.entryProgress = Math.min(1, (now - this.readySince) / 1500);
+        if (this.entryProgress === 1) this.physics.start();
       }
     }
-    if (jumped) this.physics.jump();
-    for (const side of ["left", "right"] as const)
-      this.physics.setArm(side, this.gestures.arms[side]);
+    for (const side of sides) {
+      const control = this.gestures.hands[side];
+      if (!control.closed) this.physics.release(side);
+      if (control.fired) {
+        const shot = ray(side);
+        this.physics.shoot(side, shot.origin, shot.direction);
+        control.fired = false;
+      }
+    }
     this.physics.advance(this.previousAt === null ? 0 : (now - this.previousAt) / 1000);
     this.previousAt = now;
   }

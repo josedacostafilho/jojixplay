@@ -18,6 +18,7 @@ export function LocalPlayPage() {
   const exitDialog = useRef<HTMLDialogElement>(null);
   const [choosingPlayers, setChoosingPlayers] = useState(false);
   const [game, setGame] = useState<"desenhar" | "corrida" | "swinging" | null>(null);
+  const [gameRunning, setGameRunning] = useState(false);
   const drawing = game === "desenhar";
   const playing = game !== null;
   const opening = useRef(false);
@@ -59,6 +60,7 @@ export function LocalPlayPage() {
   useEffect(() => {
     if (!active) {
       setGame(null);
+      setGameRunning(false);
       setChoosingPlayers(false);
       setConfirmExit(false);
       if (camera.state === "error") void immersive.stop();
@@ -77,6 +79,7 @@ export function LocalPlayPage() {
 
   function stop() {
     setGame(null);
+    setGameRunning(false);
     setConfirmExit(false);
     run.current += 1;
     starting.current = false;
@@ -105,14 +108,35 @@ export function LocalPlayPage() {
     setError(null);
     try {
       if (camera.poseLimit !== players) await camera.setPoseLimit(players);
+      await camera.setTrackingMode(next === "swinging" ? "hands" : "pose");
       if (mounted.current && trackingActive.current && run.current === currentRun) {
         setGrownups(false);
         setChoosingPlayers(false);
+        setGameRunning(false);
         setGame(next);
       }
     } catch {
       if (mounted.current && trackingActive.current && run.current === currentRun)
         setError("Não foi possível preparar as pessoas. Tente novamente.");
+    } finally {
+      opening.current = false;
+      if (mounted.current) setChangingPlayers(false);
+    }
+  }
+  async function closeGame() {
+    if (opening.current || changingPlayers) return;
+    opening.current = true;
+    const currentRun = run.current;
+    setChangingPlayers(true);
+    setConfirmExit(false);
+    setGame(null);
+    setGameRunning(false);
+    setChoosingPlayers(false);
+    try {
+      await camera.setTrackingMode("pose");
+    } catch {
+      if (mounted.current && trackingActive.current && currentRun === run.current)
+        setError("Não foi possível voltar ao reconhecimento. Reinicie a brincadeira.");
     } finally {
       opening.current = false;
       if (mounted.current) setChangingPlayers(false);
@@ -131,7 +155,12 @@ export function LocalPlayPage() {
         normalization={camera.normalization}
         visible={!playing}
       />
-      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} playing={playing} />
+      <MovementNavigation
+        frame={bodyFrame}
+        active={active && !gameRunning}
+        drawing={drawing}
+        playing={playing}
+      />
       <header class="room-header" hidden={playing}>
         <span class="brand">
           jojix<span>play</span>
@@ -159,12 +188,15 @@ export function LocalPlayPage() {
         >
           <GameView
             game={game}
-            frame={stale || grownups || confirmExit ? null : bodyFrame}
+            frame={(stale && game !== "swinging") || grownups || confirmExit ? null : bodyFrame}
             players={camera.poseLimit}
+            onRunningChange={setGameRunning}
           />
-          <button class="game-back" type="button" onClick={() => setConfirmExit(true)}>
-            ← Voltar
-          </button>
+          {!gameRunning && (
+            <button class="game-back" type="button" onClick={() => setConfirmExit(true)}>
+              ← Voltar
+            </button>
+          )}
           <dialog class="draw-dialog" ref={exitDialog} onCancel={() => setConfirmExit(false)}>
             <h2>
               {drawing
@@ -187,14 +219,7 @@ export function LocalPlayPage() {
                   ? "Continuar correndo"
                   : "Continuar balançando"}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmExit(false);
-                setGame(null);
-                setChoosingPlayers(false);
-              }}
-            >
+            <button type="button" onClick={() => void closeGame()}>
               {drawing
                 ? "Sair e apagar"
                 : game === "corrida"
@@ -241,12 +266,7 @@ export function LocalPlayPage() {
               <em>brincar!</em>
             </h1>
             <p>Chame um adulto, apoie o celular e abra espaço para brincar!</p>
-            <button
-              class="start-button"
-              type="button"
-              disabled={busy || error !== null}
-              onClick={() => void start()}
-            >
+            <button class="start-button" type="button" disabled={busy} onClick={() => void start()}>
               {busy ? (
                 "Abrindo a câmera…"
               ) : (

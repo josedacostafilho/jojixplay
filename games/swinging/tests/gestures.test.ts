@@ -1,98 +1,120 @@
-import type { Body, Joint } from "@jojixplay/game-sdk";
-import { expect, it } from "vitest";
-import { SwingGestures } from "../src/gestures";
+import type { TrackedHand } from "@jojixplay/game-sdk";
+import { SwingTracking } from "../src/tracking";
+import { describe, expect, it } from "vitest";
+import { HandControl, handShape, SwingGestures } from "../src/gestures";
+import { studioHand } from "../src/studio-hand";
 
-const joint = (x: number, y: number): Joint => ({ x, y, z: 0, confidence: 1 });
-function body(drop = 0, left = false, right = false): Body {
-  return {
-    leftShoulder: joint(0.4, 0.3 + drop),
-    rightShoulder: joint(0.6, 0.3 + drop),
-    leftHip: joint(0.43, 0.55 + drop),
-    rightHip: joint(0.57, 0.55 + drop),
-    leftElbow: joint(0.35, (left ? 0.25 : 0.42) + drop),
-    rightElbow: joint(0.65, (right ? 0.25 : 0.42) + drop),
-    leftWrist: joint(0.3, (left ? 0.18 : 0.52) + drop),
-    rightWrist: joint(0.7, (right ? 0.18 : 0.52) + drop),
-  };
-}
-const feed = (
-  gestures: SwingGestures,
-  from: number,
-  to: number,
-  pose: Body | null,
-  enabled = true,
-) => {
-  let jumps = 0;
-  for (let now = from; now <= to; now += 20) {
-    gestures.sample(pose, now, enabled);
-    jumps += Number(gestures.jumped);
-  }
-  return jumps;
-};
-
-it("keeps a raised arm through wrist occlusion using the elbow, then lowers it independently", () => {
-  const gestures = new SwingGestures();
-  feed(gestures, 0, 120, body());
-  feed(gestures, 140, 260, body(0, true));
-  expect(gestures.arms.left).toBe(true);
-  const { leftWrist: _missing, ...elbowOnly } = body(0, true);
-  feed(gestures, 280, 800, elbowOnly);
-  expect(gestures.arms.left).toBe(true);
-  expect(gestures.tracking).toBe(true);
-  feed(gestures, 820, 940, body(0, false));
-  expect(gestures.arms.left).toBe(false);
-  expect(gestures.arms.right).toBe(false);
+describe("hand controls", () => {
+  it.each([0, Math.PI / 2, Math.PI, -Math.PI / 2])(
+    "recognizes curl after rotation by %s, including depth rotations",
+    (angle) => {
+      for (const closed of [false, true]) {
+        const hand = studioHand(0.7, 0.5, closed);
+        for (const axis of ["z", "x"] as const) {
+          const rotated = hand.worldLandmarks.map((p) =>
+            axis === "z"
+              ? {
+                  x: p.x * Math.cos(angle) - p.y * Math.sin(angle),
+                  y: p.x * Math.sin(angle) + p.y * Math.cos(angle),
+                  z: p.z,
+                }
+              : {
+                  x: p.x,
+                  y: p.y * Math.cos(angle) - p.z * Math.sin(angle),
+                  z: p.y * Math.sin(angle) + p.z * Math.cos(angle),
+                },
+          );
+          expect(handShape({ ...hand, worldLandmarks: rotated })).toBe(closed ? "closed" : "open");
+        }
+      }
+    },
+  );
+  it("requires an open hand, freezes aim during closure, fires once and releases on opening", () => {
+    const control = new HandControl("left");
+    control.sample(studioHand(0.7, 0.5, true), 0);
+    control.sample(studioHand(0.7, 0.5, true), 100);
+    expect(control.fired).toBe(false);
+    control.sample(studioHand(0.65, 0.4, false), 150);
+    control.sample(studioHand(0.65, 0.4, false), 250);
+    expect(control.aim.x).toBeGreaterThan(0.27);
+    expect(control.aim.y).toBeLessThan(0.4);
+    const aim = { ...control.aim };
+    control.sample(studioHand(0.8, 0.6, true), 300);
+    control.sample(studioHand(0.8, 0.6, true), 400);
+    expect(control.fired).toBe(true);
+    expect(control.aim).toEqual(aim);
+    control.sample(studioHand(0.8, 0.6, true), 420);
+    expect(control.fired).toBe(false);
+    control.sample(studioHand(0.8, 0.6, false), 450);
+    control.sample(studioHand(0.8, 0.6, false), 550);
+    expect(control.closed).toBe(false);
+  });
+  it("ignores a one-frame fist but accepts a sustained closure", () => {
+    const control = new HandControl("left");
+    control.sample(studioHand(0.7, 0.5, false), 0);
+    control.sample(studioHand(0.7, 0.5, false), 100);
+    control.sample(studioHand(0.7, 0.5, true), 130);
+    control.sample(studioHand(0.7, 0.5, false), 160);
+    expect(control.fired).toBe(false);
+    control.sample(studioHand(0.7, 0.5, true), 200);
+    control.sample(studioHand(0.7, 0.5, true), 300);
+    expect(control.closed).toBe(true);
+  });
+  it("preserves hand ownership across array reordering and crossing, including close wrists", () => {
+    const gestures = new SwingGestures();
+    const tracking = new SwingTracking();
+    const sample = (hands: TrackedHand[], time: number) => {
+      tracking.sample(hands);
+      gestures.sample(tracking.hands, time);
+    };
+    sample([studioHand(0.7, 0.5, false), studioHand(0.3, 0.5, false)], 0);
+    sample([studioHand(0.3, 0.5, false), studioHand(0.7, 0.5, false)], 100);
+    sample([studioHand(0.55, 0.4, true), studioHand(0.45, 0.6, false)], 150);
+    sample([studioHand(0.4, 0.4, true), studioHand(0.6, 0.6, false)], 250);
+    expect(gestures.hands.left.closed).toBe(true);
+    expect(gestures.hands.right.closed).toBe(false);
+    sample([studioHand(0.5, 0.5, true), studioHand(0.51, 0.5, false)], 300);
+    expect(gestures.hands.left.closed).toBe(true);
+    expect(tracking.hands.right).not.toBeNull();
+  });
+  it("allows a gradual closure through the uncertain curl band", () => {
+    const control = new HandControl("left");
+    const open = studioHand(0.7, 0.5, false);
+    control.sample(open, 0);
+    control.sample(open, 100);
+    const half = {
+      ...open,
+      worldLandmarks: open.worldLandmarks.map((p, i) => {
+        if ([7, 11, 15, 19].includes(i))
+          return { ...p, y: -0.06 - Math.cos(0.7) * 0.02, z: -Math.sin(0.7) * 0.02 };
+        return p;
+      }),
+    };
+    expect(handShape(half)).toBeNull();
+    control.sample(half, 150);
+    control.sample(half, 250);
+    control.sample(half, 350);
+    control.sample(studioHand(0.7, 0.5, true), 400);
+    control.sample(studioHand(0.7, 0.5, true), 500);
+    expect(control.fired).toBe(true);
+    control.sample(half, 600);
+    control.sample(half, 900);
+    expect(control.closed).toBe(true);
+    control.sample(open, 1000);
+    control.sample(open, 1100);
+    expect(control.closed).toBe(false);
+  });
 });
-
-it("never treats arm-only motion as jump or a body dip as arm release", () => {
-  const gestures = new SwingGestures();
-  feed(gestures, 0, 320, body());
-  expect(feed(gestures, 340, 700, body(0, true, true))).toBe(0);
-  expect(gestures.arms).toEqual({ left: true, right: true });
-  expect(feed(gestures, 720, 900, body(0.06, true, true))).toBe(0);
-  expect(feed(gestures, 920, 1080, body(0, true, true))).toBe(1);
-  expect(gestures.arms).toEqual({ left: true, right: true });
-  expect(feed(gestures, 1100, 1300, body(0, true, true))).toBe(0);
+it("keeps two detected hands when their wrists are close", () => {
+  const tracking = new SwingTracking();
+  tracking.sample([studioHand(0.5, 0.5, false), studioHand(0.51, 0.5, false)]);
+  expect(tracking.hands.left).not.toBeNull();
+  expect(tracking.hands.right).not.toBeNull();
 });
-
-it("does not turn the start crouch, missing hips or tracking recovery into a jump", () => {
-  const gestures = new SwingGestures();
-  feed(gestures, 0, 200, body(), false);
-  expect(feed(gestures, 220, 3300, body(0.08), false)).toBe(0);
-  expect(feed(gestures, 3320, 3500, body(), true)).toBe(0);
-  const { leftHip: _left, rightHip: _right, ...noHips } = body(0.06);
-  expect(feed(gestures, 3520, 3700, noHips)).toBe(0);
-  feed(gestures, 3720, 4000, body(0, true));
-  expect(gestures.arms.left).toBe(true);
-  feed(gestures, 4020, 4260, null);
-  expect(gestures.tracking).toBe(false);
-  expect(gestures.arms.left).toBe(false);
-  expect(feed(gestures, 4280, 4580, body(0, true))).toBe(0);
-  expect(gestures.arms.left).toBe(true);
-});
-
-it("rejects a one-frame dip followed by a delayed return", () => {
-  const gestures = new SwingGestures();
-  feed(gestures, 0, 320, body());
-  gestures.sample(body(0.06), 340, true);
-  feed(gestures, 360, 620, body(0.03));
-  expect(feed(gestures, 640, 800, body())).toBe(0);
-});
-
-it("calibrates standing after the three-second starting crouch before accepting a new jump", () => {
-  const gestures = new SwingGestures();
-  feed(gestures, 0, 3000, body(0.08), false);
-  expect(feed(gestures, 3020, 3600, body(0.08))).toBe(0);
-  expect(feed(gestures, 3620, 4040, body())).toBe(0);
-  expect(feed(gestures, 4060, 4220, body(0.06))).toBe(0);
-  expect(feed(gestures, 4240, 4360, body())).toBe(1);
-});
-
-it("resets jump evidence when torso visibility changes without resetting a visible arm", () => {
-  const gestures = new SwingGestures();
-  feed(gestures, 0, 320, body(0, true));
-  const { rightShoulder: _shoulder, rightHip: _hip, ...oneSide } = body(0.06, true);
-  expect(feed(gestures, 340, 500, oneSide)).toBe(0);
-  expect(feed(gestures, 520, 680, body(0, true))).toBe(0);
-  expect(gestures.arms.left).toBe(true);
+it("removes only the missing hand as soon as a new result omits it", () => {
+  const tracking = new SwingTracking();
+  tracking.sample([studioHand(0.7, 0.5, false), studioHand(0.3, 0.5, false)]);
+  tracking.sample([studioHand(0.3, 0.5, false)]);
+  expect(tracking.hands.left).toBeNull();
+  expect(tracking.hands.right).not.toBeNull();
 });

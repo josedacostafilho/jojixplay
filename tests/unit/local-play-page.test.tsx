@@ -39,6 +39,7 @@ beforeEach(() => {
     videoRef: { current: null },
     start: mocks.start.mockResolvedValue(true),
     stop: mocks.stop,
+    setTrackingMode: vi.fn().mockResolvedValue(undefined),
     setPoseLimit: mocks.setPoseLimit.mockResolvedValue(undefined),
   };
 });
@@ -199,4 +200,42 @@ it("does not mount a pending race after capture fails", async () => {
   view.rerender(<LocalPlayPage />);
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" })).toBeVisible();
+});
+
+it("waits for hand inference before mounting swinging", async () => {
+  let ready: (() => void) | undefined;
+  camera = {
+    ...camera,
+    state: "tracking",
+    setTrackingMode: vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          ready = resolve;
+        }),
+    ),
+  };
+  render(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Protótipo de teias · 1 pessoa" }));
+  await act(async () => {});
+  expect(camera.setTrackingMode).toHaveBeenCalledWith("hands");
+  expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
+  await act(async () => {
+    ready?.();
+  });
+  expect(screen.getByTestId("racing")).toBeInTheDocument();
+});
+
+it("lets the adult restart after a model transition fails", async () => {
+  camera = {
+    ...camera,
+    state: "tracking",
+    setTrackingMode: vi.fn(async () => {
+      camera = { ...camera, state: "error", errorMessage: "Reinicie a brincadeira." };
+      throw new Error("Model startup failed");
+    }),
+  };
+  render(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Protótipo de teias · 1 pessoa" }));
+  await act(async () => {});
+  expect(screen.getByRole("button", { name: "Vamos começar" })).toBeEnabled();
 });

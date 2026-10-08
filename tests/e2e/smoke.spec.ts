@@ -17,8 +17,19 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
     if (new URL(request.url()).pathname.endsWith(".png")) textureRequests.push(request.url());
   });
   // This journey starts two real GPU sessions, each with bounded model warm-up.
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   await page.addInitScript(() => {
+    Reflect.set(window, "handPackets", 0);
+    const NativeWorker = window.Worker;
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.addEventListener("message", (event) => {
+          if (event.data?.type === "result" && Array.isArray(event.data.packet?.hands))
+            Reflect.set(window, "handPackets", Number(Reflect.get(window, "handPackets")) + 1);
+        });
+      }
+    };
     Reflect.set(window, "__jojixplayTrackStopCount", 0);
     Reflect.set(window, "__jojixplayWakeReleaseCount", 0);
     Object.defineProperty(window, "WebSocket", {
@@ -126,7 +137,12 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair da corrida" }).click();
   await page.getByRole("button", { name: "Protótipo de teias · 1 pessoa" }).click();
-  await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mostre as mãos abertas" })).toBeVisible({
+    timeout: 30000,
+  });
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, "handPackets")), { timeout: 30000 })
+    .toBeGreaterThan(0);
   await expect(page.locator("canvas")).toHaveCount(1);
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair da cidade" }).click();

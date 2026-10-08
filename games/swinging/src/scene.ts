@@ -1,5 +1,9 @@
+import type { HandControl } from "./gestures";
+import { projectHand } from "./hand-view";
+import type { TrackedHands } from "./tracking";
+import type { Side } from "./physics";
 import * as THREE from "three";
-import { buildings, ISLAND_HALF_SIZE, type SwingPhysics, type Vec3 } from "./physics";
+import { buildings, rayTarget, ISLAND_HALF_SIZE, type SwingPhysics, type Vec3 } from "./physics";
 
 const asVector = (p: Vec3) => new THREE.Vector3(p.x, p.y, p.z);
 export const travelYaw = (velocity: Vec3) => -Math.atan2(velocity.x, -velocity.z);
@@ -60,20 +64,63 @@ export function createScene(container: HTMLElement) {
     block.scale.set(building.width, building.height, building.depth);
     scene.add(block);
     const cap = new THREE.Mesh(box, roof);
-    cap.position.set(building.x, building.height + 0.15, building.z);
-    cap.scale.set(building.width + 0.4, 0.3, building.depth + 0.4);
+    cap.position.set(building.x, building.height - 0.15, building.z);
+    cap.scale.set(building.width, 0.3, building.depth);
     scene.add(cap);
   }
   const armMaterial = material("#e19f3d"),
     gloveMaterial = material("#254e63");
-  const armGeometry = new THREE.CylinderGeometry(0.065, 0.11, 1, 8),
-    handGeometry = new THREE.SphereGeometry(0.09, 10, 8);
-  geometries.push(armGeometry, handGeometry);
+  const boneGeometry = new THREE.CylinderGeometry(1, 1, 1, 8);
+  const jointGeometry = new THREE.SphereGeometry(1, 8, 6);
+  geometries.push(boneGeometry, jointGeometry);
   const up = new THREE.Vector3(0, 1, 0);
+  const links = [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 4],
+    [0, 5],
+    [5, 6],
+    [6, 7],
+    [7, 8],
+    [5, 9],
+    [9, 10],
+    [10, 11],
+    [11, 12],
+    [9, 13],
+    [13, 14],
+    [14, 15],
+    [15, 16],
+    [13, 17],
+    [0, 17],
+    [17, 18],
+    [18, 19],
+    [19, 20],
+  ];
+  const segment = (mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3, radius: number) => {
+    const direction = b.clone().sub(a);
+    mesh.position.copy(a).add(b).multiplyScalar(0.5);
+    mesh.quaternion.setFromUnitVectors(up, direction.clone().normalize());
+    mesh.scale.set(radius, direction.length(), radius);
+  };
   const arms = (["left", "right"] as const).map((side) => {
-    const sleeve = new THREE.Mesh(armGeometry, armMaterial);
-    const hand = new THREE.Mesh(handGeometry, gloveMaterial);
-    camera.add(sleeve, hand);
+    const group = new THREE.Group();
+    const palmGeometry = new THREE.BufferGeometry();
+    palmGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(21 * 3), 3));
+    palmGeometry.setIndex([0, 1, 5, 0, 5, 9, 0, 9, 13, 0, 13, 17]);
+    geometries.push(palmGeometry);
+    const palmMaterial = material("#254e63");
+    palmMaterial.side = THREE.DoubleSide;
+    const palm = new THREE.Mesh(palmGeometry, palmMaterial);
+    group.add(palm);
+    const sleeves = [
+      new THREE.Mesh(boneGeometry, armMaterial),
+      new THREE.Mesh(boneGeometry, armMaterial),
+    ];
+    const bones = links.map(() => new THREE.Mesh(boneGeometry, gloveMaterial));
+    const joints = Array.from({ length: 21 }, () => new THREE.Mesh(jointGeometry, gloveMaterial));
+    group.add(...sleeves, ...bones, ...joints);
+    camera.add(group);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
     geometries.push(geometry);
@@ -81,8 +128,23 @@ export function createScene(container: HTMLElement) {
     materials.push(webMaterial);
     const line = new THREE.Line(geometry, webMaterial);
     scene.add(line);
-    return { side, sleeve, hand, line, geometry };
+    const crosshair = document.createElement("div");
+    crosshair.className = "swing-crosshair";
+    crosshair.textContent = side === "left" ? "E" : "D";
+    crosshair.setAttribute("aria-hidden", "true");
+    container.append(crosshair);
+    return { side, group, sleeves, bones, joints, line, geometry, crosshair, palmGeometry };
   });
+  function ray(aim: { x: number; y: number }) {
+    const direction = new THREE.Vector3(aim.x * 2 - 1, 1 - aim.y * 2, 0.5)
+      .unproject(camera)
+      .sub(camera.position)
+      .normalize();
+    return {
+      origin: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+      direction: { x: direction.x, y: direction.y, z: direction.z },
+    };
+  }
   scene.add(camera);
   let yaw = 0,
     lastAt: number | null = null,
@@ -97,7 +159,12 @@ export function createScene(container: HTMLElement) {
   const observer = new ResizeObserver(resize);
   observer.observe(container);
   resize();
-  function render(physics: SwingPhysics, now: number) {
+  function render(
+    physics: SwingPhysics,
+    now: number,
+    controls: Record<Side, HandControl>,
+    hands: TrackedHands,
+  ) {
     if (disposed) return;
     const dt = lastAt === null ? 0 : Math.min(0.05, Math.max(0, (now - lastAt) / 1000));
     lastAt = now;
@@ -111,32 +178,78 @@ export function createScene(container: HTMLElement) {
     camera.rotation.set(Math.max(-0.25, Math.min(0.16, physics.velocity.y / 75)), yaw, 0);
     camera.updateMatrixWorld(true);
     for (const arm of arms) {
+      const control = controls[arm.side],
+        hand = hands[arm.side];
       const anchor = physics.webs[arm.side]?.point;
-      arm.sleeve.visible = arm.hand.visible = arm.line.visible = !!anchor;
-      if (!anchor) continue;
+      arm.group.visible = !!hand;
+      arm.line.visible = !!anchor && !!hand;
+      arm.crosshair.hidden = !hand || physics.phase === "lost";
+      arm.crosshair.style.left = `${control.aim.x * 100}%`;
+      arm.crosshair.style.top = `${control.aim.y * 100}%`;
+      const shot = ray(control.aim);
+      arm.crosshair.dataset.state = anchor
+        ? "held"
+        : control.closed
+          ? "miss"
+          : rayTarget(shot.origin, shot.direction)
+            ? "target"
+            : "empty";
+      if (!hand) continue;
       const sign = arm.side === "right" ? 1 : -1;
-      const shoulder = new THREE.Vector3(sign * 0.32, -0.4, -0.18);
-      const direction = camera.worldToLocal(asVector(anchor)).sub(shoulder).normalize();
-      const wrist = shoulder.clone().addScaledVector(direction, 0.9);
-      arm.sleeve.position.copy(shoulder).add(wrist).multiplyScalar(0.5);
-      arm.sleeve.quaternion.setFromUnitVectors(up, direction);
-      arm.sleeve.scale.y = 0.9;
-      arm.hand.position.copy(wrist);
-      const start = camera.localToWorld(wrist.clone());
-      const coordinates = arm.geometry.getAttribute("position") as THREE.BufferAttribute;
-      coordinates.setXYZ(0, start.x, start.y, start.z);
-      coordinates.setXYZ(1, anchor.x, anchor.y, anchor.z);
-      coordinates.needsUpdate = true;
-      arm.geometry.computeBoundingSphere();
+      const screenPoints = projectHand(hand);
+      const points = screenPoints.map((p) => {
+        const halfHeight = -p.z * Math.tan((camera.fov * Math.PI) / 360);
+        return new THREE.Vector3(
+          (p.x * 2 - 1) * halfHeight * camera.aspect,
+          (1 - p.y * 2) * halfHeight,
+          p.z,
+        );
+      });
+      const wrist = points[0];
+      if (!wrist) continue;
+      const shoulder = new THREE.Vector3(sign * 0.48, -0.75, -0.1);
+      const elbow = new THREE.Vector3(sign * 0.55, -0.55, -0.55);
+      if (arm.sleeves[0]) segment(arm.sleeves[0], shoulder, elbow, 0.075);
+      if (arm.sleeves[1]) segment(arm.sleeves[1], elbow, wrist, 0.055);
+      const palmPositions = arm.palmGeometry.getAttribute("position");
+      points.forEach((point, i) => {
+        palmPositions.setXYZ(i, point.x, point.y, point.z);
+      });
+      palmPositions.needsUpdate = true;
+      arm.palmGeometry.computeVertexNormals();
+      arm.palmGeometry.computeBoundingSphere();
+      points.forEach((point, i) => {
+        const joint = arm.joints[i];
+        if (joint) {
+          joint.position.copy(point);
+          joint.scale.setScalar(0.023);
+        }
+      });
+      links.forEach(([a, b], i) => {
+        const start = a === undefined ? undefined : points[a],
+          end = b === undefined ? undefined : points[b],
+          bone = arm.bones[i];
+        if (start && end && bone) segment(bone, start, end, 0.018);
+      });
+      if (anchor) {
+        const start = camera.localToWorld(wrist.clone());
+        const coordinates = arm.geometry.getAttribute("position") as THREE.BufferAttribute;
+        coordinates.setXYZ(0, start.x, start.y, start.z);
+        coordinates.setXYZ(1, anchor.x, anchor.y, anchor.z);
+        coordinates.needsUpdate = true;
+        arm.geometry.computeBoundingSphere();
+      }
     }
     renderer.render(scene, camera);
   }
   return {
     render,
+    ray,
     dispose() {
       if (disposed) return;
       disposed = true;
       observer.disconnect();
+      for (const arm of arms) arm.crosshair.remove();
       for (const geometry of geometries) geometry.dispose();
       for (const entry of materials) entry.dispose();
       renderer.dispose();

@@ -5,10 +5,12 @@ export function GameView({
   frame,
   players,
   game,
+  onRunningChange,
 }: {
   frame: BodyFrame | null;
   players: 1 | 2;
   game: "desenhar" | "corrida" | "swinging";
+  onRunningChange: (running: boolean) => void;
 }) {
   const host = useRef<HTMLDivElement>(null),
     experience = useRef<Experience | null>(null),
@@ -27,7 +29,11 @@ export function GameView({
           )
         : game === "corrida"
           ? import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida)
-          : import("@jojixplay/swinging").then(({ mountSwinging }) => mountSwinging);
+          : import("@jojixplay/swinging").then(
+              ({ mountSwinging }) =>
+                (host: HTMLElement) =>
+                  mountSwinging(host, onRunningChange),
+            );
     setLoading(true);
     setError(false);
     void load
@@ -48,7 +54,7 @@ export function GameView({
       experience.current?.dispose();
       experience.current = null;
     };
-  }, [players, game]);
+  }, [players, game, onRunningChange]);
   useEffect(() => {
     experience.current?.update(frame);
   }, [frame]);

@@ -285,4 +285,64 @@ describe("camera pose controller player limit", () => {
     );
     expect(trackStop).toHaveBeenCalledOnce();
   });
+  it("drains inference before replacing the model, keeps capture, and increments its epoch", async () => {
+    let resolveEstimate: ((packet: PosePacket) => void) | undefined;
+    estimator.estimate.mockReturnValue(
+      new Promise<PosePacket>((resolve) => {
+        resolveEstimate = resolve;
+      }),
+    );
+    const onCameraFrame = vi.fn();
+    const controller = new CameraPoseController({
+      video,
+      initialPoseLimit: 1,
+      onPacket: vi.fn(),
+      onCameraFrame,
+      onError: vi.fn(),
+    });
+    await controller.start();
+    frameCallbacks[0]?.(100, {} as VideoFrameCallbackMetadata);
+    await vi.waitFor(() => expect(estimator.estimate).toHaveBeenCalledOnce());
+    const changing = controller.setTrackingMode("hands");
+    expect(estimator.close).not.toHaveBeenCalled();
+    resolveEstimate?.(EMPTY_PACKET);
+    await changing;
+    expect(estimator.close).toHaveBeenCalledOnce();
+    expect(estimator.initialize).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.stringContaining("hand_landmarker.task"),
+      1,
+      "hands",
+    );
+    expect(onCameraFrame).toHaveBeenLastCalledWith(
+      expect.objectContaining({ frame: expect.objectContaining({ epoch: 1 }) }),
+    );
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(trackStop).not.toHaveBeenCalled();
+    await controller.setTrackingMode("pose");
+    expect(estimator.initialize).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.stringContaining("pose_landmarker_full.task"),
+      1,
+      "pose",
+    );
+    controller.stop();
+    expect(trackStop).toHaveBeenCalledOnce();
+  });
+
+  it("releases capture when a hand model fails to initialize", async () => {
+    const onError = vi.fn();
+    const controller = new CameraPoseController({
+      video,
+      initialPoseLimit: 1,
+      onPacket: vi.fn(),
+      onCameraFrame: vi.fn(),
+      onError,
+    });
+    await controller.start();
+    estimator.initialize.mockRejectedValueOnce(new Error("GPU unavailable"));
+    await expect(controller.setTrackingMode("hands")).rejects.toThrow();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(trackStop).toHaveBeenCalledOnce();
+  });
 });

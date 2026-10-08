@@ -2,7 +2,7 @@
 
 A landscape, phone-powered playroom for children aged 4–7 and their grown-ups. Use external phone screen mirroring for a television. The TV runs no application.
 
-All product UI is Brazilian Portuguese. After the movement check, open **Desenhar sozinho** or **Desenhar em dupla** to paint with your hands. Choose **Corrida dos Blocos** for a single-player, five-minute movement adventure: jump, match poses and crouch through three levels. **Protótipo de teias** is an early single-player swinging game with arm and jump gestures. Old games remain retired.
+All product UI is Brazilian Portuguese. After the movement check, open **Desenhar sozinho** or **Desenhar em dupla** to paint with your hands. Choose **Corrida dos Blocos** for a single-player, five-minute movement adventure: jump, match poses and crouch through three levels. **Protótipo de teias** is an early single-player swinging game with hand-only aiming and fist-controlled webs. Old games remain retired.
 
 Rotate the phone, tap **Vamos começar**, and wave. Shoulders and hands can be tracked without visible feet. The main game menu overlays an edge-to-edge mirrored camera and simple circles near the estimated index position; video stays on-device. The Full GPU model's real-phone accuracy and performance still require acceptance testing.
 
@@ -17,4 +17,4 @@ npm run dev:swinging
 npm run validate
 ```
 
-The Desenhar, Corrida and swinging prototype studios run independently from the application. In the drawing studio, move the pointer and hold Shift to simulate painting. In the race studio, hold Down to crouch, press Space to jump, and choose arm poses from the toolbar. In the swinging studio, press Space to start, hold A/D or the on-screen arm buttons to attach webs, and press W or **Pular** for a jump pulse. The host menu also opens the plain-block prototype with camera gestures. See [swinging plan](docs/product/swinging-game-plan.md), [Corrida](docs/product/corrida.md), [architecture](docs/architecture/overview.md), [stack](docs/architecture/stack.md) and [status](docs/project/status.md). Validated `main` deploys through GitHub Actions to GitHub Pages.
+The Desenhar, Corrida and swinging prototype studios run independently from the application. In the drawing studio, move the pointer and hold Shift to simulate painting. In the race studio, hold Down to crouch, press Space to jump, and choose arm poses from the toolbar. In the swinging studio, press Space to start, aim with the four range controls, then hold A/D or the on-screen fist buttons to shoot and hold webs. Release to drop. The host menu also opens the plain-block prototype with camera gestures. See [swinging plan](docs/product/swinging-game-plan.md), [Corrida](docs/product/corrida.md), [architecture](docs/architecture/overview.md), [stack](docs/architecture/stack.md) and [status](docs/project/status.md). Validated `main` deploys through GitHub Actions to GitHub Pages.

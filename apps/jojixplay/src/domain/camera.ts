@@ -148,7 +148,7 @@ export function resolveCameraFrameNormalization(
 export function rotateNormalizedPoint(point: CameraPoint, rotation: CameraRotation): CameraPoint {
   switch (rotation) {
     case 0:
-      return { ...point };
+      return { x: point.x, y: point.y };
     case 90:
       return { x: 1 - point.y, y: point.x };
     case 180:
