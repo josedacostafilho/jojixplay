@@ -1,43 +1,37 @@
 import type { CameraFrame, CameraRotation } from "../domain/camera";
-import type { PosePacket } from "../domain/pose";
+import { type PosePacket, parsePosePacket } from "../domain/pose";
 import type { PoseLimit } from "../domain/pose-limit";
-import { parsePosePacket } from "../domain/pose";
 import type { PoseWorkerRequest, PoseWorkerResponse } from "./worker-protocol";
 
-interface PendingEstimate {
-  resolve: (packet: PosePacket) => void;
+/** The pose worker failed, stalled or broke its protocol. The estimator is unusable afterwards. */
+export class PoseEngineError extends Error {}
+
+type Reply = Exclude<PoseWorkerResponse, { type: "error" }>;
+
+interface PendingRequest {
+  expects: Reply["type"];
+  resolve: (reply: Reply) => void;
   reject: (error: Error) => void;
+  timeoutId: number;
 }
 
-interface PendingPoseLimit {
-  requested: PoseLimit;
-  resolve: () => void;
-  reject: (error: Error) => void;
-}
+const START_TIMEOUT_MS = 30_000;
+const RECONFIGURE_TIMEOUT_MS = 10_000;
+const ESTIMATE_TIMEOUT_MS = 5_000;
+/** The GPU compiles its kernels on the first inference after the graph is built or rebuilt. */
+const WARM_UP_TIMEOUT_MS = 30_000;
 
-interface PendingTrackingReset {
-  resolve: () => void;
-  reject: (error: Error) => void;
-}
-
+/** Owns the pose worker and allows exactly one request in flight. */
 export class PoseEstimator {
   private readonly worker = new Worker(new URL("./pose.worker.ts", import.meta.url), {
     type: "module",
     name: "jojixplay-pose",
   });
-  private initializePromise: Promise<void> | null = null;
-  private initializeResolve: (() => void) | null = null;
-  private initializeReject: ((error: Error) => void) | null = null;
-  private initializeTimeoutId: number | null = null;
-  private estimateTimeoutId: number | null = null;
-  private pendingEstimate: PendingEstimate | null = null;
-  private pendingPoseLimit: PendingPoseLimit | null = null;
-  private poseLimitTimeoutId: number | null = null;
-  private pendingTrackingReset: PendingTrackingReset | null = null;
-  private trackingResetTimeoutId: number | null = null;
-  private failedError: Error | null = null;
+  private initialization: Promise<void> | null = null;
+  private pending: PendingRequest | null = null;
+  private failure: PoseEngineError | null = null;
   private ready = false;
-  private hasEstimated = false;
+  private warmedUp = false;
   private closed = false;
 
   public constructor() {
@@ -46,137 +40,68 @@ export class PoseEstimator {
     };
     this.worker.onerror = (event) => {
       event.preventDefault();
-      this.fail(new Error("The pose worker stopped unexpectedly."));
+      this.fail(new PoseEngineError("The pose worker stopped unexpectedly."));
     };
   }
 
   public initialize(wasmBaseUrl: string, modelUrl: string, poseLimit: PoseLimit): Promise<void> {
-    if (this.initializePromise !== null) {
-      return this.initializePromise;
-    }
-
-    this.initializePromise = new Promise<void>((resolve, reject) => {
-      this.initializeResolve = resolve;
-      this.initializeReject = reject;
-      const request: PoseWorkerRequest = {
-        type: "initialize",
-        wasmBaseUrl,
-        modelUrl,
-        poseLimit,
-      };
-      this.worker.postMessage(request);
-      this.initializeTimeoutId = window.setTimeout(() => {
-        this.fail(new Error("The pose engine took too long to start."));
-      }, 30_000);
+    this.initialization ??= this.request(
+      { type: "initialize", wasmBaseUrl, modelUrl, poseLimit },
+      "ready",
+      START_TIMEOUT_MS,
+      "The pose engine took too long to start.",
+    ).then(() => {
+      this.ready = true;
     });
-    return this.initializePromise;
+    return this.initialization;
   }
 
-  public setPoseLimit(poseLimit: PoseLimit): Promise<void> {
-    if (
-      this.closed ||
-      !this.ready ||
-      this.pendingEstimate !== null ||
-      this.pendingPoseLimit !== null ||
-      this.pendingTrackingReset !== null ||
-      this.failedError !== null
-    ) {
-      return Promise.reject(
-        this.failedError ?? new Error("The pose estimator cannot change player mode now."),
-      );
+  public async setPoseLimit(poseLimit: PoseLimit): Promise<void> {
+    const reply = await this.request(
+      { type: "set-pose-limit", poseLimit },
+      "pose-limit-set",
+      RECONFIGURE_TIMEOUT_MS,
+      "The pose engine took too long to change player mode.",
+    );
+    if (reply.poseLimit !== poseLimit) {
+      const error = new PoseEngineError("The pose worker acknowledged an unexpected player mode.");
+      this.fail(error);
+      throw error;
     }
-
-    return new Promise<void>((resolve, reject) => {
-      this.pendingPoseLimit = { requested: poseLimit, resolve, reject };
-      try {
-        this.worker.postMessage({ type: "set-pose-limit", poseLimit } satisfies PoseWorkerRequest);
-      } catch (error) {
-        this.pendingPoseLimit = null;
-        reject(error instanceof Error ? error : new Error("Player-mode request failed."));
-        return;
-      }
-      this.poseLimitTimeoutId = window.setTimeout(() => {
-        this.fail(new Error("The pose engine took too long to change player mode."));
-      }, 10_000);
-    });
+    this.warmedUp = false;
   }
 
-  public resetTracking(): Promise<void> {
-    if (
-      this.closed ||
-      !this.ready ||
-      this.pendingEstimate !== null ||
-      this.pendingPoseLimit !== null ||
-      this.pendingTrackingReset !== null ||
-      this.failedError !== null
-    ) {
-      return Promise.reject(
-        this.failedError ?? new Error("The pose estimator cannot reset tracking now."),
-      );
-    }
-
-    return new Promise<void>((resolve, reject) => {
-      this.pendingTrackingReset = { resolve, reject };
-      try {
-        this.worker.postMessage({ type: "reset-tracking" } satisfies PoseWorkerRequest);
-      } catch (error) {
-        this.pendingTrackingReset = null;
-        reject(error instanceof Error ? error : new Error("Pose tracking reset failed."));
-        return;
-      }
-      this.trackingResetTimeoutId = window.setTimeout(() => {
-        this.fail(new Error("The pose engine took too long to reset tracking."));
-      }, 10_000);
-    });
+  public async resetTracking(): Promise<void> {
+    await this.request(
+      { type: "reset-tracking" },
+      "tracking-reset",
+      RECONFIGURE_TIMEOUT_MS,
+      "The pose engine took too long to reset tracking.",
+    );
+    this.warmedUp = false;
   }
 
-  public estimate(
+  /** Takes ownership of `frame`: it is transferred to the worker or closed. */
+  public async estimate(
     frame: ImageBitmap,
     capturedAtMs: number,
     sequence: number,
     cameraFrame: CameraFrame,
     rotation: CameraRotation,
   ): Promise<PosePacket> {
-    if (
-      this.closed ||
-      !this.ready ||
-      this.pendingEstimate !== null ||
-      this.pendingPoseLimit !== null ||
-      this.pendingTrackingReset !== null ||
-      this.failedError !== null
-    ) {
-      frame.close();
-      return Promise.reject(this.failedError ?? new Error("The pose estimator is not available."));
+    const reply = await this.request(
+      { type: "estimate", frame, capturedAtMs, sequence, cameraFrame, rotation },
+      "result",
+      this.warmedUp ? ESTIMATE_TIMEOUT_MS : WARM_UP_TIMEOUT_MS,
+      "Body tracking stopped responding.",
+      frame,
+    );
+    const parsed = parsePosePacket(reply.packet);
+    if (!parsed.ok) {
+      throw new PoseEngineError("The pose worker returned invalid data.");
     }
-
-    return new Promise<PosePacket>((resolve, reject) => {
-      this.pendingEstimate = { resolve, reject };
-      const request: PoseWorkerRequest = {
-        type: "estimate",
-        frame,
-        capturedAtMs,
-        sequence,
-        cameraFrame,
-        rotation,
-      };
-      try {
-        this.worker.postMessage(request, [frame]);
-        // The GPU may compile its kernels on the first inference, after model loading.
-        this.estimateTimeoutId = window.setTimeout(
-          () => {
-            this.fail(
-              new Error("Body tracking stopped responding. Stop and restart the movement check."),
-            );
-          },
-          this.hasEstimated ? 5_000 : 30_000,
-        );
-      } catch (error) {
-        this.pendingEstimate = null;
-        this.clearEstimateTimeout();
-        frame.close();
-        reject(error instanceof Error ? error : new Error("Frame transfer failed."));
-      }
-    });
+    this.warmedUp = true;
+    return parsed.value;
   }
 
   public close(): void {
@@ -184,121 +109,74 @@ export class PoseEstimator {
       return;
     }
     this.closed = true;
-    this.clearInitializeTimeout();
-    const error = new Error("The pose estimator was stopped.");
-    this.initializeReject?.(error);
-    this.pendingEstimate?.reject(error);
-    this.pendingEstimate = null;
-    this.clearEstimateTimeout();
-    this.pendingPoseLimit?.reject(error);
-    this.pendingPoseLimit = null;
-    this.clearPoseLimitTimeout();
-    this.pendingTrackingReset?.reject(error);
-    this.pendingTrackingReset = null;
-    this.clearTrackingResetTimeout();
+    this.settle()?.reject(new PoseEngineError("The pose estimator was stopped."));
     this.worker.terminate();
+  }
+
+  private request<T extends Reply["type"]>(
+    message: PoseWorkerRequest,
+    expects: T,
+    timeoutMs: number,
+    timeoutMessage: string,
+    transfer?: ImageBitmap,
+  ): Promise<Extract<Reply, { type: T }>> {
+    return new Promise<Reply>((resolve, reject) => {
+      if (this.closed || this.failure !== null || this.pending !== null) {
+        transfer?.close();
+        reject(this.failure ?? new PoseEngineError("The pose estimator is busy or stopped."));
+        return;
+      }
+      if (!this.ready && expects !== "ready") {
+        transfer?.close();
+        reject(new PoseEngineError("The pose estimator is not initialized."));
+        return;
+      }
+      try {
+        if (transfer) this.worker.postMessage(message, [transfer]);
+        else this.worker.postMessage(message);
+      } catch (cause) {
+        transfer?.close();
+        reject(new PoseEngineError("The pose worker rejected a request.", { cause }));
+        return;
+      }
+      this.pending = {
+        expects,
+        resolve,
+        reject,
+        timeoutId: window.setTimeout(() => {
+          this.fail(new PoseEngineError(timeoutMessage));
+        }, timeoutMs),
+      };
+    }) as Promise<Extract<Reply, { type: T }>>;
   }
 
   private handleMessage(message: PoseWorkerResponse): void {
     if (this.closed) {
       return;
     }
-    if (message.type === "ready") {
-      this.clearInitializeTimeout();
-      this.ready = true;
-      this.initializeResolve?.();
-      this.initializeResolve = null;
-      this.initializeReject = null;
+    if (message?.type === "error") {
+      this.fail(new PoseEngineError(String(message.message)));
       return;
     }
-    if (message.type === "error") {
-      this.fail(new Error(message.message));
+    if (this.pending === null || this.pending.expects !== message?.type) {
+      this.fail(new PoseEngineError("The pose worker sent an unexpected reply."));
       return;
     }
-
-    if (message.type === "pose-limit-set") {
-      const pending = this.pendingPoseLimit;
-      this.pendingPoseLimit = null;
-      this.clearPoseLimitTimeout();
-      if (pending === null || pending.requested !== message.poseLimit) {
-        const error = new Error("The pose worker acknowledged an unexpected player mode.");
-        pending?.reject(error);
-        this.fail(error);
-        return;
-      }
-      this.hasEstimated = false;
-      pending.resolve();
-      return;
-    }
-
-    if (message.type === "tracking-reset") {
-      const pending = this.pendingTrackingReset;
-      this.pendingTrackingReset = null;
-      this.clearTrackingResetTimeout();
-      if (pending === null) {
-        this.fail(new Error("The pose worker acknowledged an unexpected tracking reset."));
-        return;
-      }
-      this.hasEstimated = false;
-      pending.resolve();
-      return;
-    }
-
-    const pending = this.pendingEstimate;
-    this.pendingEstimate = null;
-    this.clearEstimateTimeout();
-    const parsed = parsePosePacket(message.packet);
-    if (parsed.ok) {
-      this.hasEstimated = true;
-      pending?.resolve(parsed.value);
-    } else {
-      pending?.reject(new Error("The pose worker returned invalid data."));
-    }
+    this.settle()?.resolve(message);
   }
 
-  private fail(error: Error): void {
-    this.failedError = error;
+  private fail(error: PoseEngineError): void {
+    this.failure ??= error;
     this.ready = false;
-    this.clearInitializeTimeout();
-    this.initializeReject?.(error);
-    this.initializeResolve = null;
-    this.initializeReject = null;
-    this.pendingEstimate?.reject(error);
-    this.pendingEstimate = null;
-    this.clearEstimateTimeout();
-    this.pendingPoseLimit?.reject(error);
-    this.pendingPoseLimit = null;
-    this.clearPoseLimitTimeout();
-    this.pendingTrackingReset?.reject(error);
-    this.pendingTrackingReset = null;
-    this.clearTrackingResetTimeout();
+    this.settle()?.reject(error);
   }
 
-  private clearEstimateTimeout(): void {
-    if (this.estimateTimeoutId !== null) {
-      window.clearTimeout(this.estimateTimeoutId);
-      this.estimateTimeoutId = null;
+  private settle(): PendingRequest | null {
+    const pending = this.pending;
+    this.pending = null;
+    if (pending !== null) {
+      window.clearTimeout(pending.timeoutId);
     }
-  }
-
-  private clearInitializeTimeout(): void {
-    if (this.initializeTimeoutId !== null) {
-      window.clearTimeout(this.initializeTimeoutId);
-      this.initializeTimeoutId = null;
-    }
-  }
-
-  private clearPoseLimitTimeout(): void {
-    if (this.poseLimitTimeoutId !== null) {
-      window.clearTimeout(this.poseLimitTimeoutId);
-      this.poseLimitTimeoutId = null;
-    }
-  }
-
-  private clearTrackingResetTimeout(): void {
-    if (this.trackingResetTimeoutId !== null) {
-      window.clearTimeout(this.trackingResetTimeoutId);
-      this.trackingResetTimeoutId = null;
-    }
+    return pending;
   }
 }

@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { LocalPlayPage } from "../../apps/jojixplay/src/pages/local-play-page";
+import { BodyFrameChannel } from "../../apps/jojixplay/src/pose/body-frame-source";
 import type { CameraPoseLifecycle } from "../../apps/jojixplay/src/pose/use-camera-pose";
 
 const mocks = vi.hoisted(() => ({
@@ -12,8 +13,26 @@ const mocks = vi.hoisted(() => ({
 let camera: CameraPoseLifecycle;
 vi.mock("../../apps/jojixplay/src/pose/use-camera-pose", () => ({ useCameraPose: () => camera }));
 vi.mock("../../apps/jojixplay/src/components/game-view", () => ({
-  GameView: ({ players, game }: { players: 1 | 2; game: string }) => (
-    <div data-testid={game === "desenhar" ? "drawing" : "racing"}>{players} pessoas</div>
+  GameView: ({
+    players,
+    game,
+    onExit,
+    onFailed,
+  }: {
+    players: 1 | 2;
+    game: string;
+    onExit: () => void;
+    onFailed: () => void;
+  }) => (
+    <div data-testid={game === "desenhar" ? "drawing" : "racing"}>
+      {players} pessoas
+      <button type="button" onClick={onExit}>
+        game exit
+      </button>
+      <button type="button" onClick={onFailed}>
+        game failure
+      </button>
+    </div>
   ),
 }));
 vi.mock("../../apps/jojixplay/src/platform/capabilities", () => ({
@@ -32,12 +51,12 @@ beforeEach(() => {
   Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => null });
   camera = {
     state: "idle",
-    packet: null,
+    frames: new BodyFrameChannel(),
     normalization: null,
     poseLimit: 1,
     errorMessage: null,
     videoRef: { current: null },
-    start: mocks.start.mockResolvedValue(true),
+    start: mocks.start.mockResolvedValue(undefined),
     stop: mocks.stop,
     setPoseLimit: mocks.setPoseLimit.mockResolvedValue(undefined),
   };
@@ -62,29 +81,20 @@ it("requires touch to start, shows adult instructions and cleans up on unmount",
 it("clears a fresh upper-body frame by capture age, without requiring hips", () => {
   vi.useFakeTimers();
   const now = performance.now();
-  camera = {
-    ...camera,
-    state: "tracking",
-    packet: {
-      sequence: 1,
-      capturedAtMs: now,
-      frame: { width: 1280, height: 720, layout: "landscape", epoch: 0 },
-      poses: [
-        {
-          landmarks: Array.from({ length: 33 }, (_, i) => ({
-            x: 0.4,
-            y: 0.3,
-            z: 0,
-            visibility: i === 15 ? 1 : 0,
-          })),
-        },
-      ],
-    },
-  };
+  const frames = new BodyFrameChannel();
+  frames.publish({
+    sequence: 1,
+    capturedAtMs: now,
+    width: 1280,
+    height: 720,
+    epoch: 0,
+    bodies: [{ leftWrist: { x: 0.4, y: 0.3, z: 0, confidence: 1 } }],
+  });
+  camera = { ...camera, state: "tracking", frames };
   render(<LocalPlayPage />);
   expect(screen.getByRole("status")).toHaveTextContent("Achamos você!");
   act(() => {
-    vi.advanceTimersByTime(251);
+    vi.advanceTimersByTime(500);
   });
   expect(screen.getByRole("status")).toHaveTextContent("Mostre as mãos para o celular");
 });
@@ -99,31 +109,38 @@ it("reports a rejected player-mode change and retains the applied setting", asyn
   expect(screen.getByRole("button", { name: "Desenhar em dupla" })).toBeEnabled();
 });
 
-it("cancels startup without letting its late result stop a newer run", async () => {
-  let finish: (started: boolean) => void = () => {
-    throw new Error("Startup was not called");
-  };
-  mocks.start.mockImplementationOnce(
-    () =>
-      new Promise<boolean>((resolve) => {
-        finish = resolve;
-      }),
-  );
+it("cancels startup and releases the camera and immersive state", () => {
   const view = render(<LocalPlayPage />);
   fireEvent.click(screen.getByRole("button", { name: "Vamos começar" }));
   camera = { ...camera, state: "starting" };
   view.rerender(<LocalPlayPage />);
   fireEvent.click(screen.getByRole("button", { name: "Cancelar abertura da câmera" }));
   expect(mocks.stop).toHaveBeenCalledOnce();
-  camera = { ...camera, state: "idle" };
-  view.rerender(<LocalPlayPage />);
+  expect(mocks.immersiveStop).toHaveBeenCalled();
+});
+
+it("releases immersive state when the camera fails", () => {
+  const view = render(<LocalPlayPage />);
   fireEvent.click(screen.getByRole("button", { name: "Vamos começar" }));
+  expect(mocks.immersiveStop).not.toHaveBeenCalled();
+  camera = { ...camera, state: "error", errorMessage: "O acesso à câmera foi negado." };
+  view.rerender(<LocalPlayPage />);
+  expect(mocks.immersiveStop).toHaveBeenCalled();
+  expect(screen.getByRole("alert")).toHaveTextContent("O acesso à câmera foi negado.");
+});
+
+it("returns to the menu when a game exits, and reports a game that cannot open", async () => {
+  camera = { ...camera, state: "tracking" };
+  render(<LocalPlayPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
   await act(async () => {});
-  const stops = mocks.immersiveStop.mock.calls.length;
-  await act(async () => {
-    finish(false);
-  });
-  expect(mocks.immersiveStop).toHaveBeenCalledTimes(stops);
+  fireEvent.click(screen.getByRole("button", { name: "game exit" }));
+  expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("button", { name: "game failure" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível abrir Corrida dos Blocos");
+  expect(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" })).toBeEnabled();
 });
 
 it("enters solo directly and waits for two-person inference before opening a duo game", async () => {

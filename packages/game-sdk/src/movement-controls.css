@@ -1,0 +1,15 @@
+.movement-pointer {
+  position: fixed;
+  z-index: 10000;
+  width: 26px;
+  height: 26px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: conic-gradient(#72c49d var(--dwell, 0%), #f7c853 0);
+  box-shadow: 0 0 0 2px #294b4b;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.movement-pointer[hidden] {
+  display: none;
+}

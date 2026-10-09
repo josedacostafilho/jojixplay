@@ -24,7 +24,7 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | Formatter | Biome | 2.5.8 | `npm run format` |
 | Linter | Biome | 2.5.8 | `npm run lint` |
 | Static/type checker | TypeScript | 7.0.2 | `npm run typecheck` |
-| Unit/component test runner | Vitest / Testing Library | 4.1.10 / 3.2.4 | `npm test` |
+| Unit/component test runner | Vitest / Testing Library | 4.1.11 / 3.2.4 | `npm test` |
 | End-to-end tooling | Playwright | 1.62.1 | `npm run test:e2e` |
 | Database and migration tool | None | — | Persistence is forbidden for this slice |
 | CI provider | GitHub Actions | Current major actions pinned in workflow | `.github/workflows/pages.yml` |
@@ -69,7 +69,7 @@ The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. I
 
 ## Static artifact and deployment
 
-- `npm run build` writes the root-hosted artifact to `dist/` and separate studio artifacts under each game's `dist/`.
+- `npm run build` writes the root-hosted artifact to `dist/` and separate studio artifacts under each game's `dist/`. A small plugin in `vite.config.ts` publishes the MediaPipe runtime and the vendored model at their versioned paths in both development and builds; no copy dependency is installed.
 - `BASE_PATH=/jojixplay/ npm run build` writes an artifact whose asset URLs target a GitHub Pages project path. Replace `jojixplay` only if the repository name changes.
 - `.github/workflows/pages.yml` validates every pull request and push to `main`. A validated `main` commit is rebuilt with `/${repository-name}/` as the base and deployed through GitHub Pages; pull requests never publish.
 - The production artifact is published at `https://josedacostafilho.github.io/jojixplay/`; GitHub Actions is the configured Pages source.

@@ -54,10 +54,20 @@ export interface Experience {
   dispose(): void;
 }
 
+/** What a mounted game may ask of its host. Games own every control shown while they run. */
+export interface GameHost {
+  /** Leave the game. The game confirms with the players before calling this. */
+  exit(): void;
+}
+
 export const BODY_FRESHNESS_MS = 250;
 export function isFresh(frame: BodyFrame, now: number): boolean {
   const age = now - frame.capturedAtMs;
   return age >= 0 && age <= BODY_FRESHNESS_MS;
 }
 
-export { mountMovementControls, reachableHand, type ControlPoint } from "./movement-controls";
+export {
+  type ControlPoint,
+  type MovementControls,
+  mountMovementControls,
+} from "./movement-controls";

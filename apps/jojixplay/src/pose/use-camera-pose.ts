@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { CameraFrameNormalization } from "../domain/camera";
-import type { PosePacket } from "../domain/pose";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
+import { toBodyFrame } from "./body-frame";
+import { BodyFrameChannel, type BodyFrameSource } from "./body-frame-source";
 import { CameraPoseController } from "./camera-pose-controller";
 
 export type CameraTrackingState = "idle" | "starting" | "tracking" | "error";
@@ -9,11 +10,11 @@ export type CameraTrackingState = "idle" | "starting" | "tracking" | "error";
 export interface CameraPoseLifecycle {
   videoRef: preact.RefObject<HTMLVideoElement>;
   state: CameraTrackingState;
-  packet: PosePacket | null;
+  frames: BodyFrameSource;
   normalization: CameraFrameNormalization | null;
   poseLimit: PoseLimit;
   errorMessage: string | null;
-  start: () => Promise<boolean>;
+  start: () => Promise<void>;
   stop: () => void;
   setPoseLimit: (poseLimit: PoseLimit) => Promise<void>;
 }
@@ -25,7 +26,7 @@ export function useCameraPose(): CameraPoseLifecycle {
   const poseLimitRef = useRef<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [state, setState] = useState<CameraTrackingState>("idle");
   const [normalization, setNormalization] = useState<CameraFrameNormalization | null>(null);
-  const [packet, setPacket] = useState<PosePacket | null>(null);
+  const [frames] = useState(() => new BodyFrameChannel());
   const [poseLimit, setPoseLimitState] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -36,22 +37,22 @@ export function useCameraPose(): CameraPoseLifecycle {
     if (!mounted.current) {
       return;
     }
-    setPacket(null);
+    frames.publish(null);
     setNormalization(null);
     setState("idle");
     setErrorMessage(null);
     poseLimitRef.current = DEFAULT_POSE_LIMIT;
     setPoseLimitState(DEFAULT_POSE_LIMIT);
-  }, []);
+  }, [frames]);
 
-  const start = useCallback(async (): Promise<boolean> => {
+  const start = useCallback(async (): Promise<void> => {
     const video = videoRef.current;
     if (video === null || cameraController.current !== null) {
-      return false;
+      return;
     }
     setState("starting");
     setErrorMessage(null);
-    setPacket(null);
+    frames.publish(null);
     setNormalization(null);
 
     let controller: CameraPoseController | null = null;
@@ -62,23 +63,24 @@ export function useCameraPose(): CameraPoseLifecycle {
         if (!mounted.current || cameraController.current !== controller) {
           return;
         }
-        setPacket(nextPacket);
+        frames.publish(toBodyFrame(nextPacket));
       },
       onCameraFrame: (nextFrame) => {
         if (!mounted.current || cameraController.current !== controller) {
           return;
         }
         setNormalization(nextFrame);
-        setPacket((current) =>
-          nextFrame !== null && current?.frame.epoch === nextFrame.frame.epoch ? current : null,
-        );
+        // Observations from another camera basis must not outlive it.
+        if (frames.latest()?.epoch !== nextFrame?.frame.epoch) {
+          frames.publish(null);
+        }
       },
       onError: (message) => {
         if (!mounted.current || cameraController.current !== controller) {
           return;
         }
         cameraController.current = null;
-        setPacket(null);
+        frames.publish(null);
         setNormalization(null);
         setErrorMessage(message);
         setState("error");
@@ -88,11 +90,9 @@ export function useCameraPose(): CameraPoseLifecycle {
 
     try {
       await controller.start();
-      if (!mounted.current || cameraController.current !== controller) {
-        return false;
+      if (mounted.current && cameraController.current === controller) {
+        setState("tracking");
       }
-      setState("tracking");
-      return true;
     } catch (error) {
       if (mounted.current && cameraController.current === controller) {
         cameraController.current = null;
@@ -103,9 +103,8 @@ export function useCameraPose(): CameraPoseLifecycle {
             : "Não foi possível iniciar o reconhecimento de movimentos.",
         );
       }
-      return false;
     }
-  }, []);
+  }, [frames]);
 
   const setPoseLimit = useCallback(async (nextPoseLimit: PoseLimit): Promise<void> => {
     const controller = cameraController.current;
@@ -133,7 +132,7 @@ export function useCameraPose(): CameraPoseLifecycle {
   return {
     videoRef,
     state,
-    packet,
+    frames,
     normalization,
     poseLimit,
     errorMessage,

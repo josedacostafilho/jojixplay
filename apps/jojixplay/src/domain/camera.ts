@@ -31,6 +31,9 @@ export interface CameraFrameNormalization {
   screen: ScreenCameraOrientation;
 }
 
+/** The camera pixels and the screen orientation cannot be reconciled into an upright landscape frame. */
+export class CameraGeometryError extends Error {}
+
 export type ScreenCameraOrientationParseResult =
   | { ok: true; value: ScreenCameraOrientation }
   | { ok: false; error: string };
@@ -112,20 +115,20 @@ export function resolveCameraFrameNormalization(
     !isCameraFrameDimension(sourceHeight) ||
     !isCameraFrameEpoch(epoch)
   ) {
-    throw new Error("Camera frame metadata is invalid.");
+    throw new CameraGeometryError("Camera frame metadata is invalid.");
   }
   if (screen.layout !== "landscape") {
-    throw new Error("Rotate your phone to landscape before playing.");
+    throw new CameraGeometryError("Rotate your phone to landscape before playing.");
   }
   const sourceLayout = cameraLayoutForDimensions(sourceWidth, sourceHeight);
   if (sourceLayout === null) {
-    throw new Error("Square camera frames are not supported.");
+    throw new CameraGeometryError("Square camera frames are not supported.");
   }
 
   let rotation: CameraRotation = 0;
   if (sourceLayout !== screen.layout) {
     if (screen.angle !== 90 && screen.angle !== 270) {
-      throw new Error("Camera pixels and screen orientation are inconsistent.");
+      throw new CameraGeometryError("Camera pixels and screen orientation are inconsistent.");
     }
     rotation = screen.angle;
   }
@@ -134,7 +137,7 @@ export function resolveCameraFrameNormalization(
   const width = swapsDimensions ? sourceHeight : sourceWidth;
   const height = swapsDimensions ? sourceWidth : sourceHeight;
   if (cameraLayoutForDimensions(width, height) !== screen.layout) {
-    throw new Error("Camera rotation did not produce the expected layout.");
+    throw new CameraGeometryError("Camera rotation did not produce the expected layout.");
   }
 
   return {
@@ -156,15 +159,6 @@ export function rotateNormalizedPoint(point: CameraPoint, rotation: CameraRotati
     case 270:
       return { x: point.y, y: 1 - point.x };
   }
-}
-
-export function sameCameraFrameBasis(left: CameraFrame, right: CameraFrame): boolean {
-  return (
-    left.width === right.width &&
-    left.height === right.height &&
-    left.layout === right.layout &&
-    left.epoch === right.epoch
-  );
 }
 
 export function sameCameraFrameNormalization(

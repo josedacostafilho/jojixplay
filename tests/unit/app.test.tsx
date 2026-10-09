@@ -51,12 +51,10 @@ it("mounts play only in landscape and stops it immediately on portrait rotation"
   expect(screen.queryByRole("button", { name: "Start playing" })).not.toBeInTheDocument();
 });
 
-it.each(["?mode=tv", "?mode=phone", "?mode=local", "#key=removed"])(
-  "rejects obsolete link %s",
-  (suffix) => {
-    history.replaceState(null, "", `/${suffix}`);
-    render(<App />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Este link é inválido");
-    expect(lifecycle.mount).not.toHaveBeenCalled();
-  },
-);
+it("opens normally when a shared link carries extra parameters", () => {
+  landscape = true;
+  orientation.type = "landscape-primary";
+  history.replaceState(null, "", "/?fbclid=abc#top");
+  render(<App />);
+  expect(lifecycle.mount).toHaveBeenCalledOnce();
+});

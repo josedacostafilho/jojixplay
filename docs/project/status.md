@@ -13,6 +13,8 @@ last_verified: 2026-10-08
 - Main game list with Desenhar and Corrida dos Blocos, over a fullscreen mirrored camera. Simple DOM circles near the estimated index position share exact hit-test projection. The 3D hand renderer, asset and asset lab are removed.
 - MediaPipe Full Pose GPU serves menus, Desenhar and Corrida. One worker/task, one estimate in flight and one local capture remain active, visible behind menus and hidden inside games.
 - Independent per-joint availability, body capture-age expiry. No whole-body prerequisite.
+- Games own every in-game control, including confirmed exit, through a one-method host contract. Pose frames reach games and the menu pointer through a channel and never rerender the interface. See [ADR-0029](../decisions/0029-game-owned-controls-and-frame-channel.md).
+- Links carrying extra query or fragment text open normally; the retired pairing-link rejection is removed.
 
 ## Games
 
@@ -32,4 +34,4 @@ GitHub Pages deploys validated `main` pushes to [JojixPlay](https://josedacostaf
 
 ## Validation
 
-The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, the app and two studio builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. The removal passes 79 unit/component tests and all nine Chromium journeys. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory and Biome flags an existing numeric-constant warning in the camera-view test. The dependency audit blocks full validation with five high findings (braces/chokidar/static-copy, source-map-js and undici) and two moderate Vitest/mocker findings in existing development dependencies.
+The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, the app and two studio builds, Chromium real-worker startup/cleanup and the high-severity dependency audit. On 2026-10-08, with Node 24.19.0, it passed end to end: 77 unit/component tests, all nine Chromium journeys, lint without warnings and an audit with no findings. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory.

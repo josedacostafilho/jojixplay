@@ -10,7 +10,8 @@ const estimator = vi.hoisted(() => ({
   close: vi.fn(),
 }));
 
-vi.mock("../../apps/jojixplay/src/pose/pose-estimator", () => ({
+vi.mock("../../apps/jojixplay/src/pose/pose-estimator", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   PoseEstimator: class PoseEstimatorMock {
     readonly initialize = estimator.initialize;
     readonly estimate = estimator.estimate;

@@ -5,7 +5,6 @@ import {
   parseScreenCameraOrientation,
   resolveCameraFrameNormalization,
   rotateNormalizedPoint,
-  sameCameraFrameBasis,
   sameCameraFrameNormalization,
 } from "../../apps/jojixplay/src/domain/camera";
 
@@ -87,11 +86,6 @@ describe("camera domain", () => {
     expect(rotateNormalizedPoint(point, 270)).toEqual({ x: 0.3, y: 0.8 });
   });
 
-  it("treats epoch changes as camera-basis changes", () => {
-    const frame = { width: 1_280, height: 720, layout: "landscape" as const, epoch: 4 };
-    expect(sameCameraFrameBasis(frame, { ...frame })).toBe(true);
-    expect(sameCameraFrameBasis(frame, { ...frame, epoch: 5 })).toBe(false);
-  });
   it("treats both landscape directions as distinct bases even for browser-oriented pixels", () => {
     const primary = resolveCameraFrameNormalization(
       1280,

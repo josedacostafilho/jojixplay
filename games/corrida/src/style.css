@@ -98,6 +98,11 @@
 .race-hearts .empty {
   color: #446269;
 }
+.race-back {
+  position: absolute;
+  top: 12px;
+  right: 3%;
+}
 .race-tools {
   position: absolute;
   left: 3%;
@@ -447,6 +452,7 @@
 }
 .race-dialog button {
   min-width: 240px;
+  margin: 6px;
 }
 @keyframes race-pop {
   from {

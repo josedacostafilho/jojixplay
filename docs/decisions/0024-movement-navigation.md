@@ -5,6 +5,8 @@ last_verified: 2026-09-24
 
 # Movement operates the complete play session
 
+Host-owned controls inside a running game were replaced by [ADR-0029](0029-game-owned-controls-and-frame-channel.md); the movement requirement itself stands.
+
 The phone sits across the room beside the television. Trusted camera setup is the only step that requires touch. Every subsequent menu, game tool, help control, confirmation and return action must be reachable through fresh body movement. This replaces the touch-only confirmation decision in ADR-0023.
 
 The SDK supplies one small DOM dwell controller shared by the host and isolated games. It invokes the same semantic buttons used by touch and keyboard, reads their actual visible rectangles, respects modal exclusivity, and shows a hand cursor with an 800 ms progress ring. New targets, completed actions and lost input require leaving all targets before re-arming. No menu state, game rules, renderer, person identity or tracking vendor enters that helper. Consumers own projection and fresh input; the game keeps its screen-side palette ownership.

@@ -1,12 +1,13 @@
 import {
   type CameraFrameNormalization,
+  CameraGeometryError,
   parseScreenCameraOrientation,
   resolveCameraFrameNormalization,
   sameCameraFrameNormalization,
 } from "../domain/camera";
 import type { PosePacket } from "../domain/pose";
 import type { PoseLimit } from "../domain/pose-limit";
-import { PoseEstimator } from "./pose-estimator";
+import { PoseEngineError, PoseEstimator } from "./pose-estimator";
 import { POSE_MODEL } from "./pose-model";
 
 interface CameraPoseControllerOptions {
@@ -35,20 +36,11 @@ function assetUrl(path: string): string {
 }
 
 function cameraErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.startsWith("The pose")) {
-    return "O reconhecimento de movimentos falhou. Encerre o teste e tente novamente.";
+  if (error instanceof PoseEngineError) {
+    return "O reconhecimento de movimentos parou. Tente novamente.";
   }
-  if (
-    error instanceof Error &&
-    (error.message.startsWith("Screen orientation") ||
-      error.message.startsWith("Rotate your phone") ||
-      error.message.startsWith("Camera frame") ||
-      error.message.startsWith("Camera pixels") ||
-      error.message.startsWith("Camera rotation") ||
-      error.message.startsWith("Pose tracking") ||
-      error.message.startsWith("Square camera"))
-  ) {
-    return "Não foi possível ajustar a câmera. Deixe o celular deitado, ative a rotação automática e reinicie o teste.";
+  if (error instanceof CameraGeometryError) {
+    return "Não foi possível ajustar a câmera. Deixe o celular deitado, ative a rotação automática e tente novamente.";
   }
   if (error instanceof DOMException) {
     if (error.name === "NotAllowedError" || error.name === "SecurityError") {
@@ -157,9 +149,7 @@ export class CameraPoseController {
       this.poseLimit = poseLimit;
     } catch {
       if (this.active) {
-        this.options.onError(
-          "Não foi possível mudar o número de pessoas. Reinicie o teste para tentar novamente.",
-        );
+        this.options.onError("Não foi possível mudar o número de pessoas. Tente novamente.");
         this.stop();
       }
       throw new Error("Não foi possível mudar o número de pessoas.");
@@ -259,7 +249,7 @@ export class CameraPoseController {
         window.screen.orientation.angle,
       );
       if (!parsedScreen.ok) {
-        throw new Error(parsedScreen.error);
+        throw new CameraGeometryError(parsedScreen.error);
       }
       const nextEpoch =
         this.activeNormalization === null ? 0 : this.activeNormalization.frame.epoch + 1;
@@ -283,7 +273,7 @@ export class CameraPoseController {
       ) {
         return null;
       }
-      throw new Error(message);
+      throw new CameraGeometryError(message);
     }
     this.pendingNormalizationError = null;
 

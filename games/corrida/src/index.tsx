@@ -1,14 +1,15 @@
 import {
-  isFresh,
-  mountMovementControls,
-  reachableHand,
   type BodyFrame,
   type ControlPoint,
   type Experience,
+  type GameHost,
+  isFresh,
+  mountMovementControls,
 } from "@jojixplay/game-sdk";
 import { render } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { poseLabels } from "./movement";
+import { reachableHand } from "./reach";
 import { createScene } from "./scene";
 import { JUMP_WINDOW, LEVEL_STARTS, RaceSession, RUN_SECONDS } from "./session";
 import "./style.css";
@@ -38,7 +39,16 @@ function ActionIcon({ kind }: { kind: "jump" | "duck" | "wall" }) {
     </svg>
   );
 }
-function Modal({ mode, onClose }: { mode: "pause" | "help"; onClose: () => void }) {
+type ModalMode = "pause" | "help" | "exit";
+function Modal({
+  mode,
+  onClose,
+  onExit,
+}: {
+  mode: ModalMode;
+  onClose: () => void;
+  onExit: () => void;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     ref.current?.showModal();
@@ -46,8 +56,16 @@ function Modal({ mode, onClose }: { mode: "pause" | "help"; onClose: () => void 
   }, []);
   return (
     <dialog ref={ref} class="race-dialog" onCancel={onClose}>
-      <h2>{mode === "help" ? "Seu corpo joga!" : "A pista espera por você"}</h2>
-      {mode === "help" ? (
+      <h2>
+        {mode === "help"
+          ? "Seu corpo joga!"
+          : mode === "exit"
+            ? "Sair da corrida?"
+            : "A pista espera por você"}
+      </h2>
+      {mode === "exit" ? (
+        <p>Ao sair, esta corrida termina e os pontos não são guardados.</p>
+      ) : mode === "help" ? (
         <div class="race-help-grid">
           <div>
             <ActionIcon kind="duck" />
@@ -69,24 +87,50 @@ function Modal({ mode, onClose }: { mode: "pause" | "help"; onClose: () => void 
         <p>Leve o círculo da mão até uma escolha e segure.</p>
       )}
       <button type="button" onClick={onClose}>
-        Vamos nessa →
+        {mode === "exit" ? "Continuar correndo" : "Vamos nessa →"}
       </button>
+      {mode === "exit" ? (
+        <button type="button" onClick={onExit}>
+          Sair da corrida
+        </button>
+      ) : null}
     </dialog>
   );
 }
 function RaceUI({
   session: s,
   modal,
+  loading,
   error,
   onModal,
   onReplay,
+  onExit,
 }: {
   session: RaceSession;
-  modal: "pause" | "help" | null;
+  modal: ModalMode | null;
+  loading: boolean;
   error: boolean;
-  onModal: (mode: "pause" | "help" | null) => void;
+  onModal: (mode: ModalMode | null) => void;
   onReplay: () => void;
+  onExit: () => void;
 }) {
+  const exit = (
+    <>
+      <button class="race-back" type="button" onClick={() => onModal("exit")}>
+        ← Voltar
+      </button>
+      {modal && <Modal key={modal} mode={modal} onClose={() => onModal(null)} onExit={onExit} />}
+    </>
+  );
+  if (loading)
+    return (
+      <div class="race-ui">
+        <p class="race-loading" role="status">
+          Preparando a floresta…
+        </p>
+        {exit}
+      </div>
+    );
   const ready = s.phase === "ready" || s.phase === "countdown";
   const finished = s.phase === "won" || s.phase === "lost";
   const obstacle = s.next;
@@ -273,11 +317,11 @@ function RaceUI({
           {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
         </time>
       </footer>
-      {modal && <Modal mode={modal} onClose={() => onModal(null)} />}
+      {exit}
     </div>
   );
 }
-export function mountCorrida(container: HTMLElement): Experience {
+export function mountCorrida(container: HTMLElement, host: GameHost): Experience {
   const root = document.createElement("section");
   root.className = "race-game";
   root.setAttribute("aria-label", "Corrida dos Blocos");
@@ -296,7 +340,7 @@ export function mountCorrida(container: HTMLElement): Experience {
   }
   let session = new RaceSession(),
     frame: BodyFrame | null = null,
-    modal: "pause" | "help" | null = null;
+    modal: ModalMode | null = null;
   let request = 0,
     lastUI = -Infinity,
     disposed = false,
@@ -315,19 +359,15 @@ export function mountCorrida(container: HTMLElement): Experience {
   };
   function drawUI() {
     render(
-      !loaded && !error ? (
-        <p class="race-loading" role="status">
-          Preparando a floresta…
-        </p>
-      ) : (
-        <RaceUI
-          session={session}
-          modal={modal}
-          error={error}
-          onModal={onModal}
-          onReplay={onReplay}
-        />
-      ),
+      <RaceUI
+        session={session}
+        modal={modal}
+        loading={!loaded && !error}
+        error={error}
+        onModal={onModal}
+        onReplay={onReplay}
+        onExit={host.exit}
+      />,
       ui,
     );
   }

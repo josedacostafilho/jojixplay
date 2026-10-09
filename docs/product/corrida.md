@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-25
+last_verified: 2026-10-08
 ---
 
 # Corrida dos Blocos
@@ -13,7 +13,7 @@ Choose **Corrida dos Blocos** from the main menu. The host confirms one-person i
 
 A bent observed knee, a compressed hip/knee configuration, or shoulder descent relative to a standing reference can establish crouching. With cropped legs, briefly standing before crouching supplies that reference. No whole-body prerequisite blocks menus or visible joints. Mostly full-body framing is recommended for this game.
 
-Fresh wrist dwell, touch and keyboard focus activate **Pausa**, **Como jogar**, **Correr de novo** and the host's confirmed **Voltar**. Visible hand circles use the same amplified projection as hit testing: the central half of camera width and y=15–75% cover the interface. This projection is shared with host-owned race exit and confirmation controls; camera-backed menus and drawing retain their own projections. Buttons are at least 54 px high, and essential race copy is at least 20 px at supported phone sizes. Missing wrists disappear; missing leg joints do not prevent controls. Exiting abandons the run. Replay returns to the stationary entry and resets points, lives, time and movement history.
+Fresh wrist dwell, touch and keyboard focus activate **Pausa**, **Como jogar**, **Correr de novo** and the game's confirmed **Voltar**. Visible hand circles use the same amplified projection as hit testing: the central half of camera width and y=15–75% cover the interface. The projection belongs to this game; camera-backed menus and drawing use their own. Buttons are at least 54 px high, and essential race copy is at least 20 px at supported phone sizes. Missing wrists disappear; missing leg joints do not prevent controls. Exiting abandons the run. Replay returns to the stationary entry and resets points, lives, time and movement history.
 
 ## Course and scoring
 

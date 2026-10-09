@@ -5,14 +5,15 @@ const stage = document.querySelector("main"),
   paint = document.querySelector<HTMLInputElement>("#paint"),
   lost = document.querySelector<HTMLInputElement>("#lost");
 if (!stage || !players || !paint || !lost) throw new Error("Controles de teste indisponíveis.");
-let view = mountDesenhar(stage, 1),
+const host = { exit: () => location.reload() };
+let view = mountDesenhar(stage, host, 1),
   x = 0.5,
   y = 0.5,
   shift = false,
   sequence = 0;
 players.onchange = () => {
   view.dispose();
-  view = mountDesenhar(stage, players.value === "2" ? 2 : 1);
+  view = mountDesenhar(stage, host, players.value === "2" ? 2 : 1);
 };
 window.addEventListener("pointermove", (event) => {
   const rect = stage.getBoundingClientRect();

@@ -15,10 +15,10 @@ Browser tests use one worker so software GPU inference and game rendering do not
 ## Platform coverage
 
 - Unit tests cover canonical orientation, packet validation, independent visible joints, freshness, fullscreen camera/hand projection across source rotations, worker GPU configuration, camera single-flight inference, player reconfiguration, bounded GPU warm-up after graph rebuilds, and resource cleanup.
-- Component tests cover landscape gating and invalid links.
+- Component tests cover landscape gating, links with extra parameters, startup cancellation, camera-failure cleanup, deferred one-/two-person entry, game exit and a game that cannot open.
 - Production Chromium tests cover landscape entry, real Full GPU worker output, fullscreen menu video and hidden in-game capture, no peer APIs and stop/portrait cleanup.
 - Desenhar has its own isolated rules suite for solo/duo ownership, missing input, continuity, undo, handedness and bounded paint. Production browser coverage verifies both live-camera game entries and the standalone game's visible paint, tracking loss, clear cancellation and clear confirmation.
-- A production browser journey injects synthetic worker observations and operates menus, help scrolling, solo/duo entry, palette selection, clear/exit confirmations and stop without any post-setup click. Shared dwell regression coverage verifies neutral arming, loss reset, modal exclusivity and single activation.
+- A production browser journey injects synthetic worker observations and operates menus, help scrolling, solo/duo entry, palette selection, clear/exit confirmations and stop without any post-setup click. Shared dwell regression coverage verifies neutral arming, loss reset, modal exclusivity, single activation, per-player control ownership and that a covered button is never chosen over the one drawn on top.
 - Unit coverage checks bounded index estimation, wrist-only input and partial-body observations. Browser coverage checks visible circles and movement-only navigation.
 - Corrida has isolated full-run, scoring, life-reset, countdown, partial-joint, timing-window, normalized-pose and bounded-camera tests. Its standalone production studio exercises held crouch, movement feedback, points, loss, pause, help and replay at two phone-sized viewports. The app movement-only journey also enters Corrida after duo mode and exercises help, pause and confirmed exit with wrists restricted to the central half-width and 15–75% height. Race regression tests cover symbolic dip-and-rise, early/late timing, contextual camera gating, isolated outliers and longer airtime; browser layout checks enforce minimum essential text sizes and start-panel clearance.
 - Network coverage confirms no Corrida PNG requests during menus or Desenhar, then exactly seven same-origin texture URLs on Corrida entry. The studio checks loading and asset-failure cleanup in addition to its rendered game journeys.
@@ -86,7 +86,7 @@ CI must use the same commands as local development. Required gates must fail clo
 
 ## Coverage policy
 
-No repository-wide line percentage is used. Risk-bearing contracts require direct behavioral tests: landscape entry/teardown, packet validation, renderer geometry, invalid-link recovery, production asset paths, worker initialization, and first-packet inference are covered in the first slice. Reconsider a numeric threshold only when measured coverage identifies a concrete blind spot; do not optimize tests for a vanity percentage.
+No repository-wide line percentage is used. Risk-bearing contracts require direct behavioral tests: landscape entry/teardown, packet validation, renderer geometry, production asset paths, worker initialization, and first-packet inference are covered in the first slice. Reconsider a numeric threshold only when measured coverage identifies a concrete blind spot; do not optimize tests for a vanity percentage.
 
 Coverage exclusions must be narrow, explained, and limited to code that cannot carry meaningful behavior, such as generated output.
 

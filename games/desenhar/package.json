@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": "./src/index.tsx",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@jojixplay/game-sdk": "*",
+    "preact": "10.29.8",
     "three": "0.186.1"
   },
   "devDependencies": {
+    "@preact/preset-vite": "2.10.6",
     "vite": "8.2.1",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

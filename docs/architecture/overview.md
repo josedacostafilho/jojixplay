@@ -11,22 +11,26 @@ The static application runs entirely on a landscape phone. External screen mirro
 
 | Workspace | Owns | Public dependencies |
 | --- | --- | --- |
-| `apps/jojixplay` | Preact UI, permission, camera, worker, observation adapter, immersive lifecycle | SDK, Desenhar, Corrida, Preact, MediaPipe |
-| `packages/game-sdk` | Readonly named-joint input, freshness, lifecycle and shared DOM dwell | None |
+| `apps/jojixplay` | Preact menus, permission, camera, worker, observation adapter, frame channel, immersive lifecycle | SDK, Desenhar, Corrida, Preact, MediaPipe |
+| `packages/game-sdk` | Readonly named-joint input, freshness, mount/host contract and shared DOM dwell | None |
 | `games/corrida` | Run rules, gesture recognition, first-person Three.js world, Preact game UI, tests and standalone synthetic development | SDK, Three.js, Preact |
-| `games/desenhar` | Game rules, two independent brushes, Three.js paint, controls, tests and standalone synthetic development | SDK, Three.js |
+| `games/desenhar` | Game rules, two independent brushes, Three.js paint, Preact game UI, tests and standalone synthetic development | SDK, Three.js, Preact |
 
-Desenhar is the first new game, in `games/desenhar`. The application lazy-loads each game's public mount function; for Desenhar it mounts with the applied player count and passes SDK frames. Its standalone development page has no camera or application dependency. Corrida uses the same mount/update/dispose contract with confirmed one-person input; its rules and camera movement remain game-owned. Future host-mounted games follow the same isolated workspace pattern; the owner chooses their rules. Workspace imports must use declared public package exports; relative escapes, deep cross-package imports, imports of application internals and game-to-game imports fail `verify:boundaries`. Root TypeScript and validation coordinate shared checks. The development studios build without the application or camera.
+The application keeps one registry entry per game and lazy-loads its public mount function. `mount(container, host)` returns `update(frame | null)` and `dispose()`; null clears unavailable input. Desenhar takes one further argument, the applied one-/two-person count, fixed for that run. `host` exposes only `exit()`. A game owns every control shown while it runs, including **Voltar** and its confirmation, and calls `exit()` once the players confirm. The host renders nothing over a game and never reads a game's DOM. A game that fails to load or mount returns to the menu with a message. See [ADR-0029](../decisions/0029-game-owned-controls-and-frame-channel.md).
 
-The SDK contains the shared DOM hand-dwell mechanism and a bounded amplified hand projection for camera-hidden controls used by host navigation and game tools. It contains no menu state, scoring, player identity, tracking vendor types, renderer or game framework. See [ADR-0024](../decisions/0024-movement-navigation.md). Corrida and its host-owned exit controls share this amplified projection. The base `mount(container)` contract returns `update(frame | null)` and `dispose()`. Null clears unavailable input. Desenhar takes one additional explicit mount argument: the applied one-/two-person count, which remains fixed for that run. Each experience owns and disposes its scene resources; there is no unused audio or scoring service today.
+Workspace imports must use declared public package exports; relative escapes, deep cross-package imports, imports of application internals and game-to-game imports fail `verify:boundaries`. Root TypeScript and validation coordinate shared checks. Each game's standalone development page builds without the application or camera. Future host-mounted games follow the same pattern; the owner chooses their rules.
+
+The SDK contains the one DOM hand-dwell controller, used by host menus and by each game for its own buttons; only one controller is active at a time. It contains no menu state, scoring, player identity, tracking vendor types, renderer or game framework. Consumers supply hand positions in viewport pixels: menus project onto the camera cover rectangle, Desenhar onto its paper, and Corrida through its own amplified reach. See [ADR-0024](../decisions/0024-movement-navigation.md). Each experience owns and disposes its scene resources; there is no unused audio or scoring service today.
 
 ## Data flow
 
 A trusted touch starts camera acquisition and optional immersive APIs. One worker runs a single MediaPipe Full Pose GPU task. Eligible camera callbacks schedule one estimate at a time. The phone normalizes camera rotation before publishing validated raw observations. The app adapter converts vendor-indexed pose landmarks into named independent joints for the SDK. Joints below 0.6 visibility or outside the normalized frame are absent; the rest of the body remains available.
 
+Converted frames are published on a channel rather than stored as interface state. A mounted game subscribes and is updated straight from the camera callback; the menu pointer reads the latest frame on each animation frame; the tracking note and adult diagnostics sample it at a slow interval. A pose frame never rerenders the interface.
+
 Capture timestamps and frame epochs cross the SDK boundary. Body observations older than 250 ms are unavailable. No stable person IDs exist. The camera hook also publishes committed source normalization to the host. Outside games, a full-viewport video element applies canonical rotation, mirroring and aspect-preserving cover cropping. The host projects hand anchors through the exact same cover rectangle for both the DOM circle and button hit tests. A bounded index estimate positions the circle near the fingertip; no display smoothing or amplified reach is applied. Missing torso/legs never block hand navigation. See [ADR-0025](../decisions/0025-camera-menu-and-authored-hands.md).
 
-Portrait, stop, errors and unmount release camera/worker and immersive resources. Scene unmount releases animation callbacks, geometries, materials, observer and GPU context. Context startup failure is explicit; there is no Canvas or CPU fallback.
+Portrait, stop, errors and unmount release camera/worker and immersive resources. Desenhar redraws its surface only when a brush, the art, the layout or a dialog changes. Scene unmount releases animation callbacks, geometries, materials, observer and GPU context. Context startup failure is explicit; there is no Canvas or CPU fallback.
 
 ## Assets and deployment
 

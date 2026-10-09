@@ -1,68 +1,65 @@
-import type { BodyFrame, Experience } from "@jojixplay/game-sdk";
+import type { Experience } from "@jojixplay/game-sdk";
 import { useEffect, useRef, useState } from "preact/hooks";
+import type { PoseLimit } from "../domain/pose-limit";
+import { type GameId, games } from "../games";
+import type { BodyFrameSource } from "../pose/body-frame-source";
 
+/** Loads and mounts one game, then feeds it pose frames directly from the camera. */
 export function GameView({
-  frame,
-  players,
   game,
+  players,
+  frames,
+  onExit,
+  onFailed,
 }: {
-  frame: BodyFrame | null;
-  players: 1 | 2;
-  game: "desenhar" | "corrida";
+  game: GameId;
+  players: PoseLimit;
+  frames: BodyFrameSource;
+  onExit: () => void;
+  onFailed: () => void;
 }) {
-  const host = useRef<HTMLDivElement>(null),
-    experience = useRef<Experience | null>(null),
-    latest = useRef(frame);
-  const [error, setError] = useState(false),
-    [loading, setLoading] = useState(true);
-  latest.current = frame;
+  const container = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const callbacks = useRef({ onExit, onFailed });
+  callbacks.current = { onExit, onFailed };
+
   useEffect(() => {
+    let experience: Experience | null = null;
+    let unsubscribe = () => {};
     let cancelled = false;
-    const load =
-      game === "desenhar"
-        ? import("@jojixplay/desenhar").then(
-            ({ mountDesenhar }) =>
-              (host: HTMLElement) =>
-                mountDesenhar(host, players),
-          )
-        : import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida);
     setLoading(true);
-    setError(false);
-    void load
+    void games[game]
+      .load()
       .then((mount) => {
-        if (cancelled || !host.current) return;
-        experience.current = mount(host.current);
-        experience.current.update(latest.current);
+        if (cancelled || !container.current) return;
+        const mounted = mount(
+          container.current,
+          { exit: () => callbacks.current.onExit() },
+          players,
+        );
+        experience = mounted;
+        mounted.update(frames.latest());
+        unsubscribe = frames.subscribe((frame) => mounted.update(frame));
         setLoading(false);
       })
       .catch(() => {
-        if (!cancelled) {
-          setError(true);
-          setLoading(false);
-        }
+        if (!cancelled) callbacks.current.onFailed();
       });
     return () => {
       cancelled = true;
-      experience.current?.dispose();
-      experience.current = null;
+      unsubscribe();
+      experience?.dispose();
     };
-  }, [players, game]);
-  useEffect(() => {
-    experience.current?.update(frame);
-  }, [frame]);
+  }, [game, players, frames]);
+
   return (
-    <div class="game-mount" ref={host}>
+    <>
+      <div class="game-mount" ref={container} />
       {loading ? (
         <p class="game-loading" role="status">
-          {game === "desenhar" ? "Preparando suas cores…" : "Preparando a pista…"}
+          {games[game].loadingCopy}
         </p>
       ) : null}
-      {error ? (
-        <p class="inline-error" role="alert">
-          Não foi possível abrir {game === "desenhar" ? "Desenhar" : "Corrida dos Blocos"}. Volte e
-          tente novamente.
-        </p>
-      ) : null}
-    </div>
+    </>
   );
 }

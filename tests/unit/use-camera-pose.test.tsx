@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
+import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PosePacket } from "../../apps/jojixplay/src/domain/pose";
 import { useCameraPose } from "../../apps/jojixplay/src/pose/use-camera-pose";
@@ -11,7 +12,8 @@ const estimator = vi.hoisted(() => ({
   close: vi.fn(),
 }));
 
-vi.mock("../../apps/jojixplay/src/pose/pose-estimator", () => ({
+vi.mock("../../apps/jojixplay/src/pose/pose-estimator", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   PoseEstimator: class PoseEstimatorMock {
     readonly initialize = estimator.initialize;
     readonly estimate = estimator.estimate;
@@ -30,11 +32,16 @@ const EMPTY_PACKET: PosePacket = {
 
 function CameraHarness() {
   const camera = useCameraPose();
+  const [sequence, setSequence] = useState<number | null>(null);
+  useEffect(
+    () => camera.frames.subscribe((frame) => setSequence(frame?.sequence ?? null)),
+    [camera.frames],
+  );
   return (
     <section>
       <video ref={camera.videoRef} muted playsInline />
       <output aria-label="Camera state">{camera.state}</output>
-      <output aria-label="Packet sequence">{camera.packet?.sequence ?? "none"}</output>
+      <output aria-label="Packet sequence">{sequence ?? "none"}</output>
       <output aria-label="Camera rotation">{camera.normalization?.rotation ?? "none"}</output>
       <output aria-label="Pose limit">{camera.poseLimit}</output>
       <button type="button" onClick={() => void camera.start()}>
@@ -80,7 +87,7 @@ describe("shared camera pose lifecycle", () => {
     vi.unstubAllGlobals();
   });
 
-  it("owns one camera controller, publishes packets directly, applies mode before display, and cleans up", async () => {
+  it("owns one camera controller, publishes frames to subscribers, applies mode before display, and cleans up", async () => {
     const view = render(<CameraHarness />);
     const video = view.container.querySelector("video");
     if (video === null) {

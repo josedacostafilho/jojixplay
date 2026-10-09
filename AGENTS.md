@@ -28,7 +28,7 @@ The owner selects games. All old games are retired. The first new game, Desenhar
 - Stale observations must disappear. Stop, error, portrait and unmount release workers, media tracks, scene resources and owned immersive state.
 - Three.js WebGL2 is the only rendering path. Preact owns UI. No Canvas 2D, Phaser or renderer fallback. Future authored 3D assets use Blender-to-GLB.
 - Desenhar uses explicit one-/two-person mode selected before mount. Two-person brush ownership uses separate screen-side shoulder zones, not array order. Missing or stale joints break strokes without deleting art; clear and exit require confirmation.
-- Game input and lifecycle contracts stay narrow. Games own interpretation and effects. The host owns permissions and session resources.
+- Game input and lifecycle contracts stay narrow. Games own interpretation, effects and every control shown while they run, including confirmed exit; the host never reads or draws over a game's DOM. The host owns permissions and session resources. Pose frames never pass through interface state. See [ADR-0029](docs/decisions/0029-game-owned-controls-and-frame-channel.md).
 - Target-phone tracking quality, heat and mirroring latency require real-device measurement; browser tests cannot establish them.
 
 ## Tests

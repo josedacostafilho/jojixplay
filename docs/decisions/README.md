@@ -40,6 +40,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0026](0026-circle-menu-pointer.md) | Accepted | Replace hand meshes with bounded index-aim circles |
 | [0027](0027-corrida-gesture-camera.md) | Superseded | Keep first-person gesture feedback and normalized pose walls game-owned |
 | [0028](0028-contextual-race-actions.md) | Accepted | Disambiguate race gestures by obstacle and share reachable visible race controls |
+| [0029](0029-game-owned-controls-and-frame-channel.md) | Accepted | Games own every in-game control; pose frames reach consumers without interface state |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

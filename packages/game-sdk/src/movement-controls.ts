@@ -1,12 +1,11 @@
-/** Expand the central hand workspace for games that do not overlay the camera.
- * Display and hit testing must use this same point; raw body coordinates stay unchanged. */
-export function reachableHand(x: number, y: number): { x: number; y: number } {
-  return {
-    x: Math.max(0.02, Math.min(0.98, 0.5 + (0.5 - x) * 2)),
-    y: Math.max(0.02, Math.min(0.98, 0.5 + (y - 0.45) / 0.6)),
-  };
-}
+import "./movement-controls.css";
 
+/** How long a hand must rest on a button before it activates. */
+const DWELL_MS = 800;
+/** A hand that moves farther than this share of the short viewport side between updates restarts its dwell. */
+const JUMP_LIMIT = 0.25;
+
+/** A hand position in viewport pixels. `player` restricts it to controls inside a matching `data-player`. */
 export interface ControlPoint {
   readonly key: string;
   readonly x: number;
@@ -14,109 +13,133 @@ export interface ControlPoint {
   readonly player?: number;
 }
 
-/** One dwell implementation for menus, game tools and modal confirmations. */
+export interface MovementControls {
+  update(points: readonly ControlPoint[], now: number): void;
+  /** Forget every dwell in progress. A hand must leave its button before it can dwell again. */
+  reset(): void;
+  dispose(): void;
+}
+
+interface Hand {
+  point: ControlPoint;
+  readonly cursor: HTMLDivElement;
+  button: HTMLButtonElement | null;
+  since: number;
+  /** Set once the hand has been seen away from every button, so a stale pose cannot activate one. */
+  armed: boolean;
+}
+
+/**
+ * The one dwell implementation for menus, game tools and confirmations. Every enabled, visible
+ * button under `root` is a target; an open modal dialog under `root` narrows targets to itself.
+ * `pointer: "target"` shows the cursor only over a target, for games that draw their own pointer.
+ */
 export function mountMovementControls(
   root: HTMLElement,
-  accepts: (button: HTMLButtonElement) => boolean = () => true,
-  pointer: "always" | "target" = "always",
-) {
-  const states = new Map<
-    string,
-    {
-      point: ControlPoint;
-      cursor: HTMLDivElement;
-      button: HTMLButtonElement | null;
-      since: number;
-      armed: boolean;
-    }
-  >();
-  let previousTargets: HTMLButtonElement[] = [];
+  options: { readonly pointer?: "always" | "target" } = {},
+): MovementControls {
+  const hands = new Map<string, Hand>();
+  let previousTargets: readonly HTMLButtonElement[] = [];
+
+  function release(hand: Hand) {
+    hand.button?.style.removeProperty("--dwell");
+    hand.cursor.remove();
+  }
   function reset() {
-    for (const state of states.values()) {
-      state.button?.style.removeProperty("--dwell");
-      state.cursor.remove();
-    }
-    states.clear();
+    for (const hand of hands.values()) release(hand);
+    hands.clear();
   }
   // Touch and keyboard selections must also release every movement dwell.
   root.addEventListener("click", reset, true);
-  return {
-    update(points: readonly ControlPoint[], now: number) {
-      const modal = document.querySelector<HTMLDialogElement>("dialog[open]");
-      const scope = modal ?? root;
-      const targets = [...scope.querySelectorAll<HTMLButtonElement>("button")].filter(
-        (button) =>
-          root.contains(button) &&
-          accepts(button) &&
-          !button.disabled &&
-          button.getClientRects().length > 0,
-      );
-      if (
-        targets.length !== previousTargets.length ||
-        targets.some((b, i) => b !== previousTargets[i])
-      )
+
+  function update(points: readonly ControlPoint[], now: number) {
+    if (points.length === 0) {
+      reset();
+      return;
+    }
+    const modal = root.querySelector<HTMLDialogElement>("dialog[open]");
+    const scope = modal ?? root;
+    const targets: HTMLButtonElement[] = [];
+    const rects: DOMRect[] = [];
+    for (const button of scope.querySelectorAll("button")) {
+      if (button.disabled) continue;
+      const rect = button.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      targets.push(button);
+      rects.push(rect);
+    }
+    if (
+      targets.length !== previousTargets.length ||
+      targets.some((button, i) => button !== previousTargets[i])
+    )
+      reset();
+    previousTargets = targets;
+
+    for (const [key, hand] of hands) {
+      if (points.some((point) => point.key === key)) continue;
+      release(hand);
+      hands.delete(key);
+    }
+
+    for (const point of points) {
+      let hand = hands.get(point.key);
+      if (!hand) {
+        const cursor = document.createElement("div");
+        cursor.className = "movement-pointer";
+        cursor.setAttribute("aria-hidden", "true");
+        hand = { point, cursor, button: null, since: now, armed: false };
+        hands.set(point.key, hand);
+      }
+      const jumped =
+        Math.hypot(point.x - hand.point.x, point.y - hand.point.y) >
+        JUMP_LIMIT * Math.min(innerWidth, innerHeight);
+      hand.point = point;
+
+      // A rectangle hit is not enough: a panel or another button may be drawn over this one.
+      let top: Element | null | undefined;
+      const index = rects.findIndex((rect, i) => {
+        if (
+          point.x < rect.left ||
+          point.x > rect.right ||
+          point.y < rect.top ||
+          point.y > rect.bottom
+        )
+          return false;
+        const owner = targets[i]?.closest<HTMLElement>("[data-player]")?.dataset.player;
+        if (owner !== undefined && Number(owner) !== point.player) return false;
+        if (top === undefined) top = document.elementFromPoint(point.x, point.y);
+        return top !== null && !!targets[i]?.contains(top);
+      });
+      const button = targets[index] ?? null;
+
+      if (button !== hand.button || jumped) {
+        hand.button?.style.removeProperty("--dwell");
+        hand.button = button;
+        hand.since = now;
+      }
+      if (!button) hand.armed = true;
+      const progress = button && hand.armed ? Math.min(1, (now - hand.since) / DWELL_MS) : 0;
+      const percent = `${progress * 100}%`;
+      button?.style.setProperty("--dwell", percent);
+
+      const { cursor } = hand;
+      // A modal's top layer requires its cursor to live inside that modal.
+      if (cursor.parentElement !== scope) scope.append(cursor);
+      cursor.hidden = targets.length === 0 || (options.pointer === "target" && !button && !modal);
+      cursor.style.left = `${point.x}px`;
+      cursor.style.top = `${point.y}px`;
+      cursor.style.setProperty("--dwell", percent);
+
+      if (button && progress === 1) {
         reset();
-      previousTargets = targets;
-      const keys = new Set(points.map((point) => point.key));
-      for (const [key, state] of states) {
-        if (!keys.has(key)) {
-          state.button?.style.removeProperty("--dwell");
-          state.cursor.remove();
-          states.delete(key);
-        }
+        button.click();
+        return;
       }
-      for (const point of points) {
-        let state = states.get(point.key);
-        if (!state) {
-          const cursor = document.createElement("div");
-          cursor.setAttribute("aria-hidden", "true");
-          cursor.className = "movement-pointer";
-          cursor.style.cssText =
-            "position:fixed;width:26px;height:26px;border-radius:50%;border:3px solid white;box-shadow:0 0 0 2px #294b4b;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);display:block;background:#f7c853";
-          state = { point, cursor, button: null, since: now, armed: false };
-          states.set(point.key, state);
-        }
-        const jump =
-          Math.hypot(point.x - state.point.x, point.y - state.point.y) >
-          0.25 * Math.min(innerWidth, innerHeight);
-        state.point = point;
-        const hit = document.elementFromPoint(point.x, point.y);
-        const button =
-          targets.find((button) => {
-            const owner = button.closest<HTMLElement>("[data-player]")?.dataset.player;
-            if (owner !== undefined && Number(owner) !== point.player) return false;
-            const r = button.getBoundingClientRect();
-            return (
-              point.x >= r.left &&
-              point.x <= r.right &&
-              point.y >= r.top &&
-              point.y <= r.bottom &&
-              !!hit &&
-              button.contains(hit)
-            );
-          }) ?? null;
-        if (button !== state.button || jump) {
-          state.button?.style.removeProperty("--dwell");
-          state.button = button;
-          state.since = now;
-        }
-        if (!button) state.armed = true;
-        const progress = button && state.armed ? Math.min(1, (now - state.since) / 800) : 0;
-        if (button) button.style.setProperty("--dwell", `${progress * 100}%`);
-        // A modal's top layer requires its cursor to live inside that modal.
-        if (state.cursor.parentElement !== scope) scope.append(state.cursor);
-        state.cursor.hidden = !targets.length || (pointer === "target" && !button && !modal);
-        state.cursor.style.display = state.cursor.hidden ? "none" : "block";
-        state.cursor.style.left = `${point.x}px`;
-        state.cursor.style.top = `${point.y}px`;
-        state.cursor.style.background = `conic-gradient(#72c49d ${progress * 100}%, #f7c853 0)`;
-        if (button && progress === 1) {
-          reset();
-          button.click();
-          return;
-        }
-      }
-    },
+    }
+  }
+
+  return {
+    update,
     reset,
     dispose() {
       reset();

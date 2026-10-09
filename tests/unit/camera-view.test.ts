@@ -42,11 +42,11 @@ it("estimates near the index, supports wrist-only input and bounds reach without
   expect(estimateIndexPoint({}, false, 2)).toBeUndefined();
   expect(estimateIndexPoint({ rightWrist: wrist }, false, 2)?.y).toBeCloseTo(0.465);
   const index = estimateIndexPoint(
-    { rightWrist: wrist, rightIndex: { ...wrist, y: 0.44 } },
+    { rightWrist: wrist, rightIndex: { ...wrist, y: 0.45 } },
     false,
     2,
   );
-  expect(index?.y).toBeCloseTo(0.434);
+  expect(index?.y).toBeCloseTo(0.445);
   const elbow = estimateIndexPoint({ leftWrist: wrist, leftElbow: { ...wrist, y: 0.7 } }, true, 2);
   expect(elbow?.y).toBeCloseTo(0.456);
   const far = estimateIndexPoint({ rightWrist: wrist, rightIndex: { ...wrist, x: 1 } }, false, 2);

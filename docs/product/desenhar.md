@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-24
+last_verified: 2026-10-08
 ---
 
 # Desenhar
@@ -21,7 +21,7 @@ The right wrist moves the mirrored brush by default. Raise the other wrist above
 - The opposite wrist engages at 0.07 normalized frame heights above its shoulder and releases at 0.02. No hidden body-part estimates are invented.
 - Input must be fresh within 250 ms with increasing timestamps and sequences. A gap above 180 ms, frame epoch change, missing joint, large wrist/shoulder jump, toolbar entry or modal interaction breaks continuity. Reacquisition starts a dot, never a bridge.
 - Paint is stored as normalized unmirrored-source-derived presentation points. It remains in memory only. A total of 6,000 marks bounds GPU buffers and retained art; a full page offers undo or a new sheet instead of silently dropping old art.
-- Three.js instanced shaded segments and dots render the strokes. The viewport fits the canonical camera aspect without stretching. Preact owns only host navigation; game DOM owns its controls, and their real rectangles drive hover and painting exclusion.
+- Three.js instanced shaded segments and dots render the strokes. The viewport fits the canonical camera aspect without stretching. The game renders its own controls with Preact, including **Voltar** and both confirmations; their real rectangles drive hover and painting exclusion. The surface is redrawn only when a brush, the art, the layout or a dialog changes.
 - Temporary tracking loss preserves art. Stop, portrait, camera failure, unmount and confirmed exit discard it and dispose GPU resources. No download, persistence, sound runtime or extra inference model is added.
 
 ## Independent development and verification

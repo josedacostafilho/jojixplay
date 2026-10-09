@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mountMovementControls, reachableHand } from "@jojixplay/game-sdk";
+import { mountMovementControls } from "@jojixplay/game-sdk";
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -12,9 +12,6 @@ it("requires neutral input and a full fresh dwell, resets on loss and target rep
   document.body.append(root);
   const hit = vi.fn((): Element => button);
   Object.defineProperty(document, "elementFromPoint", { configurable: true, value: hit });
-  vi.spyOn(button, "getClientRects").mockReturnValue(
-    Object.assign([new DOMRect(20, 20, 60, 60)], { item: () => new DOMRect(20, 20, 60, 60) }),
-  );
   vi.spyOn(button, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 20, 60, 60));
   const click = vi.fn();
   button.onclick = click;
@@ -49,8 +46,38 @@ it("requires neutral input and a full fresh dwell, resets on loss and target rep
   expect(document.querySelector(".movement-pointer")).toBeNull();
 });
 
-it("maps a central wrist workspace to reachable screen edges without needing other joints", () => {
-  expect(reachableHand(0.5, 0.45)).toEqual({ x: 0.5, y: 0.5 });
-  expect(reachableHand(0.75, 0.15)).toEqual({ x: 0.02, y: 0.02 });
-  expect(reachableHand(0.25, 0.75)).toEqual({ x: 0.98, y: 0.98 });
+it("gives a player's hand only that player's controls and selects the button drawn on top", () => {
+  const root = document.createElement("main");
+  const covered = document.createElement("button");
+  root.append(covered);
+  const row = document.createElement("div");
+  row.dataset.player = "1";
+  const owned = document.createElement("button");
+  row.append(owned);
+  root.append(row);
+  document.body.append(root);
+  let top: Element = owned;
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => top });
+  vi.spyOn(covered, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 200, 200));
+  vi.spyOn(owned, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 20, 60, 60));
+  const click = vi.fn();
+  owned.onclick = click;
+  covered.onclick = () => {
+    throw new Error("A covered button was activated.");
+  };
+  const controls = mountMovementControls(root);
+  const dwell = (player: number, start: number) => {
+    controls.update([{ key: "hand", x: 300, y: 40, player }], start);
+    controls.update([{ key: "hand", x: 40, y: 40, player }], start + 10);
+    controls.update([{ key: "hand", x: 40, y: 40, player }], start + 900);
+  };
+  dwell(0, 0);
+  expect(click).not.toHaveBeenCalled();
+  top = document.body;
+  dwell(1, 1000);
+  expect(click).not.toHaveBeenCalled();
+  top = owned;
+  dwell(1, 2000);
+  expect(click).toHaveBeenCalledOnce();
+  controls.dispose();
 });

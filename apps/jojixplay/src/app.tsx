@@ -22,20 +22,6 @@ export function App() {
     };
   }, []);
 
-  if (window.location.search !== "" || window.location.hash !== "") {
-    return (
-      <main class="page page--centered">
-        <section class="panel">
-          <h1>Abra o JojixPlay no seu celular.</h1>
-          <p role="alert">Este link é inválido. Abra o site pelo endereço principal.</p>
-          <a class="button button--primary" href={import.meta.env.BASE_URL}>
-            Abrir o JojixPlay
-          </a>
-        </section>
-      </main>
-    );
-  }
-
   return landscape ? (
     <LocalPlayPage />
   ) : (
