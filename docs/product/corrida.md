@@ -1,48 +1,65 @@
 ---
 status: Active
-last_verified: 2026-10-08
+last_verified: 2026-10-09
 ---
 
 # Corrida dos Blocos
 
-A single-player, first-person obstacle run for ages 4–7 with an adult nearby. An original procedural block forest supplies trees, grass, flowers, wooden barriers and a finish gate. Seven unchanged CC0 textures from Kenney’s Voxel Pack distinguish bark, wood, foliage, grass, earth, brick walls and the moving path. Their combined PNG size is 23,183 bytes; [provenance and license](../../games/corrida/assets/kenney-voxel/README.md) live with the game. The scene requests these files only on mount, uses mipmaps for distance, and releases textures and decoded images on exit. Loading blocks the start countdown; an asset failure or 20-second timeout displays an actionable error and releases the scene. Exiting aborts pending downloads. No Minecraft names, characters or assets are used. No dodging, smashing, enemies, persistence or online scoreboards exist.
+**State: a feel prototype.** The earlier first-person run was removed. What exists is the character and its control on an empty road, for the owner to judge on a phone and television before any course is built. There are no obstacles, points, lives, levels, timer, help or pause yet. See [ADR-0034](../decisions/0034-corrida-third-person-puppet.md).
 
-## Entry and controls
+## What the player sees and does
 
-Choose **Corrida dos Blocos** from the main menu. The host confirms one-person inference before mounting, including after a two-person Desenhar session. The world is already visible and stationary. **Agache para começar** with **No meio, segure por 3 segundos** invites a generous central stance (shoulder center between 12% and 88% of the camera width). Crouching continuously fills a three-second countdown. Leaving the center cancels immediately; standing or losing useful tracking for more than 120 ms cancels. A single noisy frame does not cancel a valid hold.
+A rounded toy-like character is seen from behind, whole from head to feet, on a road through a block forest, running away from the player. The camera sits just above its head and looks nearly level, so the road fills the bottom of the screen and runs to the horizon, and what is coming shows over the character's head and to its sides. Its arms are a quarter longer than a real body's and end in bright gloves, so a pose reads from across a room. It is the player's puppet:
 
-A bent observed knee, a compressed hip/knee configuration, or shoulder descent relative to a standing reference can establish crouching. With cropped legs, briefly standing before crouching supplies that reference. No whole-body prerequisite blocks menus or visible joints. Mostly full-body framing is recommended for this game.
+- **It copies the arms.** Each arm the camera sees moves the character's arm on the same side. Because both face the same way, the player's left arm is the character's left arm on the left of the screen, as when following a teacher from behind. An arm the camera cannot see hangs.
+- **It leans as the player leans.**
+- **It lowers as the player crouches**, by the same share: half a crouch is half a crouch.
+- **It moves across the road exactly as the player steps sideways.** It stops at the road's edge however far the player goes.
 
-Fresh wrist dwell, touch and keyboard focus activate **Pausa**, **Como jogar**, **Correr de novo** and the game's confirmed **Voltar**. Visible hand circles use the same amplified projection as hit testing: the central half of camera width and y=15–75% cover the interface. The projection belongs to this game; camera-backed menus and drawing use their own. Buttons are at least 54 px high, and essential race copy is at least 20 px at supported phone sizes. Missing wrists disappear; missing leg joints do not prevent controls. Exiting abandons the run. Replay returns to the stationary entry and resets points, lives, time and movement history.
+The road has three lanes with no line between them. The character slides freely; the game separately decides which lane the player counts as being in, and shows that only as a soft patch of light on the road under the character, which jumps from lane to lane. Nothing uses the lane yet.
 
-## Course and scoring
+The legs are not the player's: the camera rarely sees legs and the player is not running. They run on their own and fold in a crouch.
 
-Five minutes means active running time, excluding entry, pauses and tracking recovery. The course is deterministic so scores are comparable. World speed increases continuously from 9 to 19.5 world units per second; obstacle intervals gradually shorten from almost six seconds to four. First encounters are seven seconds into each level and obstacles leave a gap before transitions.
+## Starting
 
-| Level | Active time | Obstacles |
-| --- | --- | --- |
-| 1 | 0–60 seconds | Duck beams |
-| 2 | 60–150 seconds | Duck beams and pose walls |
-| 3 | 150–300 seconds | Duck beams, pose walls and jump barriers |
+There is no button and no held pose. The character already copies the player's arms while the game waits. A run begins when the player has stood for 0.8 s with both shoulders seen in the central half of the camera's view; one line of words asks them to face the camera or come to the middle until then.
 
-Each obstacle awards 100 points on success, with **Boa!** and a point pop. A miss awards no points, shows **Ops!**, and removes exactly one heart. Each level starts with three hearts, never more; reaching zero ends the entire run immediately. Level three has no further refill. Reaching the finish at 300 seconds with hearts remaining is victory. Successful runs can have different scores.
+At that moment the lanes are laid out around the player:
 
-Jump evidence is accepted from two seconds before to one second after arrival. Duck evidence is accepted from one second before to 600 ms after arrival. The early jump cue says **Prepare o pulinho** and switches to **Pule!** when the accepted window opens. Evidence is consumed once per obstacle. These are deliberately forgiving action windows, not precise collision simulations.
+- The middle lane is where they stand.
+- One lane is 1.25 of their own shoulder widths, about one comfortable step, so a child and an adult cover the road with steps of their own size.
+- If three such lanes would not fit inside the camera's view with a margin, the lanes are narrowed until they do.
+- Their standing shoulder height and torso length are recorded for the crouch.
 
-## Pose walls
+The phone is assumed not to move during a run. If the camera's own orientation changes, or the player is gone for three seconds, the game waits again and lays the lanes out anew.
 
-Four broad symmetric arm shapes are used: arms sideways, diagonally raised, bent elbows raised, and hands overhead. Required upper/lower arm directions allow 38 degrees of angular error. Legs are drawn when observed but are not scored for pose walls.
+## How the body is read
 
-The yellow wall contains the target silhouette. A translucent live stick figure is attached to that same wall in its local 3D coordinates, so perspective, scale and motion remain aligned as it approaches. Observed bone directions are retargeted to common segment lengths, avoiding penalties for limb-length or distance differences. Missing joints and their incident segments disappear; they are never reconstructed. The wall becomes green after 120 ms of matching evidence. What scores is the matching state at arrival, not an earlier green preview. A missing required arm cannot pass.
+- **Lane** comes from the hips, which stay put when the torso leans and move when the player steps. Shoulders stand in when the hips are out of view. A lane changes only when the player is clearly past its boundary (12% of a lane), so standing on a boundary does not flicker.
+- **Crouch** is how far the shoulders have dropped from the standing height, as a share of the player's own torso length. A drop of 60% of the torso is a full crouch. The game counts the player as ducked from half a crouch and as standing again below 35%.
+- **Lean** is the angle from hips to shoulders; without hips, the tilt of the shoulder line.
+- **Arms** are the on-screen directions of upper arm and forearm. Tracking is reliable in the plane facing the camera, not in depth: arms out, up and down copy well; reaching towards the camera does not.
 
-## First-person movement and tracking
+Every number here is a tuning parameter in one place and none has been tried on a phone.
 
-Only the upcoming obstacle's action moves the camera, starting when its cue appears (5.5 seconds before arrival). Ducking is ignored for camera movement during jump preparation and pose walls; jumps do not animate during duck obstacles, walls or entry. A symbolic dip-and-rise counts as a jump without leaving the floor. A small upward movement also counts after 60 ms of evidence. Accepted jumps produce one 1.8-second bounded arc, with a 1.8-second retrigger limit. Crouching eases between two fixed heights. The camera never follows raw joint coordinates and keeps a level horizon without running bob, roll or shake. Reduced motion removes UI pop animation, substitutes a static red border for the failure pulse, and reduces jump height. Essential forward motion remains. See [ADR-0028](../decisions/0028-contextual-race-actions.md).
+## On screen
 
-Invalid/stale input freezes active time immediately and hides the preview. Sustained loss clears temporal evidence; recovery requires 800 ms in the generous central region before time resumes. Modals and background tabs also pause. Epoch changes reset movement evidence. Phone portrait, stop, camera failure and unmount release the host session and game resources. WebGL context loss displays an actionable return-to-menu message; there is no fallback renderer.
+While running, the road is clear of words. A warning appears only when the player is lost (**Cadê você?**) or about to walk out of the camera's view (**Volte um pouco para o meio**). A small line in the corner shows the lane and crouch the game currently reads, for tuning.
+
+**Voltar** is the only control: a button in the top corner, held for two seconds with a hand where the camera sees it, or touched. It asks no confirmation. A ring marks a hand only when it is over the button. Where pause and exit belong in the finished game is undecided.
+
+## World and assets
+
+The block forest is this game's first theme; the character is not part of it and is meant to stay the same when themes change. Raised earth banks, close trees and bushes line the road and say where it ends without a line. Five unchanged CC0 textures from Kenney's Voxel Pack cover the path, grass, banks, bark and leaves; [provenance and license](../../games/corrida/assets/kenney-voxel/README.md) live with the game. They are requested on mount and released on exit. The road waits for them; a failed or 20-second-late texture shows a message and leaves **Voltar** usable.
+
+The character's look is separate from its movement: the game hands a character arm directions, lean, crouch and a running phase, and nothing else. A modelled character can replace the code-built one without the game changing.
+
+## Agreed for the course, not built
+
+Decided with the owner on 2026-10-09 and deliberately left out of the prototype: obstacles in one or two lanes to step around; low beams to duck; pose walls whose opening is always in the middle lane, matched with arms and torso lean, with a raised leg as an optional bonus that is never required; occasional stars collected by reaching with a hand, which cannot be failed. No jumping. Run length, what a collision costs, scoring and where pause and exit live are undecided.
 
 ## Independent studio and verification
 
-`npm run dev:race` starts the camera-free studio. Use the crouch checkbox or hold Down, click Pular or press Space, choose a pose, and simulate loss or an edge position. Pointer movement supplies one synthetic wrist for dwell controls. The studio uses the production mount and SDK frames, with no application import.
+`npm run dev:race` starts the camera-free studio. The pointer moves a synthetic person across the camera's view; switches crouch them, set arm shapes, lean the torso, make them a small distant child, or drop tracking.
 
-`npm test --workspace @jojixplay/corrida` exercises movement noise, partial joints, normalized poses, camera easing, countdown cancellation, timing windows, freshness, pause, life resets, full victory and different scores. Production Chromium checks the studio at 844×390 and 667×320; the app's movement-only journey covers entry from duo mode, help, pause and confirmed exit. Browser tests establish downstream behavior, not phone recognition, motion comfort, frame rate or thermals. See [phone acceptance](../engineering/pose-quality.md).
+`npm test --workspace @jojixplay/corrida` covers the start condition, lane layout for different body sizes and off-centre starts, lane changes and their boundary behaviour, hips against shoulders, the crouch measure, arm copying by side, the edge warning, and the run's waiting, loss and restart behaviour. Production Chromium drives the studio at two phone sizes. None of this establishes how the control feels; that is what the prototype is for. See [phone acceptance](../engineering/pose-quality.md).

@@ -91,35 +91,24 @@ for (const viewport of [
         .evaluate((button) => !!button.closest(".draw-game, .race-game"));
       const neutral = await page.evaluate((game) => {
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
-        const race = document.querySelector(".race-game")?.getBoundingClientRect();
+        const inRace = !!document.querySelector(".race-game");
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
-        const width = race
-          ? race.width
-          : paper
-            ? Math.min(paper.width, paper.height * aspect)
-            : Math.max(innerWidth, innerHeight * aspect);
-        const height = race ? race.height : width / aspect;
-        const left = race
-          ? race.left
-          : paper
-            ? paper.left + (paper.width - width) / 2
-            : (innerWidth - width) / 2;
-        const top = race
-          ? race.top
-          : paper
-            ? paper.top + (paper.height - height) / 2
-            : (innerHeight - height) / 2;
+        const width = paper
+          ? Math.min(paper.width, paper.height * aspect)
+          : Math.max(innerWidth, innerHeight * aspect);
+        const height = width / aspect;
+        const left = paper ? paper.left + (paper.width - width) / 2 : (innerWidth - width) / 2;
+        const top = paper ? paper.top + (paper.height - height) / 2 : (innerHeight - height) / 2;
         for (const y of [0.4, 0.3, 0.5, 0.6])
           for (const x of [0.5, 0.4, 0.6, 0.3]) {
             if (!document.elementFromPoint(left + x * width, top + y * height)?.closest("button")) {
               Reflect.set(
                 window,
                 "testWrist",
-                race
-                  ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
-                  : { x, y: y + (paper ? 0 : 0.035) },
+                // The menu aims with an estimated fingertip; games aim with the wrist itself.
+                { x, y: y + (paper || inRace ? 0 : 0.035) },
               );
               return { x: left + x * width, y: top + y * height, game };
             }
@@ -152,43 +141,24 @@ for (const viewport of [
         });
         const b = button.getBoundingClientRect();
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
-        const race = document.querySelector(".race-game")?.getBoundingClientRect();
+        const inRace = !!document.querySelector(".race-game");
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
-        const width = race
-          ? race.width
-          : paper
-            ? Math.min(paper.width, paper.height * aspect)
-            : Math.max(innerWidth, innerHeight * aspect);
-        const height = race ? race.height : width / aspect;
-        const left = race
-          ? race.left
-          : paper
-            ? paper.left + (paper.width - width) / 2
-            : (innerWidth - width) / 2;
-        const top = race
-          ? race.top
-          : paper
-            ? paper.top + (paper.height - height) / 2
-            : (innerHeight - height) / 2;
+        const width = paper
+          ? Math.min(paper.width, paper.height * aspect)
+          : Math.max(innerWidth, innerHeight * aspect);
+        const height = width / aspect;
+        const left = paper ? paper.left + (paper.width - width) / 2 : (innerWidth - width) / 2;
+        const top = paper ? paper.top + (paper.height - height) / 2 : (innerHeight - height) / 2;
         const x = (b.x + b.width / 2 - left) / width;
         const y = (b.y + b.height / 2 - top) / height;
-        return race
-          ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
-          : { x, y: y + (paper ? 0 : 0.035) };
+        return { x, y: y + (paper || inRace ? 0 : 0.035) };
       });
       expect(point.x).toBeGreaterThanOrEqual(0);
       expect(point.x).toBeLessThanOrEqual(1);
       expect(point.y).toBeGreaterThanOrEqual(0);
       expect(point.y).toBeLessThanOrEqual(1);
-      if (await page.locator(".race-game").count()) {
-        expect(point.x).toBeGreaterThanOrEqual(0.25);
-        expect(point.x).toBeLessThanOrEqual(0.75);
-        expect(point.y).toBeGreaterThanOrEqual(0.15);
-        expect(point.y).toBeLessThanOrEqual(0.75);
-        await expect(page.locator(".movement-pointer:visible").first()).toBeVisible();
-      }
       await page.evaluate((point) => Reflect.set(window, "testWrist", point), point);
       await expect
         .poll(() => page.evaluate(() => Reflect.get(window, "testSelected")), { timeout: 10000 })
@@ -241,18 +211,10 @@ for (const viewport of [
     await select("Sair e apagar");
     await select("Próximo jogo");
     await select("Jogar Corrida dos Blocos");
-    await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
+    await expect(page.locator(".race-game canvas")).toHaveCount(1);
     await expect(page.locator("video")).toHaveCSS("opacity", "0");
-    await select("? Como jogar");
-    await expect(page.getByRole("heading", { name: "Seu corpo joga!" })).toBeVisible();
-    await select("Vamos nessa →");
-    await select("Ⅱ Pausa");
-    await expect(page.getByRole("heading", { name: "A pista espera por você" })).toBeVisible();
-    await select("Vamos nessa →");
-    await select("← Voltar");
-    await select("Continuar correndo");
-    await select("← Voltar");
-    await select("Sair da corrida");
+    // The run needs no button to begin; its one control is the held way out.
+    await select("Voltar");
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator("video")).toHaveCSS("opacity", "1");
     await select("Encerrar brincadeira");

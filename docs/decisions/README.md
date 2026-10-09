@@ -39,12 +39,13 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0025](0025-camera-menu-and-authored-hands.md) | Accepted | Fullscreen camera menus with aligned authored hand controls |
 | [0026](0026-circle-menu-pointer.md) | Accepted | Replace hand meshes with bounded index-aim circles |
 | [0027](0027-corrida-gesture-camera.md) | Superseded | Keep first-person gesture feedback and normalized pose walls game-owned |
-| [0028](0028-contextual-race-actions.md) | Accepted | Disambiguate race gestures by obstacle and share reachable visible race controls |
+| [0028](0028-contextual-race-actions.md) | Superseded | Disambiguate race gestures by obstacle and share reachable visible race controls |
 | [0029](0029-game-owned-controls-and-frame-channel.md) | Accepted | Games own every in-game control; pose frames reach consumers without interface state |
 | [0030](0030-body-anchored-menu.md) | Accepted | Attach the game menu to the player's body in the mirror, with rest as the default |
 | [0031](0031-host-sensing-service.md) | Accepted | Sense bodies or hands once in the host on a game's request; games interpret |
 | [0032](0032-silhouette-trial-and-camera-pixels.md) | Accepted | Sense silhouettes with the pose model's own mask; let games draw the live camera picture |
 | [0033](0033-menu-row-and-forgiving-holds.md) | Accepted | Three selectable games in a row, bounded button sizes, and holds that survive tracking flicker |
+| [0034](0034-corrida-third-person-puppet.md) | Accepted | Rebuild Corrida as a third-person run with a body-normalized puppet character, feel first |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

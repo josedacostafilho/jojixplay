@@ -22,9 +22,9 @@ last_verified: 2026-10-09
 
 ## Games
 
-Desenhar supports solo and shared two-person painting. It uses isolated rules, bounded instanced Three.js paint, independent colors/widths/hand preference, wrist hover or touch controls, undo and confirmed clear. See [Desenhar](../product/desenhar.md). Corrida dos Blocos is a single-player five-minute first-person run: held-crouch entry, ducking in level one, normalized pose walls in level two, jumping in level three, three lives per level and scored victory. Camera gestures are gated by the approaching obstacle; symbolic jumps accept dip-and-rise and use a longer bounded animation. Kenney CC0 voxel textures loaded only on game entry, larger race copy and visible amplified hand controls replace the initial presentation. Tracking loss and dialogs pause the run. See [Corrida](../product/corrida.md). Future games remain the owner's choice.
+Desenhar supports solo and shared two-person painting. It uses isolated rules, bounded instanced Three.js paint, independent colors/widths/hand preference, wrist hover or touch controls, undo and confirmed clear. See [Desenhar](../product/desenhar.md). Corrida dos Blocos is being rebuilt and is at present a feel prototype, not a game: a rounded character seen from behind copies the player's arms, lean and crouch and slides across a three-lane road as they step, with lanes and crouch measured in the player's own body. It has no obstacles, scoring or goal. The earlier first-person run was removed ([ADR-0034](../decisions/0034-corrida-third-person-puppet.md)). Not tried on a phone. See [Corrida](../product/corrida.md). Future games remain the owner's choice.
 
-The owner reports tracking works on the Galaxy S22. Hand sensing has not run on a phone: whether hands are found at playing distance, and whether left and right are reported correctly, are unknown. Their first Corrida trial exposed difficult jumps, jump/duck ambiguity and poor across-room controls/readability. The revised implementation addresses those reports, but its phone/TV comfort and sustained two-person painting still need acceptance.
+The owner reports tracking works on the Galaxy S22. Hand sensing has not run on a phone: whether hands are found at playing distance, and whether left and right are reported correctly, are unknown. Their trials of the first Corrida found it barely usable, which led to the rebuild. Sustained two-person painting still needs acceptance.
 
 ## Unknown / acceptance risks
 
@@ -32,10 +32,10 @@ The primary target is the owner’s Samsung Galaxy S22, assuming Chrome; current
 
 ## Publication
 
-Hosting remains free on GitHub Pages. Game-owned asset files are requested on entry, not by the menu or other games. Corrida ships seven selected PNGs (23,183 bytes) with the original license; no external asset service or paid storage is configured.
+Hosting remains free on GitHub Pages. Game-owned asset files are requested on entry, not by the menu or other games. Corrida ships five selected PNGs with the original license; no external asset service or paid storage is configured.
 
 GitHub Pages deploys validated `main` pushes to [JojixPlay](https://josedacostafilho.github.io/jojixplay/). The [deployment workflow history](https://github.com/josedacostafilho/jojixplay/actions/workflows/pages.yml) records the published commit and deployment outcome.
 
 ## Validation
 
-The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, the app and three studio builds, Chromium real-worker startup/cleanup with both models and the high-severity dependency audit. On 2026-10-09, with Node 24.19.0, it passed end to end: 118 unit/component tests, all eleven Chromium journeys, lint without warnings and an audit with no findings. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory.
+The canonical `npm run validate` checks workspace boundaries, formatting, lint, unit/component behavior, model checksum, strict types, the app and three studio builds, Chromium real-worker startup/cleanup with both models and the high-severity dependency audit. On 2026-10-09, with Node 24.19.0, it passed end to end: 108 unit/component tests, all ten Chromium journeys, lint without warnings and an audit with no findings. Full-phone acceptance remains separate. Vite reports the Three.js chunk-size advisory.

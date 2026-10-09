@@ -1,5 +1,6 @@
 import {
   type BodyFrame,
+  cameraCover,
   type ControlPoint,
   type Experience,
   type GameHost,
@@ -7,320 +8,83 @@ import {
   mountMovementControls,
 } from "@jojixplay/game-sdk";
 import { render } from "preact";
-import { useEffect, useRef } from "preact/hooks";
-import { poseLabels } from "./movement";
-import { reachableHand } from "./reach";
+import { Run } from "./run";
 import { createScene } from "./scene";
-import { JUMP_WINDOW, LEVEL_STARTS, RaceSession, RUN_SECONDS } from "./session";
 import "./style.css";
 
-function ActionIcon({ kind }: { kind: "jump" | "duck" | "wall" }) {
-  return (
-    <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-      <circle
-        cx={kind === "duck" ? 37 : 32}
-        cy={kind === "duck" ? 23 : 12}
-        r="6"
-        fill="currentColor"
-      />
-      <path
-        d={
-          kind === "jump"
-            ? "M32 24 32 37 M32 25 14 16 M32 25 50 16 M32 37 20 48 13 42 M32 37 45 48 52 40"
-            : kind === "duck"
-              ? "M32 32 23 38 40 44 29 54 M29 34 47 36 M24 39 17 53 11 53"
-              : "M32 24 32 39 M12 25 52 25 M32 39 22 55 M32 39 42 55"
-        }
-        stroke="currentColor"
-        stroke-width="5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  );
-}
-type ModalMode = "pause" | "help" | "exit";
-function Modal({
-  mode,
-  onClose,
-  onExit,
-}: {
-  mode: ModalMode;
-  onClose: () => void;
-  onExit: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    ref.current?.showModal();
-    return () => ref.current?.close();
-  }, []);
-  return (
-    <dialog ref={ref} class="race-dialog" onCancel={onClose}>
-      <h2>
-        {mode === "help"
-          ? "Seu corpo joga!"
-          : mode === "exit"
-            ? "Sair da corrida?"
-            : "A pista espera por você"}
-      </h2>
-      {mode === "exit" ? (
-        <p>Ao sair, esta corrida termina e os pontos não são guardados.</p>
-      ) : mode === "help" ? (
-        <div class="race-help-grid">
-          <div>
-            <ActionIcon kind="duck" />
-            <strong>Agache</strong>
-            <p>Abaixe quando o tronco chegar.</p>
-          </div>
-          <div>
-            <ActionIcon kind="wall" />
-            <strong>Copie</strong>
-            <p>Copie os braços. Segure o verde!</p>
-          </div>
-          <div>
-            <ActionIcon kind="jump" />
-            <strong>Pule</strong>
-            <p>Dê um pulinho. Vale só fazer o movimento!</p>
-          </div>
-        </div>
-      ) : (
-        <p>Leve o círculo da mão até uma escolha e segure.</p>
-      )}
-      <button type="button" onClick={onClose}>
-        {mode === "exit" ? "Continuar correndo" : "Vamos nessa →"}
-      </button>
-      {mode === "exit" ? (
-        <button type="button" onClick={onExit}>
-          Sair da corrida
-        </button>
-      ) : null}
-    </dialog>
-  );
-}
-function RaceUI({
-  session: s,
-  modal,
-  loading,
-  error,
-  onModal,
-  onReplay,
-  onExit,
-}: {
-  session: RaceSession;
-  modal: ModalMode | null;
-  loading: boolean;
-  error: boolean;
-  onModal: (mode: ModalMode | null) => void;
-  onReplay: () => void;
-  onExit: () => void;
-}) {
-  const exit = (
-    <>
-      <button class="race-back" type="button" onClick={() => onModal("exit")}>
-        ← Voltar
-      </button>
-      {modal && <Modal key={modal} mode={modal} onClose={() => onModal(null)} onExit={onExit} />}
-    </>
-  );
-  if (loading)
+/** Leaving takes a deliberate hold, so no confirmation is asked. */
+const EXIT_HOLD_MS = 2000;
+const UI_INTERVAL_MS = 100;
+const LANES = { "-1": "esquerda", "0": "meio", "1": "direita" } as const;
+
+function Prompt({ run, state }: { run: Run; state: "loading" | "failed" | "ready" }) {
+  if (state === "failed")
     return (
-      <div class="race-ui">
-        <p class="race-loading" role="status">
-          Preparando a floresta…
-        </p>
-        {exit}
-      </div>
+      <p class="race-prompt" role="alert">
+        Não foi possível carregar a pista. Volte ao menu e abra a corrida novamente.
+      </p>
     );
-  const ready = s.phase === "ready" || s.phase === "countdown";
-  const finished = s.phase === "won" || s.phase === "lost";
-  const obstacle = s.next;
-  const until = obstacle ? obstacle.at - s.elapsed : 100;
-  const feedback = s.feedback && s.feedback.until > s.elapsed && !ready ? s.feedback : null;
-  const levelStart = LEVEL_STARTS[s.level - 1] ?? 0;
-  const levelIntro = !ready && !finished && s.elapsed - levelStart < 3.5;
-  const trackingPaused = s.phase === "running" && (!s.tracking || s.recovering) && !modal;
-  const seconds = Math.max(0, Math.ceil(RUN_SECONDS - s.elapsed));
+  if (state === "loading")
+    return (
+      <p class="race-prompt" role="status">
+        Preparando a pista…
+      </p>
+    );
+  if (run.phase === "running") {
+    // While running the road is left clear: words appear only when the player needs to move.
+    const text = !run.tracking
+      ? "Cadê você? Volte para a frente da câmera"
+      : run.puppet?.nearEdge
+        ? "Volte um pouco para o meio"
+        : null;
+    return text ? (
+      <p class="race-prompt race-prompt--warning" role="status">
+        {text}
+      </p>
+    ) : null;
+  }
   return (
-    <div class={`race-ui ${feedback && !feedback.success ? "race-ui--miss" : ""}`}>
-      <header class="race-hud">
-        <div class="race-score">
-          <small>PONTOS</small>
-          <strong>{s.score.toLocaleString("pt-BR")}</strong>
-        </div>
-        <div class="race-hearts" role="img" aria-label={`${s.lives} vidas`}>
-          <span aria-hidden="true">
-            {[0, 1, 2].map((i) => (
-              <span key={i} class={i >= s.lives ? "empty" : ""}>
-                ♥
-              </span>
-            ))}
-          </span>
-        </div>
-      </header>
-      <p class="race-control-hint">Mova a mão • segure no botão</p>
-      <nav class="race-tools" aria-label="Controles da corrida">
-        <button type="button" onClick={() => onModal("pause")}>
-          Ⅱ Pausa
-        </button>
-        <button type="button" onClick={() => onModal("help")}>
-          ? Como jogar
-        </button>
-      </nav>
-      {ready && !error && (
-        <section class="race-start" aria-label="Preparar corrida">
-          <h1>Agache para começar</h1>
-          <div class="race-start-cue">
-            <ActionIcon kind="duck" />
-            <div>
-              <strong>
-                {s.phase === "countdown"
-                  ? "Isso! Continue agachado"
-                  : !s.tracking
-                    ? "Fique de frente para o celular"
-                    : !s.movement.centered
-                      ? "Um pouquinho mais para o meio"
-                      : "No meio, segure por 3 segundos"}
-              </strong>
-            </div>
-          </div>
-          {s.phase === "countdown" && (
-            <div class="race-countdown" style={{ "--count": `${s.countdown / 30}%` }} role="status">
-              <b key={Math.ceil((3000 - s.countdown) / 1000)}>
-                {Math.max(1, Math.ceil((3000 - s.countdown) / 1000))}
-              </b>
-              <span>SEGURA AÍ…</span>
-            </div>
-          )}
-        </section>
-      )}
-      {levelIntro && (
-        <div class="race-level" role="status" key={s.level}>
-          <span>FASE {s.level} / 3</span>
-          <strong>
-            {s.level === 1 ? "Abaixa e vai!" : s.level === 2 ? "Entre na pose!" : "Bora pular!"}
-          </strong>
-          <small>
-            {s.level === 1
-              ? "Passe por baixo dos troncos"
-              : s.level === 2
-                ? "Agora também tem muros de poses"
-                : "Novos obstáculos · corações renovados"}
-          </small>
-        </div>
-      )}
-      {!ready &&
-        !finished &&
-        !levelIntro &&
-        !trackingPaused &&
-        obstacle &&
-        until < 5.5 &&
-        until > -1.1 && (
-          <div
-            class={`race-action ${s.matching && obstacle.kind === "wall" ? "race-action--matched" : ""}`}
-          >
-            <ActionIcon kind={obstacle.kind} />
-            <div>
-              <strong>
-                {obstacle.kind === "wall"
-                  ? s.matching
-                    ? "Isso! Segure a pose"
-                    : poseLabels[obstacle.pose]
-                  : obstacle.kind === "jump"
-                    ? until > JUMP_WINDOW
-                      ? "Prepare o pulinho"
-                      : "Pule!"
-                    : "Agache!"}
-              </strong>
-              <small>
-                {obstacle.kind === "wall"
-                  ? "Combine seu boneco com o desenho"
-                  : obstacle.kind === "jump"
-                    ? "Vale um pulinho de mentirinha"
-                    : "Passe por baixo do tronco"}
-              </small>
-            </div>
-          </div>
-        )}
-      {feedback && !finished && (
-        <div
-          class={`race-feedback ${feedback.success ? "race-feedback--yes" : "race-feedback--no"}`}
-          role="status"
-          key={feedback.id}
-        >
-          <b>{feedback.success ? "Boa!" : "Ops!"}</b>
-          <span>{feedback.success ? "+100" : "Tente o próximo!"}</span>
-        </div>
-      )}
-      {trackingPaused && (
-        <div class="race-tracking" role="status">
-          <strong>{s.tracking ? "Achamos você!" : "Cadê você?"}</strong>
-          <span>
-            {s.tracking
-              ? "Preparando para continuar…"
-              : "Volte para o meio. A corrida está esperando."}
-          </span>
-        </div>
-      )}
-      {!ready && !finished && s.elapsed > 291 && (
-        <div class="race-finish-cue">A chegada está logo ali! ✦</div>
-      )}
-      {finished && (
-        <section
-          class={`race-result ${s.phase === "won" ? "race-result--won" : ""}`}
-          aria-label="Resultado da corrida"
-        >
-          <span class="race-eyebrow">
-            {s.phase === "won" ? "VOCÊ CRUZOU A CHEGADA" : `VOCÊ CHEGOU À FASE ${s.level}`}
-          </span>
-          <h1>{s.phase === "won" ? "Que corrida!" : "Valeu a aventura!"}</h1>
-          <div class="race-total">
-            {s.score.toLocaleString("pt-BR")}
-            <small>PONTOS</small>
-          </div>
-          <p>
-            {s.cleared} obstáculos superados · {Math.floor(s.elapsed / 60)}:
-            {String(Math.floor(s.elapsed % 60)).padStart(2, "0")} de aventura
-          </p>
-          <button type="button" onClick={onReplay}>
-            Correr de novo ↻
-          </button>
-          <small>Para escolher outro jogo, use Voltar.</small>
-        </section>
-      )}
-      {error && (
-        <section class="race-result" role="alert">
-          <h1>A pista parou</h1>
-          <p>
-            Não foi possível carregar ou desenhar a pista. Volte ao menu e abra a corrida novamente.
-          </p>
-        </section>
-      )}
-      <footer class="race-route">
-        <span>
-          FASE {s.level}
-          <small>{["AGACHAR", "COPIAR", "PULAR"][s.level - 1]}</small>
-        </span>
-        <div
-          class="race-progress"
-          role="progressbar"
-          aria-label="Percurso"
-          aria-valuemin={0}
-          aria-valuemax={300}
-          aria-valuenow={Math.floor(s.elapsed)}
-        >
-          <i style={{ width: `${s.elapsed / 3}%` }} />
-          <b style={{ left: "20%" }} />
-          <b style={{ left: "50%" }} />
-          <span aria-hidden="true">⚑</span>
-        </div>
-        <time>
-          {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
-        </time>
-      </footer>
-      {exit}
+    <p class="race-prompt" role="status" style={{ "--settled": `${run.settled * 100}%` }}>
+      {run.phase === "settling"
+        ? "Isso! Fique aí…"
+        : run.waitingFor === "middle"
+          ? "Venha para o meio"
+          : "Fique de frente para a câmera"}
+    </p>
+  );
+}
+
+function RaceUI({
+  run,
+  state,
+  onExit,
+}: {
+  run: Run;
+  state: "loading" | "failed" | "ready";
+  onExit: () => void;
+}) {
+  const puppet = run.phase === "running" ? run.puppet : null;
+  return (
+    <div class="race-ui">
+      <Prompt run={run} state={state} />
+      <button class="race-back" type="button" data-dwell-ms={EXIT_HOLD_MS} onClick={onExit}>
+        Voltar
+      </button>
+      {puppet ? (
+        // For tuning on the phone: what the game currently reads from the player.
+        <p class="race-reading">
+          faixa {LANES[puppet.lane]} · agachado {Math.round(puppet.crouch * 100)}%
+          {puppet.ducked ? " ✓" : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
+
+/**
+ * Corrida, rebuilt from the feel outwards: a character seen from behind copies the player's arms,
+ * lean and crouch and moves across the road as they step. There is no course yet.
+ */
 export function mountCorrida(container: HTMLElement, host: GameHost): Experience {
   const root = document.createElement("section");
   root.className = "race-game";
@@ -338,83 +102,59 @@ export function mountCorrida(container: HTMLElement, host: GameHost): Experience
     root.remove();
     throw error;
   }
-  let session = new RaceSession(),
-    frame: BodyFrame | null = null,
-    modal: ModalMode | null = null;
-  let request = 0,
-    lastUI = -Infinity,
-    disposed = false,
-    loaded = false,
-    error = false;
-  const controls = mountMovementControls(root);
-  const onModal = (next: typeof modal) => {
-    modal = next;
-    controls.reset();
+
+  const run = new Run();
+  let frame: BodyFrame | null = null;
+  let state: "loading" | "failed" | "ready" = "loading";
+  let disposed = false;
+  let request = 0;
+  let drawnAt = Number.NEGATIVE_INFINITY;
+  const controls = mountMovementControls(root, { pointer: "target" });
+  const drawUI = () => render(<RaceUI run={run} state={state} onExit={host.exit} />, ui);
+  const fail = () => {
+    if (disposed) return;
+    state = "failed";
+    // Nothing half-drawn stays behind the message.
+    world.hidden = true;
     drawUI();
   };
-  const onReplay = () => {
-    session = new RaceSession();
-    controls.reset();
+  void scene.ready.then(() => {
+    if (disposed) return;
+    state = "ready";
     drawUI();
-  };
-  function drawUI() {
-    render(
-      <RaceUI
-        session={session}
-        modal={modal}
-        loading={!loaded && !error}
-        error={error}
-        onModal={onModal}
-        onReplay={onReplay}
-        onExit={host.exit}
-      />,
-      ui,
-    );
-  }
-  world.hidden = true;
-  void scene.ready
-    .then(() => {
-      if (disposed) return;
-      loaded = true;
-      world.hidden = false;
-      drawUI();
-    })
-    .catch(() => {
-      if (disposed) return;
-      error = true;
-      scene.dispose();
-      drawUI();
-    });
+  }, fail);
+  const canvas = world.querySelector("canvas");
   const contextLost = (event: Event) => {
     event.preventDefault();
-    error = true;
-    controls.reset();
-    drawUI();
+    fail();
   };
-  world.querySelector("canvas")?.addEventListener("webglcontextlost", contextLost);
+  canvas?.addEventListener("webglcontextlost", contextLost);
+
   function tick(now: number) {
     if (disposed) return;
-    session.tick(now, frame, !!modal || document.hidden || error || !loaded);
+    if (state === "ready") {
+      run.tick(now, document.hidden ? null : frame);
+      scene.render(run, now);
+    }
+    // The only button is reached with a real hand: where the wrist is in the camera's view.
     const points: ControlPoint[] = [];
-    if (frame && isFresh(frame, now) && frame.bodies.length === 1) {
-      const r = root.getBoundingClientRect();
+    const body = frame && isFresh(frame, now) ? frame.bodies[0] : undefined;
+    if (frame && body) {
+      const cover = cameraCover(frame.width, frame.height, innerWidth, innerHeight);
       for (const side of ["left", "right"] as const) {
-        const wrist = frame.bodies[0]?.[`${side}Wrist`];
-        if (wrist) {
-          const point = reachableHand(wrist.x, wrist.y);
+        const wrist = body[`${side}Wrist`];
+        if (wrist)
           points.push({
             key: side,
-            x: r.left + point.x * r.width,
-            y: r.top + point.y * r.height,
+            x: cover.left + (1 - wrist.x) * cover.width,
+            y: cover.top + wrist.y * cover.height,
           });
-        }
       }
     }
     controls.update(points, now);
-    if (loaded && !error) scene.render(session, now);
-    if (now - lastUI >= 80) {
+    if (now - drawnAt >= UI_INTERVAL_MS) {
       drawUI();
-      lastUI = now;
+      drawnAt = now;
     }
     request = requestAnimationFrame(tick);
   }
@@ -422,14 +162,13 @@ export function mountCorrida(container: HTMLElement, host: GameHost): Experience
   request = requestAnimationFrame(tick);
   return {
     update(next) {
-      if (!next || next.epoch !== frame?.epoch) controls.reset();
       frame = next;
     },
     dispose() {
       disposed = true;
       cancelAnimationFrame(request);
       controls.dispose();
-      world.querySelector("canvas")?.removeEventListener("webglcontextlost", contextLost);
+      canvas?.removeEventListener("webglcontextlost", contextLost);
       render(null, ui);
       scene.dispose();
       root.remove();

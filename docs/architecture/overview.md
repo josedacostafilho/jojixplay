@@ -13,7 +13,7 @@ The static application runs entirely on a landscape phone. External screen mirro
 | --- | --- | --- |
 | `apps/jojixplay` | Preact menus, permission, camera, worker, sensing, observation adapter, frame channel, immersive lifecycle | SDK, the games, Preact, MediaPipe |
 | `packages/game-sdk` | Readonly body-joint and hand-point input, kinds of sensing, freshness, camera cover mapping, mount/host contract and shared DOM dwell | None |
-| `games/corrida` | Run rules, gesture recognition, first-person Three.js world, Preact game UI, tests and standalone synthetic development | SDK, Three.js, Preact |
+| `games/corrida` | Reading the body as a puppet (lanes, crouch, lean, arms), the character, the third-person Three.js road, Preact game UI, tests and standalone synthetic development | SDK, Three.js, Preact |
 | `games/desenhar` | Game rules, two independent brushes, Three.js paint, Preact game UI, tests and standalone synthetic development | SDK, Three.js, Preact |
 | `games/sensores` | The owner's sensing bench: draws whatever the host senses, with no rules; tests and standalone synthetic development | SDK, Preact, Three.js |
 
@@ -21,7 +21,7 @@ The application keeps one registry entry per game and lazy-loads its public moun
 
 Workspace imports must use declared public package exports; relative escapes, deep cross-package imports, imports of application internals and game-to-game imports fail `verify:boundaries`. Root TypeScript and validation coordinate shared checks. Each game's standalone development page builds without the application or camera. Future host-mounted games follow the same pattern; the owner chooses their rules.
 
-The SDK contains the one DOM hand-dwell controller, used by host menus and by each game for its own buttons; only one controller is active at a time. It contains no menu state, scoring, player identity, tracking vendor types, renderer or game framework. Consumers supply hand positions in viewport pixels: menus project onto the camera cover rectangle, Desenhar onto its paper, and Corrida through its own amplified reach. See [ADR-0024](../decisions/0024-movement-navigation.md). Each experience owns and disposes its scene resources; there is no unused audio or scoring service today.
+The SDK contains the one DOM hand-dwell controller, used by host menus and by each game for its own buttons; only one controller is active at a time. It contains no menu state, scoring, player identity, tracking vendor types, renderer or game framework. Consumers supply hand positions in viewport pixels: menus and Corrida project onto the camera cover rectangle, and Desenhar onto its paper. See [ADR-0024](../decisions/0024-movement-navigation.md). Each experience owns and disposes its scene resources; there is no unused audio or scoring service today.
 
 ## Sensing and interpretation
 
@@ -47,6 +47,6 @@ Three.js WebGL2 is the only scene renderer. The menu is DOM positioned from the 
 
 Game assets live under their owning `games/<game>/assets/` directory. Keep only selected runtime files from third-party packs, with original licenses, source URLs and version/checksum provenance. Do not commit unused pack archives, duplicate exports or editing backups. Preserve necessary sources for our own authored art. Import asset URLs from the lazy game module and initiate loading on mount; do not preload whole game collections from the menu. Small menu thumbnails are separate from gameplay assets. Prefer fingerprinted external files for reusable image assets so the browser can cache them independently of code.
 
-Corrida imports seven Kenney CC0 PNGs with `?no-inline`. Its scene fetches and decodes them on entry, gates play until ready, aborts pending downloads on exit, and disposes GPU textures and ImageBitmaps. Its grass map shares one decoded source across ground and bank textures. Browser HTTP caching of public static files is allowed; camera data remains transient and never persisted. The same source-owned URLs work in the host and standalone build, including GitHub Pages project paths.
+Corrida imports five Kenney CC0 PNGs with `?no-inline`. Its scene loads them on entry, waits for them before the road appears, and disposes its GPU textures on exit. Browser HTTP caching of public static files is allowed; camera data remains transient and never persisted. The same source-owned URLs work in the host and standalone build, including GitHub Pages project paths.
 
 Root `dist/` is the deployable app. `games/desenhar/dist/` and `games/corrida/dist/` are separate development artifacts and are not deployed. GitHub Actions validates before publishing `main`. See [ADR-0022](../decisions/0022-independent-3d-platform.md).

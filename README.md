@@ -2,7 +2,7 @@
 
 A landscape, phone-powered playroom for children aged 4–7 and their grown-ups. Use external phone screen mirroring for a television. The TV runs no application.
 
-All product UI is Brazilian Portuguese. After the movement check, open **Desenhar sozinho** or **Desenhar em dupla** to paint with your hands. Choose **Corrida dos Blocos** for a single-player, five-minute movement adventure: jump, match poses and crouch through three levels. Old games remain retired.
+All product UI is Brazilian Portuguese. After the movement check, open **Desenhar sozinho** or **Desenhar em dupla** to paint with your hands. **Corrida dos Blocos** is being rebuilt: for now it is a character on an empty road that copies your arms, lean, crouch and sideways steps. Old games remain retired.
 
 Rotate the phone, tap **Ligar a câmera**, and wave. Shoulders and hands can be tracked without visible feet. The game menu floats around your body in an edge-to-edge mirrored camera: raise a hand to the card above your head to play, stretch an arm to a side bubble to see another game. Video stays on-device. The Full GPU model's real-phone accuracy and performance still require acceptance testing.
 
@@ -17,4 +17,4 @@ npm run dev:sense
 npm run validate
 ```
 
-**Sensores** on the menu shelf is a bench, not a game: it draws what the phone senses, a body or both hands, over the camera image. The Desenhar, Corrida and Sensores studios run independently from the application. In the drawing studio, move the pointer and hold Shift to simulate painting. In the race studio, hold Down to crouch, press Space to jump, and choose arm poses from the toolbar. See [Corrida](docs/product/corrida.md), [architecture](docs/architecture/overview.md), [stack](docs/architecture/stack.md) and [status](docs/project/status.md). Validated `main` deploys through GitHub Actions to GitHub Pages.
+**Sensores** on the menu shelf is a bench, not a game: it draws what the phone senses, a body or both hands, over the camera image. The Desenhar, Corrida and Sensores studios run independently from the application. In the drawing studio, move the pointer and hold Shift to simulate painting. In the race studio, move the pointer to step sideways, hold Down to crouch, and choose arm shapes from the toolbar. See [Corrida](docs/product/corrida.md), [architecture](docs/architecture/overview.md), [stack](docs/architecture/stack.md) and [status](docs/project/status.md). Validated `main` deploys through GitHub Actions to GitHub Pages.
