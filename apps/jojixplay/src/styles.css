@@ -278,7 +278,7 @@ a:focus-visible {
   color: #14123a;
 }
 .shelf-card {
-  left: var(--card-x);
+  left: calc(var(--card-x) + var(--slot) * var(--place));
   top: var(--card-y);
   width: var(--card);
   height: var(--card);
@@ -288,6 +288,22 @@ a:focus-visible {
   font-size: calc(var(--card) * 0.17);
   line-height: 1;
 }
+.shelf-card[data-slot="-1"] {
+  --place: -1;
+}
+.shelf-card[data-slot="0"] {
+  --place: 0;
+}
+.shelf-card[data-slot="1"] {
+  --place: 1;
+}
+/* A place with no game yet: plainly not a button to reach for. */
+.shelf-empty {
+  border-style: dashed;
+  background: #14123a99;
+  color: #c9c8e6;
+  box-shadow: none;
+}
 .shelf-card svg {
   width: 56%;
   height: 56%;
@@ -296,6 +312,7 @@ a:focus-visible {
   top: var(--card-y);
   width: calc(var(--card) * 0.6);
   height: calc(var(--card) * 0.6);
+  border-width: max(2px, calc(var(--card) * 0.02));
   border-radius: 24%;
   background: var(--tile);
   opacity: 0.55;
@@ -305,10 +322,10 @@ a:focus-visible {
   height: 60%;
 }
 .shelf-peek--previous {
-  left: calc(var(--card-x) - var(--card) * 0.95);
+  left: calc(var(--card-x) - var(--peek));
 }
 .shelf-peek--next {
-  left: calc(var(--card-x) + var(--card) * 0.95);
+  left: calc(var(--card-x) + var(--peek));
 }
 .side-bubble {
   top: var(--bubble-y);

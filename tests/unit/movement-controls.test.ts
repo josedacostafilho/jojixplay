@@ -5,18 +5,26 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
 });
-it("requires neutral input and a full fresh dwell, resets on loss and target replacement, and isolates modal choices", () => {
+function oneButton() {
   const root = document.createElement("main");
   const button = document.createElement("button");
   root.append(button);
   document.body.append(root);
-  const hit = vi.fn((): Element => button);
-  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: hit });
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: (): Element => button,
+  });
   vi.spyOn(button, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 20, 60, 60));
   const click = vi.fn();
   button.onclick = click;
   const controls = mountMovementControls(root);
   const point = (x: number) => [{ key: "hand", x, y: 40 }];
+  return { root, button, click, controls, point };
+}
+
+it("does not fire a button that appears under a resting hand, fires once per hold, and isolates modal choices", () => {
+  const { root, click, controls, point } = oneButton();
+  // The hand is already there when the buttons appear: it must leave first.
   controls.update(point(40), 0);
   controls.update(point(40), 1000);
   expect(click).not.toHaveBeenCalled();
@@ -24,26 +32,61 @@ it("requires neutral input and a full fresh dwell, resets on loss and target rep
   controls.update(point(40), 1020);
   controls.update(point(40), 1700);
   expect(click).not.toHaveBeenCalled();
-  controls.update([], 1710);
-  controls.update(point(40), 2000);
-  controls.update(point(40), 3000);
-  expect(click).not.toHaveBeenCalled();
-  controls.update(point(10), 3010);
-  controls.update(point(40), 3020);
-  controls.update(point(40), 3820);
+  controls.update(point(40), 1820);
   expect(click).toHaveBeenCalledOnce();
-  controls.update(point(40), 5000);
-  controls.update(point(40), 6000);
+  // Staying on the button it just chose does not choose it again.
+  controls.update(point(40), 3000);
+  controls.update(point(40), 4000);
   expect(click).toHaveBeenCalledOnce();
   const dialog = document.createElement("dialog");
   dialog.open = true;
   root.append(dialog);
-  controls.update(point(10), 6010);
-  controls.update(point(40), 6020);
-  controls.update(point(40), 7020);
+  controls.update(point(10), 4010);
+  controls.update(point(40), 4020);
+  controls.update(point(40), 5020);
   expect(click).toHaveBeenCalledOnce();
   controls.dispose();
   expect(document.querySelector(".movement-pointer")).toBeNull();
+});
+
+it("keeps a hold going through a moment of lost tracking and forgets it after a long loss", () => {
+  const { button, click, controls, point } = oneButton();
+  controls.update(point(10), 0);
+  controls.update(point(40), 1000);
+  controls.update(point(40), 1300);
+  // The camera loses the hand, and with it everyone, for a few frames.
+  controls.update([], 1350);
+  expect(button.style.getPropertyValue("--dwell")).not.toBe("");
+  controls.update(point(40), 1600);
+  expect(click).not.toHaveBeenCalled();
+  controls.update(point(40), 1800);
+  expect(click).toHaveBeenCalledOnce();
+
+  // Gone for longer, the hold is dropped; a fresh one then takes the full time.
+  controls.update(point(10), 3000);
+  controls.update(point(40), 3010);
+  controls.update(point(40), 3400);
+  controls.update([], 3900);
+  expect(button.style.getPropertyValue("--dwell")).toBe("");
+  controls.update(point(40), 4000);
+  controls.update(point(40), 4700);
+  expect(click).toHaveBeenCalledOnce();
+  controls.update(point(40), 4800);
+  expect(click).toHaveBeenCalledTimes(2);
+  controls.dispose();
+});
+
+it("lets a hand raised straight onto a button hold it without first being seen elsewhere", () => {
+  const { click, controls, point } = oneButton();
+  // The buttons have been there a while; the hand comes into view already on one.
+  controls.update([], 0);
+  controls.update([], 1000);
+  controls.update(point(40), 1010);
+  controls.update(point(40), 1700);
+  expect(click).not.toHaveBeenCalled();
+  controls.update(point(40), 1810);
+  expect(click).toHaveBeenCalledOnce();
+  controls.dispose();
 });
 
 it("gives a player's hand only that player's controls and selects the button drawn on top", () => {

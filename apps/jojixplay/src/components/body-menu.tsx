@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { type BodyAnchor, findAnchor, menuLayout } from "../domain/body-anchor";
 import { estimateIndexPoint } from "../domain/camera-view";
 import type { PoseLimit } from "../domain/pose-limit";
-import { type GameId, gameIds, games } from "../games";
+import { type GameId, games, shelf } from "../games";
 import type { Sounds } from "../platform/sounds";
 import type { FrameSource } from "../pose/frame-source";
 import { usePolled } from "./use-polled";
@@ -64,9 +64,10 @@ function Diagnostic({ frames }: { frames: FrameSource }) {
 }
 
 /**
- * The game menu lives around the player's body in the fullscreen mirror: the game in focus floats
- * above the head and one bubble sits at arm's length on each side. Hanging arms reach nothing.
- * Raising a hand to the card plays it; stretching an arm to a bubble turns the shelf.
+ * The game menu lives around the player's body in the fullscreen mirror: three games float in a
+ * row above the head, with a small preview of the next one at each end, and one bubble sits at
+ * arm's length on each side. Hanging arms reach nothing. Raising a hand to a card plays it;
+ * stretching an arm to a bubble moves the row along by one.
  */
 export function BodyMenu({
   frames,
@@ -83,13 +84,12 @@ export function BodyMenu({
   onOpen: (game: GameId, players: PoseLimit) => void;
   onStop: () => void;
 }) {
-  const [focus, setFocus] = useState(0);
+  // The row opens with the first three games in its selectable places.
+  const [focus, setFocus] = useState(1);
   const [choosing, setChoosing] = useState<GameId | null>(null);
   const layer = useRef<HTMLDivElement>(null);
   const at = (offset: number) =>
-    gameIds[(((focus + offset) % gameIds.length) + gameIds.length) % gameIds.length] ??
-    ("desenhar" satisfies GameId);
-  const focused = choosing ?? at(0);
+    shelf[(((focus + offset) % shelf.length) + shelf.length) % shelf.length] ?? null;
 
   useEffect(() => {
     const container = root.current;
@@ -146,12 +146,14 @@ export function BodyMenu({
       if (anchor && now - seenAt > ANCHOR_HOLD_MS) anchor = null;
       element.dataset.presence = anchor ? "tracking" : fresh ? "empty" : "waiting";
       if (anchor) {
-        const layout = menuLayout(anchor, innerWidth);
+        const layout = menuLayout(anchor, innerWidth, innerHeight);
         const set = (name: string, value: number) =>
           element.style.setProperty(name, `${value.toFixed(1)}px`);
         set("--card-x", layout.card.x);
         set("--card-y", layout.card.y);
         set("--card", layout.card.size);
+        set("--slot", layout.spacing);
+        set("--peek", layout.peekOffset);
         set("--previous-x", layout.previous.x);
         set("--next-x", layout.next.x);
         set("--bubble-y", layout.previous.y);
@@ -171,16 +173,45 @@ export function BodyMenu({
     sounds.play("turn");
     setFocus((current) => current + step);
   }
-  function pick() {
-    const [only, ...more] = games[focused].players;
+  function pick(game: GameId) {
+    const [only, ...more] = games[game].players;
     sounds.play("select");
-    if (only !== undefined && more.length === 0) onOpen(focused, only);
-    else setChoosing(focused);
+    if (only !== undefined && more.length === 0) onOpen(game, only);
+    else setChoosing(game);
   }
-  function open(players: PoseLimit) {
+  function open(game: GameId, players: PoseLimit) {
     sounds.play("select");
-    onOpen(focused, players);
+    onOpen(game, players);
   }
+  const preview = (offset: -2 | 2) => {
+    const game = at(offset);
+    return (
+      <span
+        class={`shelf-peek shelf-peek--${offset < 0 ? "previous" : "next"} ${game ? "" : "shelf-empty"}`}
+        style={game ? { "--tile": games[game].color } : undefined}
+      >
+        {game ? <Icon>{games[game].icon}</Icon> : null}
+      </span>
+    );
+  };
+  const card = (offset: -1 | 0 | 1) => {
+    const game = at(offset);
+    return (
+      <button
+        class={`shelf-card ${game ? "" : "shelf-empty"}`}
+        type="button"
+        data-slot={offset}
+        // An empty place is not a target: a hand over it selects nothing.
+        disabled={busy || game === null}
+        style={game ? { "--tile": games[game].color } : undefined}
+        aria-label={game ? `Jogar ${games[game].name}` : "Em breve"}
+        onClick={() => game && pick(game)}
+      >
+        {game ? <Icon>{games[game].icon}</Icon> : null}
+        <strong>{game ? games[game].label : "Em breve"}</strong>
+      </button>
+    );
+  };
 
   return (
     <div class="body-menu" ref={layer} data-presence="waiting">
@@ -194,14 +225,15 @@ export function BodyMenu({
             <button
               class="shelf-card"
               type="button"
-              style={{ "--tile": games[focused].color }}
+              data-slot="0"
+              style={{ "--tile": games[choosing].color }}
               aria-label="Voltar aos jogos"
               onClick={() => {
                 sounds.play("back");
                 setChoosing(null);
               }}
             >
-              <Icon>{games[focused].icon}</Icon>
+              <Icon>{games[choosing].icon}</Icon>
               <strong>← Voltar</strong>
             </button>
             <button
@@ -209,7 +241,7 @@ export function BodyMenu({
               type="button"
               disabled={busy}
               aria-label="1 pessoa"
-              onClick={() => open(1)}
+              onClick={() => open(choosing, 1)}
             >
               <Icon>{onePerson}</Icon>
             </button>
@@ -218,37 +250,18 @@ export function BodyMenu({
               type="button"
               disabled={busy}
               aria-label="2 pessoas"
-              onClick={() => open(2)}
+              onClick={() => open(choosing, 2)}
             >
               <Icon>{twoPeople}</Icon>
             </button>
           </>
         ) : (
           <>
-            {gameIds.length > 1 ? (
-              <>
-                <span
-                  class="shelf-peek shelf-peek--previous"
-                  style={{ "--tile": games[at(-1)].color }}
-                >
-                  <Icon>{games[at(-1)].icon}</Icon>
-                </span>
-                <span class="shelf-peek shelf-peek--next" style={{ "--tile": games[at(1)].color }}>
-                  <Icon>{games[at(1)].icon}</Icon>
-                </span>
-              </>
-            ) : null}
-            <button
-              class="shelf-card"
-              type="button"
-              disabled={busy}
-              style={{ "--tile": games[focused].color }}
-              aria-label={`Jogar ${games[focused].name}`}
-              onClick={pick}
-            >
-              <Icon>{games[focused].icon}</Icon>
-              <strong>{games[focused].label}</strong>
-            </button>
+            {preview(-2)}
+            {preview(2)}
+            {card(-1)}
+            {card(0)}
+            {card(1)}
             <button
               class="side-bubble side-bubble--previous"
               type="button"

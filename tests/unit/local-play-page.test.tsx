@@ -135,7 +135,7 @@ it("returns to the menu when a game exits, and reports a game that cannot open",
   fireEvent.click(screen.getByRole("button", { name: "game failure" }));
   await act(async () => {});
   expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível abrir Corrida dos Blocos");
-  expect(screen.getByRole("button", { name: /^Jogar / })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Jogar Desenhar" })).toBeEnabled();
 });
 
 it("enters solo directly and waits for two-person inference before opening a duo game", async () => {
@@ -212,7 +212,7 @@ it("does not mount a pending race after capture fails", async () => {
   camera = { ...camera, state: "tracking", poseLimit: 1 };
   view.rerender(<LocalPlayPage />);
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /^Jogar / })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Jogar Desenhar" })).toBeVisible();
 });
 
 it("gives a game the sensing and camera image it asks for, and the menu its bodies back", async () => {
@@ -249,11 +249,11 @@ it("gives a game the sensing and camera image it asks for, and the menu its bodi
   fireEvent.click(screen.getByRole("button", { name: "game exit" }));
   expect(mocks.setSensing).toHaveBeenLastCalledWith("body");
   // No game opens until the menu is sensing bodies again.
-  expect(screen.getByRole("button", { name: /^Jogar / })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Jogar Desenhar" })).toBeDisabled();
   await act(async () => {
     restore();
   });
-  expect(screen.getByRole("button", { name: /^Jogar / })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Jogar Desenhar" })).toBeEnabled();
 });
 
 it("ends the session the moment the page is hidden, and only then", () => {

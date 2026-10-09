@@ -44,6 +44,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0030](0030-body-anchored-menu.md) | Accepted | Attach the game menu to the player's body in the mirror, with rest as the default |
 | [0031](0031-host-sensing-service.md) | Accepted | Sense bodies or hands once in the host on a game's request; games interpret |
 | [0032](0032-silhouette-trial-and-camera-pixels.md) | Accepted | Sense silhouettes with the pose model's own mask; let games draw the live camera picture |
+| [0033](0033-menu-row-and-forgiving-holds.md) | Accepted | Three selectable games in a row, bounded button sizes, and holds that survive tracking flicker |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

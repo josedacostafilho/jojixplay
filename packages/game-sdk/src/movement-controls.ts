@@ -4,6 +4,10 @@ import "./movement-controls.css";
 const DWELL_MS = 800;
 /** A hand that moves farther than this share of the short viewport side between updates restarts its dwell. */
 const JUMP_LIMIT = 0.25;
+/** A hand the camera loses for no longer than this carries on where it was. */
+const LOSS_GRACE_MS = 400;
+/** A hand first seen this soon after the buttons changed may be resting where one appeared. */
+const SETTLE_MS = 400;
 
 /** A hand position in viewport pixels. `player` restricts it to controls inside a matching `data-player`. */
 export interface ControlPoint {
@@ -15,7 +19,10 @@ export interface ControlPoint {
 
 export interface MovementControls {
   update(points: readonly ControlPoint[], now: number): void;
-  /** Forget every dwell in progress. A hand must leave its button before it can dwell again. */
+  /**
+   * Forget every dwell in progress. A hand that is on a button now must leave it before it can
+   * dwell again.
+   */
   reset(): void;
   dispose(): void;
 }
@@ -25,7 +32,12 @@ interface Hand {
   readonly cursor: HTMLDivElement;
   button: HTMLButtonElement | null;
   since: number;
-  /** Set once the hand has been seen away from every button, so a stale pose cannot activate one. */
+  /** When the camera last saw this hand. */
+  seenAt: number;
+  /**
+   * Cleared for a hand that was already there when the buttons changed, until it has been seen
+   * away from every button: a button that appears under a resting hand must not fire.
+   */
   armed: boolean;
   /** Set while a hand keeps holding a `data-dwell-repeat-ms` button after its first activation. */
   repeating: boolean;
@@ -36,7 +48,8 @@ interface Hand {
  * button under `root` is a target; an open modal dialog under `root` narrows targets to itself.
  * `pointer: "target"` shows the cursor only over a target, for games that draw their own pointer.
  * A button may set `data-dwell-ms` for its own hold time, and `data-dwell-repeat-ms` to keep
- * activating at that interval while the hand stays on it.
+ * activating at that interval while the hand stays on it. Tracking is allowed to flicker: a hand
+ * lost for a moment keeps its dwell, and a hand raised straight onto a button dwells at once.
  */
 export function mountMovementControls(
   root: HTMLElement,
@@ -44,6 +57,9 @@ export function mountMovementControls(
 ): MovementControls {
   const hands = new Map<string, Hand>();
   let previousTargets: readonly HTMLButtonElement[] = [];
+  /** Set by a reset: the next update counts as a change of buttons. */
+  let unsettled = true;
+  let changedAt = Number.NEGATIVE_INFINITY;
 
   function release(hand: Hand) {
     hand.button?.style.removeProperty("--dwell");
@@ -52,6 +68,7 @@ export function mountMovementControls(
   function reset() {
     for (const hand of hands.values()) release(hand);
     hands.clear();
+    unsettled = true;
   }
   let activating = false;
   // Touch and keyboard selections must also release every movement dwell.
@@ -61,10 +78,6 @@ export function mountMovementControls(
   root.addEventListener("click", onClick, true);
 
   function update(points: readonly ControlPoint[], now: number) {
-    if (points.length === 0) {
-      reset();
-      return;
-    }
     const modal = root.querySelector<HTMLDialogElement>("dialog[open]");
     const scope = modal ?? root;
     const targets: HTMLButtonElement[] = [];
@@ -82,9 +95,18 @@ export function mountMovementControls(
     )
       reset();
     previousTargets = targets;
+    if (unsettled) {
+      unsettled = false;
+      changedAt = now;
+    }
 
     for (const [key, hand] of hands) {
       if (points.some((point) => point.key === key)) continue;
+      if (now - hand.seenAt <= LOSS_GRACE_MS) {
+        // Lost for a moment: its dwell stays on the button and only its cursor goes.
+        hand.cursor.hidden = true;
+        continue;
+      }
       release(hand);
       hands.delete(key);
     }
@@ -95,13 +117,22 @@ export function mountMovementControls(
         const cursor = document.createElement("div");
         cursor.className = "movement-pointer";
         cursor.setAttribute("aria-hidden", "true");
-        hand = { point, cursor, button: null, since: now, armed: false, repeating: false };
+        hand = {
+          point,
+          cursor,
+          button: null,
+          since: now,
+          seenAt: now,
+          armed: now - changedAt > SETTLE_MS,
+          repeating: false,
+        };
         hands.set(point.key, hand);
       }
       const jumped =
         Math.hypot(point.x - hand.point.x, point.y - hand.point.y) >
         JUMP_LIMIT * Math.min(innerWidth, innerHeight);
       hand.point = point;
+      hand.seenAt = now;
 
       // A rectangle hit is not enough: a panel or another button may be drawn over this one.
       let top: Element | null | undefined;

@@ -80,3 +80,9 @@ export const games: Readonly<Record<GameId, GameEntry>> = {
 };
 
 export const gameIds = Object.keys(games) as GameId[];
+
+/**
+ * What the menu's row of cards shows, in order. A null is an empty place for a game that does not
+ * exist yet: it is drawn greyed out and cannot be chosen.
+ */
+export const shelf: ReadonlyArray<GameId | null> = [...gameIds, null, null];
