@@ -6,7 +6,7 @@ test("requires landscape before exposing camera activation", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "Vire o celular" })).toBeVisible();
   await expect(page.locator("video")).toHaveCount(0);
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ligar a câmera" })).toBeVisible();
 });
 
 test("phone play reaches a real local pose packet with a fullscreen menu camera and no peer transport", async ({
@@ -72,7 +72,7 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   });
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Preparar… brincar!" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Prepare a brincadeira" })).toBeVisible();
   await expect(page.getByRole("img", { name: /QR code/i })).toHaveCount(0);
   await expect(page.getByLabel("TV pairing key")).toHaveCount(0);
   await expect(page.getByLabel(/camera preview/i)).toHaveCount(0);
@@ -80,16 +80,19 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await expect(captureSource).toHaveAttribute("aria-hidden", "true");
   await expect(captureSource).toHaveCSS("opacity", "0");
 
-  await page.getByRole("button", { name: "Vamos começar" }).click();
+  await page.getByRole("button", { name: "Ligar a câmera" }).click();
   await expect(page.getByRole("button", { name: "Encerrar brincadeira" })).toBeVisible({
     timeout: 30_000,
   });
   await expect(captureSource).toHaveCSS("opacity", "1");
-  await page.getByRole("button", { name: "Para os adultos" }).click();
-  await expect(page.locator(".diagnostic")).toContainText(/ms desde a captura/, {
+  await expect(page.locator(".menu-diagnostic")).toContainText(/ms desde a captura/, {
     timeout: 30_000,
   });
-  await page.getByRole("button", { name: "Fechar orientações" }).click();
+  // The test camera shows no person, so the body-anchored menu has nothing to hang on and its
+  // objects stay hidden; this journey activates them directly.
+  await expect(page.getByRole("button", { name: "Jogar Desenhar" })).toBeHidden();
+  const choose = (name: string) =>
+    page.getByRole("button", { name, includeHidden: true }).dispatchEvent("click");
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, "__jojixplayFullscreenRequested")))
     .toBe(true);
@@ -100,21 +103,22 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
     })),
   ).toEqual({ webSocket: "undefined", peerConnection: "undefined" });
 
-  await page.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }).click();
-  await page.getByRole("button", { name: "Desenhar sozinho" }).click();
+  await choose("Jogar Desenhar");
+  await choose("1 pessoa");
   await expect(page.getByRole("heading", { name: "Desenhar", exact: true })).toBeVisible();
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.getByText("Suas cores", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair e apagar" }).click();
-  await page.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }).click();
-  await page.getByRole("button", { name: "Desenhar em dupla" }).click();
+  await choose("Jogar Desenhar");
+  await choose("2 pessoas");
   await expect(page.getByText("Lado esquerdo", { exact: true })).toBeVisible();
   await expect(page.getByText("Lado direito", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair e apagar" }).click();
   expect(textureRequests).toEqual([]);
-  await page.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }).click();
+  await choose("Próximo jogo");
+  await choose("Jogar Corrida dos Blocos");
   await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
   expect(new Set(textureRequests).size).toBe(7);
   expect(textureRequests.every((url) => new URL(url).origin === new URL(page.url()).origin)).toBe(
@@ -126,16 +130,17 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await page.getByRole("button", { name: "← Voltar" }).click();
   await page.getByRole("button", { name: "Sair da corrida" }).click();
   await page.getByRole("button", { name: "Encerrar brincadeira" }).click();
-  await expect(page.getByRole("heading", { name: "Preparar… brincar!" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Prepare a brincadeira" })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayTrackStopCount"))))
     .toBeGreaterThan(0);
   await expect
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayWakeReleaseCount"))))
     .toBeGreaterThan(0);
-  await page.getByRole("button", { name: "Vamos começar" }).click();
+  await page.getByRole("button", { name: "Ligar a câmera" }).click();
   await expect(page.getByRole("button", { name: "Encerrar brincadeira" })).toBeVisible();
-  await page.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }).click();
+  await choose("Próximo jogo");
+  await choose("Jogar Corrida dos Blocos");
   await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { name: "Vire o celular" })).toBeVisible();
@@ -148,5 +153,5 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayWakeReleaseCount"))))
     .toBeGreaterThan(1);
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ligar a câmera" })).toBeVisible();
 });

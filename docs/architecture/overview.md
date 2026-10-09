@@ -34,7 +34,7 @@ Portrait, stop, errors and unmount release camera/worker and immersive resources
 
 ## Assets and deployment
 
-Three.js WebGL2 is the only scene renderer. Menus use DOM circles and load no 3D renderer. Blender-to-GLB is the chosen future authored-model workflow, not an implemented art pipeline or a claim that current forms were authored in Blender. Keep editable `.blend` sources alongside their game, export glTF binary with applied scale, and validate size, materials and draw calls on phones when the first authored asset exists.
+Three.js WebGL2 is the only scene renderer. The menu is DOM positioned from the tracked shoulders and loads no 3D renderer. Blender-to-GLB is the chosen future authored-model workflow, not an implemented art pipeline or a claim that current forms were authored in Blender. Keep editable `.blend` sources alongside their game, export glTF binary with applied scale, and validate size, materials and draw calls on phones when the first authored asset exists.
 
 Game assets live under their owning `games/<game>/assets/` directory. Keep only selected runtime files from third-party packs, with original licenses, source URLs and version/checksum provenance. Do not commit unused pack archives, duplicate exports or editing backups. Preserve necessary sources for our own authored art. Import asset URLs from the lazy game module and initiate loading on mount; do not preload whole game collections from the menu. Small menu thumbnails are separate from gameplay assets. Prefer fingerprinted external files for reusable image assets so the browser can cache them independently of code.
 

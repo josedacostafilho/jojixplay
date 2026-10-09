@@ -40,6 +40,7 @@ These commands are executable and are the only canonical paths for their concern
 | --- | --- |
 | Install dependencies | `npm ci` |
 | Start local development | `npm run dev` |
+| Test on a phone over the local network | `npm run dev:lan` |
 | Independent Desenhar development | `npm run dev:draw` |
 | Independent Corrida development | `npm run dev:race` |
 | Corrida unit tests | `npm test --workspace @jojixplay/corrida` |
@@ -60,6 +61,8 @@ These commands are executable and are the only canonical paths for their concern
 | Apply database migrations | Not applicable yet |
 
 `npm run test:e2e` first builds the production artifact and then serves it through Vite preview. The browser suite therefore exercises the same asset layout used for deployment, including the vendored MediaPipe model and WebAssembly files.
+
+`npm run dev:lan` serves the development app over HTTPS on every local network address, because browsers grant camera access only to HTTPS or `localhost`. It issues a self-signed certificate with `openssl` under `node_modules/.cache`, reissued when the machine's addresses change; the phone shows one certificate warning to accept. It is a development aid only and affects no build or deployment.
 
 ## Rendering and game development
 

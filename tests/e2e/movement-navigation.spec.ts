@@ -15,7 +15,7 @@ for (const viewport of [
       });
       Reflect.set(window, "testWrist", { x: 0.5, y: 0.5 });
       Reflect.set(window, "testLost", false);
-      Reflect.set(window, "testHandsOnly", true);
+      Reflect.set(window, "testHandsOnly", false);
       class SyntheticWorker {
         onmessage: ((event: { data: unknown }) => void) | null = null;
         postMessage(request: {
@@ -70,8 +70,10 @@ for (const viewport of [
       Object.defineProperty(window, "Worker", { value: SyntheticWorker });
     });
     await page.goto("/");
-    await page.getByRole("button", { name: "Vamos começar" }).click();
-    await expect(page.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" })).toBeVisible();
+    await page.getByRole("button", { name: "Ligar a câmera" }).click();
+    // The menu hangs on the tracked body: a card above the head, a bubble at each side.
+    await expect(page.getByRole("button", { name: "Jogar Desenhar" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Próximo jogo" })).toBeVisible();
     await expect(page.locator(".movement-pointer").first()).toBeVisible();
     await expect(page.locator(".movement-pointer").first()).toHaveText("");
     await expect(page.locator("canvas")).toHaveCount(0);
@@ -192,19 +194,17 @@ for (const viewport of [
         .poll(() => page.evaluate(() => Reflect.get(window, "testSelected")), { timeout: 10000 })
         .toBe(true);
     }
-    await select("Para os adultos");
-    await expect(page.getByRole("heading", { name: "Uma ajudinha sua" })).toBeVisible();
-    await select("↓ Ler mais");
-    await select("↑ Subir");
-    await select("Fechar orientações");
-    await expect(page.getByRole("heading", { name: "Uma ajudinha sua" })).not.toBeVisible();
-    await select("Desenhar · 1 ou 2 pessoas");
-    await expect(page.getByRole("heading", { name: "Quem vai brincar?" })).toBeVisible();
-    await select("← Todos os jogos");
-    await expect(page.getByRole("heading", { name: "Vamos brincar?" })).toBeVisible();
-    await select("Desenhar · 1 ou 2 pessoas");
+    // Hands only: without shoulders there is nothing to hang the menu on, so nothing is selectable.
+    await page.evaluate(() => Reflect.set(window, "testHandsOnly", true));
+    await expect(page.getByRole("button", { name: "Jogar Desenhar" })).toBeHidden();
+    await expect(page.getByRole("status")).toContainText("Fique de frente");
     await page.evaluate(() => Reflect.set(window, "testHandsOnly", false));
-    await select("Desenhar sozinho");
+    await select("Jogar Desenhar");
+    await expect(page.getByRole("button", { name: "2 pessoas" })).toBeVisible();
+    await select("Voltar aos jogos");
+    await expect(page.getByRole("button", { name: "Próximo jogo" })).toBeVisible();
+    await select("Jogar Desenhar");
+    await select("1 pessoa");
     await expect(page.locator("video")).toHaveCSS("opacity", "0");
     await expect(page.getByText("Suas cores", { exact: true })).toBeVisible();
     await select("Verde");
@@ -230,8 +230,8 @@ for (const viewport of [
     await select("Sair e apagar");
     await expect(page.locator("video")).toHaveCSS("opacity", "1");
     await expect(page.locator(".movement-pointer").first()).toBeVisible();
-    await select("Desenhar · 1 ou 2 pessoas");
-    await select("Desenhar em dupla");
+    await select("Jogar Desenhar");
+    await select("2 pessoas");
     await expect(page.getByText("Lado esquerdo", { exact: true })).toBeVisible();
     await select("Verde · esquerda");
     await expect(
@@ -239,7 +239,8 @@ for (const viewport of [
     ).toHaveAttribute("aria-pressed", "true");
     await select("← Voltar");
     await select("Sair e apagar");
-    await select("Corrida dos Blocos · 1 pessoa");
+    await select("Próximo jogo");
+    await select("Jogar Corrida dos Blocos");
     await expect(page.getByRole("heading", { name: "Agache para começar" })).toBeVisible();
     await expect(page.locator("video")).toHaveCSS("opacity", "0");
     await select("? Como jogar");
@@ -255,6 +256,6 @@ for (const viewport of [
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator("video")).toHaveCSS("opacity", "1");
     await select("Encerrar brincadeira");
-    await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Ligar a câmera" })).toBeVisible();
   });
 }

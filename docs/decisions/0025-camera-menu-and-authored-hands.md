@@ -5,6 +5,8 @@ last_verified: 2026-09-24
 
 # Fullscreen camera menu and authored hand controls
 
+The game list and hands-only menu operation were replaced by [ADR-0030](0030-body-anchored-menu.md); the fullscreen camera and shared cover projection stand.
+
 The hand mesh and palm-placement clauses below are superseded by [ADR-0026](0026-circle-menu-pointer.md). The camera and menu contract remains active.
 
 After trusted camera setup, the phone shows a main game menu over its live camera. Desenhar is the sole playable entry, followed by a one-/two-person choice; unnamed noninteractive “Em breve” cards reserve visual space without choosing future games for the owner. Confirmed game exit returns to the game list.

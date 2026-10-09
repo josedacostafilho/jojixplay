@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import { cp, stat } from "node:fs/promises";
 import path from "node:path";
 import preact from "@preact/preset-vite";
@@ -8,6 +8,9 @@ const deploymentBase = process.env.BASE_PATH ?? "/";
 if (!/^\/(?:[A-Za-z0-9._~-]+\/)*$/u.test(deploymentBase)) {
   throw new Error("BASE_PATH must be an absolute URL path with a trailing slash.");
 }
+
+// Set only by `npm run dev:lan`, which serves phones on the local network over HTTPS.
+const lanCertificate = process.env.JOJIXPLAY_LAN_CERTIFICATE;
 
 const contentTypes: Record<string, string> = {
   ".js": "text/javascript",
@@ -61,6 +64,16 @@ export default defineConfig({
       "mediapipe/pose-landmarker-full-float16-1": "assets/models",
     }),
   ],
+  ...(lanCertificate
+    ? {
+        server: {
+          https: {
+            key: readFileSync(path.join(lanCertificate, "key.pem")),
+            cert: readFileSync(path.join(lanCertificate, "cert.pem")),
+          },
+        },
+      }
+    : {}),
   build: {
     target: "es2022",
     sourcemap: false,

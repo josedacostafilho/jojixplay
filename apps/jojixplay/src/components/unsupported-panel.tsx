@@ -4,9 +4,8 @@ interface UnsupportedPanelProps {
 
 export function UnsupportedPanel({ missing }: UnsupportedPanelProps) {
   return (
-    <main class="page page--centered">
+    <main class="page">
       <section class="panel unsupported-panel" aria-labelledby="unsupported-title">
-        <p class="eyebrow">Uma ajudinha de um adulto</p>
         <h1 id="unsupported-title">Vamos tentar outro navegador?</h1>
         <p>
           Este navegador não consegue abrir a brincadeira. Use um navegador atualizado no celular e
@@ -18,7 +17,7 @@ export function UnsupportedPanel({ missing }: UnsupportedPanelProps) {
             <li key={capability}>{capability}</li>
           ))}
         </ul>
-        <a class="button button--secondary" href={import.meta.env.BASE_URL}>
+        <a class="button" href={import.meta.env.BASE_URL}>
           Voltar ao início
         </a>
       </section>

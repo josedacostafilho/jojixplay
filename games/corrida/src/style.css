@@ -98,7 +98,7 @@
 .race-hearts .empty {
   color: #446269;
 }
-.race-back {
+.race-game .race-back {
   position: absolute;
   top: 12px;
   right: 3%;

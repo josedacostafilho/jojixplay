@@ -66,62 +66,41 @@ afterEach(() => {
   Reflect.deleteProperty(document, "elementFromPoint");
   vi.useRealTimers();
 });
-it("requires touch to start, shows adult instructions and cleans up on unmount", async () => {
+it("requires touch to start, states the camera privacy and cleans up on unmount", async () => {
   const view = render(<LocalPlayPage />);
   expect(mocks.start).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Para os adultos" }));
-  expect(screen.getByText(/Sua câmera aparece nos menus/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Vamos começar" }));
+  expect(screen.getByText(/Nada é gravado nem enviado/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Ligar a câmera" }));
   await act(async () => {});
   expect(mocks.start).toHaveBeenCalledOnce();
   view.unmount();
 
   expect(mocks.immersiveStop).toHaveBeenCalled();
 });
-it("clears a fresh upper-body frame by capture age, without requiring hips", () => {
-  vi.useFakeTimers();
-  const now = performance.now();
-  const frames = new BodyFrameChannel();
-  frames.publish({
-    sequence: 1,
-    capturedAtMs: now,
-    width: 1280,
-    height: 720,
-    epoch: 0,
-    bodies: [{ leftWrist: { x: 0.4, y: 0.3, z: 0, confidence: 1 } }],
-  });
-  camera = { ...camera, state: "tracking", frames };
-  render(<LocalPlayPage />);
-  expect(screen.getByRole("status")).toHaveTextContent("Achamos você!");
-  act(() => {
-    vi.advanceTimersByTime(500);
-  });
-  expect(screen.getByRole("status")).toHaveTextContent("Mostre as mãos para o celular");
-});
 it("reports a rejected player-mode change and retains the applied setting", async () => {
   camera = { ...camera, state: "tracking" };
   mocks.setPoseLimit.mockRejectedValue(new Error("Camera stopped"));
   render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }));
-  fireEvent.click(screen.getByRole("button", { name: "Desenhar em dupla" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Desenhar" }));
+  fireEvent.click(screen.getByRole("button", { name: "2 pessoas" }));
   await act(async () => {});
   expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível preparar as pessoas");
-  expect(screen.getByRole("button", { name: "Desenhar em dupla" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "2 pessoas" })).toBeEnabled();
 });
 
 it("cancels startup and releases the camera and immersive state", () => {
   const view = render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Vamos começar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Ligar a câmera" }));
   camera = { ...camera, state: "starting" };
   view.rerender(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Cancelar abertura da câmera" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(mocks.stop).toHaveBeenCalledOnce();
   expect(mocks.immersiveStop).toHaveBeenCalled();
 });
 
 it("releases immersive state when the camera fails", () => {
   const view = render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Vamos começar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Ligar a câmera" }));
   expect(mocks.immersiveStop).not.toHaveBeenCalled();
   camera = { ...camera, state: "error", errorMessage: "O acesso à câmera foi negado." };
   view.rerender(<LocalPlayPage />);
@@ -132,15 +111,17 @@ it("releases immersive state when the camera fails", () => {
 it("returns to the menu when a game exits, and reports a game that cannot open", async () => {
   camera = { ...camera, state: "tracking" };
   render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
+  fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   await act(async () => {});
   fireEvent.click(screen.getByRole("button", { name: "game exit" }));
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
+  fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   await act(async () => {});
   fireEvent.click(screen.getByRole("button", { name: "game failure" }));
   expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível abrir Corrida dos Blocos");
-  expect(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: /^Jogar / })).toBeEnabled();
 });
 
 it("enters solo directly and waits for two-person inference before opening a duo game", async () => {
@@ -153,8 +134,8 @@ it("enters solo directly and waits for two-person inference before opening a duo
       }),
   );
   const view = render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }));
-  fireEvent.click(screen.getByRole("button", { name: "Desenhar em dupla" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Desenhar" }));
+  fireEvent.click(screen.getByRole("button", { name: "2 pessoas" }));
   expect(mocks.setPoseLimit).toHaveBeenCalledWith(2);
   expect(screen.queryByTestId("drawing")).not.toBeInTheDocument();
   camera = { ...camera, poseLimit: 2 };
@@ -166,8 +147,8 @@ it("enters solo directly and waits for two-person inference before opening a duo
   view.unmount();
   camera = { ...camera, poseLimit: 1 };
   render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Desenhar · 1 ou 2 pessoas" }));
-  fireEvent.click(screen.getByRole("button", { name: "Desenhar sozinho" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Desenhar" }));
+  fireEvent.click(screen.getByRole("button", { name: "1 pessoa" }));
   await act(async () => {});
   expect(screen.getByTestId("drawing")).toHaveTextContent("1 pessoas");
 });
@@ -182,7 +163,8 @@ it("waits for single-person inference before mounting Corrida after duo play", a
       }),
   );
   const view = render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
+  fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   expect(mocks.setPoseLimit).toHaveBeenCalledWith(1);
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
   camera = { ...camera, poseLimit: 1 };
@@ -206,7 +188,8 @@ it("does not mount a pending race after capture fails", async () => {
       }),
   );
   const view = render(<LocalPlayPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" }));
+  fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   camera = { ...camera, state: "error" };
   view.rerender(<LocalPlayPage />);
   await act(async () => {
@@ -215,5 +198,5 @@ it("does not mount a pending race after capture fails", async () => {
   camera = { ...camera, state: "tracking", poseLimit: 1 };
   view.rerender(<LocalPlayPage />);
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Corrida dos Blocos · 1 pessoa" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /^Jogar / })).toBeVisible();
 });

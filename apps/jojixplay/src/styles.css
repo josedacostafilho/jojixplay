@@ -1,9 +1,9 @@
 :root {
   font-family: ui-rounded, "Avenir Next", Avenir, "Trebuchet MS", sans-serif;
-  color: #263f41;
-  background: #fff9ed;
+  color: #fff;
+  background: #14123a;
   font-synthesis: none;
-  font-weight: 500;
+  font-weight: 600;
 }
 * {
   box-sizing: border-box;
@@ -30,12 +30,11 @@ a {
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid #286b9e;
-  outline-offset: 5px;
+  outline: 3px solid #ffd23f;
+  outline-offset: 4px;
 }
 .playroom {
   height: 100svh;
-  padding: 16px max(4vw, env(safe-area-inset-right)) 12px max(4vw, env(safe-area-inset-left));
   position: relative;
   overflow: hidden;
   display: flex;
@@ -56,332 +55,126 @@ a:focus-visible {
 .camera-backdrop--visible {
   opacity: 1;
 }
-.playroom--live:not(.playroom--game)::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: linear-gradient(#142b3340, transparent 40%, #142b3350);
-  z-index: -1;
-  pointer-events: none;
-}
-.room-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 2;
-}
-.room-header[hidden] {
-  display: none;
-}
 .brand {
-  font-size: 27px;
+  font-size: 22px;
   font-weight: 900;
-  letter-spacing: -1.5px;
-  display: flex;
-  align-items: center;
+  letter-spacing: -1px;
 }
 .brand span {
-  color: #d95640;
-}
-.brand i {
-  font-style: normal;
-  color: #dba83e;
-  margin-left: 10px;
-}
-.playroom--live .brand {
-  padding: 5px 14px;
-  border-radius: 18px;
-  background: #fff9edef;
-}
-.parent-button,
-.quiet-button,
-.menu-return {
-  border: 1px solid #d6ded1;
-  border-radius: 18px;
-  background: #fffcf3f5;
-  padding: 8px 16px;
-  color: #294b4b;
-  font-size: 13px;
-  font-weight: 700;
-  position: relative;
-}
-.parent-button span {
-  margin-left: 12px;
-}
-.welcome {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-  gap: 24px;
-}
-.little-label,
-.menu-eyebrow {
-  font-size: 10px;
-  letter-spacing: 2px;
-  font-weight: 800;
-}
-.welcome h1 {
-  font-size: clamp(35px, 6vw, 80px);
-  line-height: 1.05;
-  letter-spacing: -2px;
-  margin: 12px 0;
-}
-.welcome h1 em {
-  color: #cb513d;
-  font-style: normal;
-}
-.welcome p {
-  max-width: 360px;
-  font-size: 14px;
-  line-height: 1.5;
-}
-.start-button,
-.button {
-  border: 0;
-  border-radius: 18px;
-  background: #f7c853;
-  color: #2e4237;
-  padding: 14px 22px;
-  font-weight: 800;
-  box-shadow: 0 4px 0 #d3a539;
-  display: inline-block;
-  text-decoration: none;
-}
-.start-button span {
-  margin-left: 20px;
-}
-.welcome .button-caption {
-  font-size: 11px;
-}
-.setup-art {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  background: #dcebdc;
-  border-radius: 45% 55% 48% 52%;
-  min-height: 190px;
-  transform: rotate(-5deg);
-  font-size: clamp(65px, 12vw, 160px);
-  color: #cb6657;
-}
-.setup-art span:nth-child(2) {
-  color: #d9ae43;
-}
-.setup-art span:nth-child(3) {
-  color: #4a8e91;
-}
-.room-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  font-size: 10px;
-}
-.room-footer b {
-  color: #bb8720;
-}
-.game-menu {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-}
-.menu-intro {
-  align-self: center;
-  text-align: center;
-  color: #fff;
-  text-shadow: 0 2px 6px #102a39;
-}
-.menu-intro h1 {
-  font-size: clamp(26px, 4vw, 46px);
-  line-height: 1;
-  margin: 6px 0;
-  letter-spacing: -1px;
-}
-.menu-intro p {
-  font-size: 12px;
-  margin: 6px 0 0;
-  font-weight: 700;
-}
-.game-shelf {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  width: min(780px, 88vw);
-  align-self: center;
-}
-.game-shelf--players {
-  position: relative;
-  width: min(520px, 72vw);
-  padding-bottom: 48px;
-}
-.game-card {
-  width: 100%;
-  border: 2px solid #fff9ed;
-  border-radius: 25px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  position: relative;
-  color: #294b4b;
-  box-shadow:
-    0 7px 0 #24434835,
-    0 10px 25px #12272c30;
-  min-height: 160px;
-}
-.game-card--draw {
-  background: #ffe09bf2;
-}
-.game-card--duo {
-  background: #b5e5edf2;
-}
-.game-card strong {
-  font-size: 23px;
-  letter-spacing: -0.5px;
-}
-.game-card > span:last-child {
-  font-size: 11px;
-}
-.card-art {
-  display: block;
-  font-size: 56px;
-  line-height: 1;
-}
-.pencil-art {
-  transform: rotate(-18deg);
-  color: #be573e;
-}
-.menu-return {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-.menu-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-.tracking-note {
-  font-size: 11px;
-  padding: 9px 14px;
-  border-radius: 20px;
-  color: #fff;
-  background: #153b44b8;
-}
-.menu-busy {
-  position: absolute;
-  bottom: 12px;
-  left: 35%;
-  padding: 8px;
-  background: #fff9ed;
-  border-radius: 12px;
-}
-.game-card::after,
-.playroom--live .parent-button::after,
-.playroom--live .quiet-button::after,
-.menu-return::after,
-.parent-scroll-controls button::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: inherit;
-  padding: 4px;
-  background: conic-gradient(#fbcf60 var(--dwell, 0%), transparent 0);
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-}
-.parent-panel {
-  position: absolute;
-  z-index: 10;
-  top: 68px;
-  right: 4vw;
-  width: min(550px, 90vw);
-  max-height: calc(100svh - 80px);
-  background: #fffdf5fa;
-  border: 1px solid #c9d1c5;
-  border-radius: 24px;
-  padding: 14px 20px;
-  box-shadow: 0 18px 65px #304e4430;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.parent-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-}
-.parent-heading h2 {
-  margin: 0;
-  font-size: 23px;
-  letter-spacing: -1px;
-}
-.parent-scroll-controls {
-  display: flex;
-  gap: 12px;
-  flex-shrink: 0;
-}
-.parent-scroll-controls button {
-  position: relative;
-  border: 1px solid #c9d1c5;
-  border-radius: 12px;
-  background: #f7c853;
-  padding: 8px 16px;
-}
-.parent-panel ol {
-  padding-left: 23px;
-  min-height: 0;
-  max-height: 30svh;
-  overflow: auto;
-  margin: 6px 0;
-}
-.parent-panel li {
-  padding: 8px 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-.parent-panel > p {
-  flex-shrink: 0;
-  margin: 4px 0;
-  font-size: 10px;
-  line-height: 1.5;
-}
-.diagnostic {
-  border-top: 1px solid #dde1d6;
-  padding-top: 8px;
+  color: #ffd23f;
 }
 .inline-error {
-  background: #ffe1d9;
-  padding: 12px;
-  border-radius: 12px;
-  color: #8b2b20;
-  font-size: 13px;
+  margin: 0;
+  background: #ff5a4e;
+  padding: 10px 14px;
+  border-radius: 14px;
+  color: #14123a;
+  font-size: 14px;
+  font-weight: 800;
 }
 .menu-error {
   position: absolute;
-  top: 65px;
   left: 5%;
   right: 5%;
   z-index: 12;
 }
+
+/* Adult setup, phone in hand: three things to do and one button. */
+.setup {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 3svh, 18px);
+  padding: clamp(10px, 4svh, 22px) max(4vw, env(safe-area-inset-right)) clamp(10px, 4svh, 22px)
+    max(4vw, env(safe-area-inset-left));
+}
+.setup-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.setup-header h1 {
+  margin: 0;
+  font-size: clamp(15px, 4.5svh, 20px);
+  font-weight: 700;
+  color: #c9c8e6;
+}
+.setup-steps {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(8px, 2vw, 18px);
+}
+.setup-step {
+  min-height: 0;
+  padding: clamp(8px, 3.5svh, 18px);
+  border-radius: 22px;
+  background: #25226b;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(2px, 1.2svh, 8px);
+}
+.setup-step svg {
+  flex: 0 1 clamp(30px, 16svh, 64px);
+  min-height: 0;
+  width: clamp(30px, 16svh, 64px);
+  color: #ffd23f;
+}
+.setup-step strong {
+  font-size: clamp(15px, 5.2svh, 22px);
+  font-weight: 900;
+  line-height: 1.1;
+}
+.setup-step span {
+  font-size: clamp(12px, 3.8svh, 15px);
+  line-height: 1.3;
+  color: #c9c8e6;
+}
+.setup-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.setup-privacy {
+  margin: 0;
+  font-size: clamp(11px, 3.4svh, 13px);
+  line-height: 1.35;
+  color: #c9c8e6;
+}
+.setup-footer > p {
+  flex: 1;
+}
+.setup-start,
+.button {
+  border: 0;
+  border-radius: 999px;
+  background: #ffd23f;
+  color: #14123a;
+  padding: 0 clamp(20px, 4vw, 36px);
+  min-height: clamp(48px, 15svh, 64px);
+  font-size: clamp(17px, 5.5svh, 22px);
+  font-weight: 900;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.setup-cancel {
+  border: 2px solid #6b69b8;
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  padding: 0 18px;
+  font-weight: 800;
+}
+
 .playroom--game {
   padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
 }
@@ -398,139 +191,194 @@ a:focus-visible {
   inset: 40% 0;
   text-align: center;
 }
+
+/* Full-page notices: rotate the phone, unsupported browser. */
 .page {
   min-height: 100svh;
   display: grid;
   place-items: center;
   padding: 24px;
-}
-.panel {
-  max-width: 600px;
-}
-.page--centered {
   text-align: center;
 }
-.rotate-screen {
-  background: #dcebdc;
+.panel {
+  max-width: 460px;
 }
-.rotate-screen h1 {
-  font-size: clamp(36px, 7vw, 64px);
-  letter-spacing: -2px;
-}
-.rotate-screen p {
-  line-height: 1.6;
-  max-width: 340px;
-  margin: 15px auto;
-}
-.eyebrow {
+.panel h1 {
+  margin: 8px 0;
+  font-size: clamp(28px, 7vw, 44px);
   font-weight: 900;
   letter-spacing: -1px;
-  font-size: 25px;
+}
+.panel p {
+  margin: 10px auto;
+  line-height: 1.5;
+  color: #c9c8e6;
 }
 .rotate-phone {
-  display: block;
-  font-size: 85px;
-  color: #ce654a;
+  width: 110px;
+  height: 110px;
+  color: #ffd23f;
 }
-@media (max-height: 440px) {
-  .playroom {
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-  .brand {
-    font-size: 23px;
-  }
-  .parent-button {
-    font-size: 11px;
-  }
-  .game-menu {
-    gap: 8px;
-  }
-  .game-card {
-    min-height: 118px;
-    padding: 8px;
-    border-radius: 21px;
-  }
-  .game-card strong {
-    font-size: 20px;
-  }
-  .card-art {
-    font-size: 40px;
-  }
-  .game-shelf {
-    gap: 12px;
-  }
-  .menu-intro h1 {
-    font-size: 27px;
-    margin: 3px 0;
-  }
-  .menu-intro p {
-    font-size: 11px;
-  }
-  .menu-eyebrow {
-    font-size: 8px;
-  }
-  .menu-footer .quiet-button {
-    font-size: 11px;
-  }
-  .game-shelf--players {
-    padding-bottom: 46px;
-  }
-}
-@media (max-height: 350px) {
-  .menu-intro .menu-eyebrow {
-    display: none;
-  }
-  .game-card {
-    min-height: 96px;
-  }
-  .card-art {
-    font-size: 30px;
-  }
-  .game-card strong {
-    font-size: 18px;
-  }
-  .game-card > span:last-child {
-    font-size: 10px;
-  }
-  .game-menu {
-    gap: 5px;
-  }
+.missing-list {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  color: #fff;
+  font-weight: 800;
 }
 
-.game-card--race {
-  background: #a9dac6f5;
-  color: #244f43;
+/* The menu floats around the player in the fullscreen mirror. Positions arrive as custom
+   properties from the tracked shoulders; nothing here is laid out against the screen. */
+.body-menu {
+  position: fixed;
+  inset: 0;
+  color: #14123a;
+  font-weight: 900;
 }
-.game-card--race strong {
-  font-size: clamp(15px, 2.2vw, 23px);
-}
-.blocks-art {
-  width: 64px;
-  height: 54px;
-  position: relative;
-}
-.blocks-art i {
+.body-menu__objects > * {
   position: absolute;
-  width: 28px;
-  height: 28px;
-  background: #548f69;
-  box-shadow:
-    inset 0 7px #92ba65,
-    4px 4px 0 #396e57;
-  transform: skewY(-8deg);
-  bottom: 4px;
-  left: 0;
+  transform: translate(-50%, -50%);
 }
-.blocks-art i:nth-child(2) {
-  left: 31px;
-  bottom: 4px;
+.body-menu:not([data-presence="tracking"]) .body-menu__objects {
+  display: none;
 }
-.blocks-art i:nth-child(3) {
-  left: 15px;
-  bottom: 31px;
-  background: #ad7549;
+.body-menu__hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: #14123a;
+  color: #fff;
+  font-size: 22px;
+  white-space: nowrap;
+}
+.body-menu__hint svg {
+  width: 44px;
+  height: 44px;
+  color: #ffd23f;
+}
+.body-menu[data-presence="tracking"] .body-menu__hint {
+  display: none;
+}
+.shelf-card,
+.shelf-peek,
+.side-bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: max(3px, calc(var(--card) * 0.035)) solid #fff;
+  box-shadow: 0 0 0 max(2px, calc(var(--card) * 0.02)) #14123a;
+  color: #14123a;
+}
+.shelf-card {
+  left: var(--card-x);
+  top: var(--card-y);
+  width: var(--card);
+  height: var(--card);
+  padding: 0;
+  border-radius: 24%;
+  background: var(--tile);
+  font-size: calc(var(--card) * 0.17);
+  line-height: 1;
+}
+.shelf-card svg {
+  width: 56%;
+  height: 56%;
+}
+.shelf-peek {
+  top: var(--card-y);
+  width: calc(var(--card) * 0.6);
+  height: calc(var(--card) * 0.6);
+  border-radius: 24%;
+  background: var(--tile);
+  opacity: 0.55;
+}
+.shelf-peek svg {
+  width: 60%;
+  height: 60%;
+}
+.shelf-peek--previous {
+  left: calc(var(--card-x) - var(--card) * 0.95);
+}
+.shelf-peek--next {
+  left: calc(var(--card-x) + var(--card) * 0.95);
+}
+.side-bubble {
+  top: var(--bubble-y);
+  width: var(--bubble);
+  height: var(--bubble);
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: #14123a;
+  color: #fff;
+  box-shadow: none;
+}
+.side-bubble svg {
+  width: 58%;
+  height: 58%;
+}
+.side-bubble--previous {
+  left: var(--previous-x);
+}
+.side-bubble--next {
+  left: var(--next-x);
+}
+/* The object under a hand grows and fills as the hold completes. */
+.shelf-card,
+.side-bubble,
+.menu-exit {
+  background-image: linear-gradient(0deg, #2ecc71 var(--dwell, 0%), transparent var(--dwell, 0%));
+}
+.body-menu button[style*="--dwell"] {
+  scale: 1.12;
+}
+.body-menu button:disabled {
+  cursor: wait;
+}
+.menu-exit {
+  position: absolute;
+  left: max(10px, env(safe-area-inset-left));
+  bottom: 10px;
+  padding: 6px 16px;
+  border: 2px solid #ffffff99;
+  border-radius: 999px;
+  background-color: #14123acc;
+  color: #fff;
+  font-size: 14px;
+}
+.menu-diagnostic {
+  position: absolute;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: 10px;
+  margin: 0;
+  color: #ffffffb0;
+  font-size: 10px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px #000;
+}
+.menu-error {
+  bottom: 60px;
+}
+/* A ring on each tracked hand: the player sees their own hand reach an object. */
+.playroom > .movement-pointer {
+  width: 40px;
+  height: 40px;
+  border: 5px solid #fff;
+  background: none;
   box-shadow:
-    inset 0 7px #79a95b,
-    4px 4px 0 #755b40;
+    0 0 0 3px #14123a,
+    inset 0 0 0 3px #14123a;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .body-menu button {
+    transition: scale 120ms ease-out;
+  }
 }
