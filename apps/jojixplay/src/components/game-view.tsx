@@ -1,30 +1,36 @@
-import type { Experience } from "@jojixplay/game-sdk";
+import type { CameraImage, Experience, Frame, Sensing } from "@jojixplay/game-sdk";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { PoseLimit } from "../domain/pose-limit";
 import { type GameId, games } from "../games";
-import type { BodyFrameSource } from "../pose/body-frame-source";
+import type { FrameSource } from "../pose/frame-source";
 
-/** Loads and mounts one game, then feeds it pose frames directly from the camera. */
+/** Loads and mounts one game, then feeds it sensed frames directly from the camera. */
 export function GameView({
   game,
   players,
   frames,
   onExit,
   onFailed,
+  onSense,
+  onShowCamera,
+  camera,
 }: {
   game: GameId;
   players: PoseLimit;
-  frames: BodyFrameSource;
+  frames: FrameSource;
   onExit: () => void;
   onFailed: () => void;
+  onSense: (sensing: Sensing) => Promise<void>;
+  onShowCamera: (visible: boolean) => void;
+  camera: () => CameraImage | null;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
-  const callbacks = useRef({ onExit, onFailed });
-  callbacks.current = { onExit, onFailed };
+  const callbacks = useRef({ onExit, onFailed, onSense, onShowCamera, camera });
+  callbacks.current = { onExit, onFailed, onSense, onShowCamera, camera };
 
   useEffect(() => {
-    let experience: Experience | null = null;
+    let experience: Experience<Frame> | null = null;
     let unsubscribe = () => {};
     let cancelled = false;
     setLoading(true);
@@ -34,7 +40,17 @@ export function GameView({
         if (cancelled || !container.current) return;
         const mounted = mount(
           container.current,
-          { exit: () => callbacks.current.onExit() },
+          {
+            exit: () => callbacks.current.onExit(),
+            sense: (sensing) =>
+              cancelled
+                ? Promise.reject(new Error("The game is no longer running."))
+                : callbacks.current.onSense(sensing),
+            showCamera: (visible) => {
+              if (!cancelled) callbacks.current.onShowCamera(visible);
+            },
+            camera: () => (cancelled ? null : callbacks.current.camera()),
+          },
           players,
         );
         experience = mounted;

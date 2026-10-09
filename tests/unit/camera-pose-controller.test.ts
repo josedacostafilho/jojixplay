@@ -95,6 +95,7 @@ describe("camera pose controller player limit", () => {
     await controller.start();
     expect(estimator.initialize).toHaveBeenCalledWith(
       expect.stringContaining("mediapipe/tasks-vision-1.0.1/wasm"),
+      "body",
       expect.stringContaining("pose_landmarker_full.task"),
       1,
     );
@@ -117,7 +118,7 @@ describe("camera pose controller player limit", () => {
     resolveEstimate?.(EMPTY_PACKET);
     await changing;
 
-    expect(onPacket).toHaveBeenCalledWith(EMPTY_PACKET);
+    expect(onPacket).toHaveBeenCalledWith(EMPTY_PACKET, "body");
     expect(estimator.setPoseLimit).toHaveBeenCalledWith(2);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(trackStop).not.toHaveBeenCalled();
@@ -253,6 +254,68 @@ describe("camera pose controller player limit", () => {
       270,
     );
     controller.stop();
+  });
+
+  it("changes sensing by replacing the worker between frames, in request order, with a new epoch", async () => {
+    estimator.estimate.mockImplementation(
+      async (
+        _frame: ImageBitmap,
+        capturedAtMs: number,
+        sequence: number,
+        cameraFrame: PosePacket["frame"],
+      ): Promise<PosePacket> => ({ sequence, capturedAtMs, frame: cameraFrame, poses: [] }),
+    );
+    const onPacket = vi.fn();
+    const onCameraFrame = vi.fn();
+    const controller = new CameraPoseController({
+      video,
+      initialPoseLimit: 1,
+      onPacket,
+      onCameraFrame,
+      onError: vi.fn(),
+    });
+    await controller.start();
+    frameCallbacks[0]?.(0, {} as VideoFrameCallbackMetadata);
+    await vi.waitFor(() => expect(onPacket).toHaveBeenCalledOnce());
+
+    // A game that leaves at once asks for hands and the menu asks for bodies straight after.
+    const hands = controller.setSensing("hands");
+    const body = controller.setSensing("body");
+    await Promise.all([hands, body]);
+    // The camera stream is kept; each change stops one worker and starts the next with one model.
+    expect(estimator.close).toHaveBeenCalledTimes(2);
+    expect(estimator.initialize.mock.calls.map(([, sensing, model]) => [sensing, model])).toEqual([
+      ["body", expect.stringContaining("pose_landmarker_full.task")],
+      ["hands", expect.stringContaining("hand-landmarker-float16-1/hand_landmarker.task")],
+      ["body", expect.stringContaining("pose_landmarker_full.task")],
+    ]);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(trackStop).not.toHaveBeenCalled();
+    expect(onCameraFrame).toHaveBeenLastCalledWith(
+      expect.objectContaining({ frame: expect.objectContaining({ epoch: 2 }) }),
+    );
+
+    frameCallbacks[1]?.(40, {} as VideoFrameCallbackMetadata);
+    await vi.waitFor(() => expect(onPacket).toHaveBeenCalledTimes(2));
+    expect(onPacket.mock.lastCall?.[0].frame.epoch).toBe(2);
+    controller.stop();
+  });
+
+  it("ends the session with a message when sensing cannot be changed", async () => {
+    const onError = vi.fn();
+    const controller = new CameraPoseController({
+      video,
+      initialPoseLimit: 1,
+      onPacket: vi.fn(),
+      onCameraFrame: vi.fn(),
+      onError,
+    });
+    await controller.start();
+
+    estimator.initialize.mockRejectedValue(new Error("no model"));
+    await expect(controller.setSensing("hands")).rejects.toThrow();
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining("mudar o reconhecimento"));
+    expect(trackStop).toHaveBeenCalledOnce();
   });
 
   it("drops transiently inconsistent orientation metadata before failing a stable invalid state", async () => {

@@ -1,22 +1,5 @@
 import type { Body, Joint } from "@jojixplay/game-sdk";
 
-/** Exactly the object-fit: cover mapping, shared by the video and its controls. */
-export function cameraCover(
-  width: number,
-  height: number,
-  viewportWidth: number,
-  viewportHeight: number,
-) {
-  const scale = Math.max(viewportWidth / width, viewportHeight / height);
-  return {
-    width: width * scale,
-    height: height * scale,
-    left: (viewportWidth - width * scale) / 2,
-    top: (viewportHeight - height * scale) / 2,
-    scale,
-  };
-}
-
 /** ponytail: coarse fingertip estimate; tune on phones before considering finger tracking. */
 export function estimateIndexPoint(body: Body, left: boolean, aspect: number): Joint | undefined {
   const wrist = body[left ? "leftWrist" : "rightWrist"];

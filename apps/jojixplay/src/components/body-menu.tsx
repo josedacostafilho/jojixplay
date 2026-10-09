@@ -1,12 +1,17 @@
-import { type ControlPoint, isFresh, mountMovementControls } from "@jojixplay/game-sdk";
+import {
+  type ControlPoint,
+  cameraCover,
+  isFresh,
+  mountMovementControls,
+} from "@jojixplay/game-sdk";
 import type { ComponentChildren, RefObject } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { type BodyAnchor, findAnchor, menuLayout } from "../domain/body-anchor";
-import { cameraCover, estimateIndexPoint } from "../domain/camera-view";
+import { estimateIndexPoint } from "../domain/camera-view";
 import type { PoseLimit } from "../domain/pose-limit";
 import { type GameId, gameIds, games } from "../games";
 import type { Sounds } from "../platform/sounds";
-import type { BodyFrameSource } from "../pose/body-frame-source";
+import type { FrameSource } from "../pose/frame-source";
 import { usePolled } from "./use-polled";
 
 /** Objects stay where they were through a brief loss of the shoulders, then disappear. */
@@ -45,7 +50,7 @@ const twoPeople = (
   </>
 );
 
-function Diagnostic({ frames }: { frames: BodyFrameSource }) {
+function Diagnostic({ frames }: { frames: FrameSource }) {
   const text = usePolled(() => {
     const now = performance.now();
     const frame = frames.latest();
@@ -71,7 +76,7 @@ export function BodyMenu({
   onOpen,
   onStop,
 }: {
-  frames: BodyFrameSource;
+  frames: FrameSource;
   root: RefObject<HTMLElement>;
   busy: boolean;
   sounds: Sounds;

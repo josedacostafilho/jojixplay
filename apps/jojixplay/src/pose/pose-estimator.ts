@@ -1,5 +1,6 @@
+import type { Sensing } from "@jojixplay/game-sdk";
 import type { CameraFrame, CameraRotation } from "../domain/camera";
-import { type PosePacket, parsePosePacket } from "../domain/pose";
+import { parseSensedPacket, type SensedPacket } from "../domain/sensed-packet";
 import type { PoseLimit } from "../domain/pose-limit";
 import type { PoseWorkerRequest, PoseWorkerResponse } from "./worker-protocol";
 
@@ -21,7 +22,10 @@ const ESTIMATE_TIMEOUT_MS = 5_000;
 /** The GPU compiles its kernels on the first inference after the graph is built or rebuilt. */
 const WARM_UP_TIMEOUT_MS = 30_000;
 
-/** Owns the pose worker and allows exactly one request in flight. */
+/**
+ * Owns one sensing worker and allows exactly one request in flight. A worker senses one kind for
+ * its whole life: the vendor runtime cannot build a second task in the same module worker.
+ */
 export class PoseEstimator {
   private readonly worker = new Worker(new URL("./pose.worker.ts", import.meta.url), {
     type: "module",
@@ -44,9 +48,14 @@ export class PoseEstimator {
     };
   }
 
-  public initialize(wasmBaseUrl: string, modelUrl: string, poseLimit: PoseLimit): Promise<void> {
+  public initialize(
+    wasmBaseUrl: string,
+    sensing: Sensing,
+    modelUrl: string,
+    poseLimit: PoseLimit,
+  ): Promise<void> {
     this.initialization ??= this.request(
-      { type: "initialize", wasmBaseUrl, modelUrl, poseLimit },
+      { type: "initialize", wasmBaseUrl, sensing, modelUrl, poseLimit },
       "ready",
       START_TIMEOUT_MS,
       "The pose engine took too long to start.",
@@ -88,7 +97,7 @@ export class PoseEstimator {
     sequence: number,
     cameraFrame: CameraFrame,
     rotation: CameraRotation,
-  ): Promise<PosePacket> {
+  ): Promise<SensedPacket> {
     const reply = await this.request(
       { type: "estimate", frame, capturedAtMs, sequence, cameraFrame, rotation },
       "result",
@@ -96,7 +105,7 @@ export class PoseEstimator {
       "Body tracking stopped responding.",
       frame,
     );
-    const parsed = parsePosePacket(reply.packet);
+    const parsed = parseSensedPacket(reply.packet);
     if (!parsed.ok) {
       throw new PoseEngineError("The pose worker returned invalid data.");
     }

@@ -1,0 +1,128 @@
+.sense-game {
+  position: relative;
+  height: 100%;
+  color: #fff;
+  font-weight: 800;
+  background: #14123a;
+}
+/* The host's camera image is behind the game, so showing it means not painting over it. */
+.sense-game--camera {
+  background: none;
+}
+.sense-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.sense-silhouette {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.sense-segments line {
+  stroke: #fff;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.sense-dots circle {
+  r: 5px;
+  fill: #fff;
+  stroke: #14123a;
+  stroke-width: 2;
+}
+.sense-labels text {
+  fill: #fff;
+  stroke: #14123a;
+  stroke-width: 4;
+  paint-order: stroke;
+  font-size: 18px;
+  text-anchor: middle;
+  dominant-baseline: hanging;
+  transform: translateY(14px);
+}
+.sense-overlay [data-side="left"] {
+  stroke: #2ecc71;
+}
+.sense-overlay [data-side="right"] {
+  stroke: #ff5a4e;
+}
+.sense-dots [data-side="left"],
+.sense-labels [data-side="left"] {
+  fill: #2ecc71;
+  stroke: #14123a;
+}
+.sense-dots [data-side="right"],
+.sense-labels [data-side="right"] {
+  fill: #ff5a4e;
+  stroke: #14123a;
+}
+
+.sense-ui {
+  display: contents;
+}
+.sense-modes,
+.sense-corner {
+  position: absolute;
+  top: 0;
+  display: flex;
+  gap: 8px;
+}
+/* Along the screen edge, an arm's stretch away from someone standing in the middle. */
+.sense-modes {
+  left: 0;
+  flex-direction: column;
+}
+.sense-corner {
+  right: 0;
+}
+.sense-game button {
+  position: relative;
+  width: 124px;
+  min-height: 52px;
+  border: 3px solid #fff;
+  border-radius: 18px;
+  padding: 4px 6px;
+  background-color: #14123acc;
+  background-image: linear-gradient(0deg, #2ecc71 var(--dwell, 0%), transparent var(--dwell, 0%));
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.1;
+  cursor: pointer;
+}
+.sense-game button[aria-pressed="true"] {
+  background-color: #ffd23f;
+  color: #14123a;
+}
+.sense-game button:disabled {
+  border-color: #6b69b8;
+  color: #c9c8e6;
+  cursor: default;
+}
+.sense-game button[aria-pressed="true"]:disabled {
+  color: #14123a;
+}
+.sense-game button small {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+}
+.sense-game button:focus-visible {
+  outline: 3px solid #ffd23f;
+  outline-offset: 2px;
+}
+.sense-status {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  border-radius: 14px;
+  padding: 6px 12px;
+  background: #14123acc;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}

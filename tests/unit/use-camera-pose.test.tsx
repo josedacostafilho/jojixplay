@@ -114,6 +114,7 @@ describe("shared camera pose lifecycle", () => {
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(estimator.initialize).toHaveBeenCalledWith(
       expect.stringContaining("mediapipe/tasks-vision-1.0.1/wasm"),
+      "body",
       expect.stringContaining("pose_landmarker_full.task"),
       1,
     );

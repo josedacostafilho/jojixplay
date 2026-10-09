@@ -1,10 +1,11 @@
-import type { Experience, GameHost } from "@jojixplay/game-sdk";
+import type { Experience, Frame, GameHost } from "@jojixplay/game-sdk";
 import type { ComponentChildren } from "preact";
 import type { PoseLimit } from "./domain/pose-limit";
 
-export type GameId = "desenhar" | "corrida";
+export type GameId = "desenhar" | "corrida" | "sensores";
 
-type MountGame = (container: HTMLElement, host: GameHost, players: PoseLimit) => Experience;
+/** A game reads the part of a frame it needs; the host hands every game the whole frame. */
+type MountGame = (container: HTMLElement, host: GameHost, players: PoseLimit) => Experience<Frame>;
 
 interface GameEntry {
   readonly name: string;
@@ -56,6 +57,25 @@ export const games: Readonly<Record<GameId, GameEntry>> = {
       </>
     ),
     load: () => import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida),
+  },
+  // Not a game for children: the owner's bench for trying each kind of sensing.
+  sensores: {
+    name: "Sensores",
+    label: "Sensores",
+    stageLabel: "Bancada de sensores",
+    loadingCopy: "Preparando os sensores…",
+    players: [1],
+    color: "#c9a6ff",
+    icon: (
+      <>
+        <circle cx="50" cy="50" r="10" fill="#fff" />
+        <path d="M30 30 A28 28 0 0 0 30 70" />
+        <path d="M70 30 A28 28 0 0 1 70 70" />
+        <path d="M16 18 A46 46 0 0 0 16 82" />
+        <path d="M84 18 A46 46 0 0 1 84 82" />
+      </>
+    ),
+    load: () => import("@jojixplay/sensores").then(({ mountSensores }) => mountSensores),
   },
 };
 

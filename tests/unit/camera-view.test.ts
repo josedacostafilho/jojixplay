@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { cameraCover, estimateIndexPoint } from "../../apps/jojixplay/src/domain/camera-view";
+import { cameraCover } from "@jojixplay/game-sdk";
+import { estimateIndexPoint } from "../../apps/jojixplay/src/domain/camera-view";
 import {
   resolveCameraFrameNormalization,
   rotateNormalizedPoint,

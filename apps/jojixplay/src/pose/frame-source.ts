@@ -1,22 +1,22 @@
-import type { BodyFrame } from "@jojixplay/game-sdk";
+import type { Frame } from "@jojixplay/game-sdk";
 
-type Listener = (frame: BodyFrame | null) => void;
+type Listener = (frame: Frame | null) => void;
 
 /**
- * Pose frames arrive at camera rate. Consumers read or subscribe here instead of receiving them
+ * Sensed frames arrive at camera rate. Consumers read or subscribe here instead of receiving them
  * as component state, so a frame never rerenders the interface. `latest` may be stale: consumers
  * apply their own freshness limit.
  */
-export interface BodyFrameSource {
-  latest(): BodyFrame | null;
+export interface FrameSource {
+  latest(): Frame | null;
   subscribe(listener: Listener): () => void;
 }
 
-export class BodyFrameChannel implements BodyFrameSource {
-  private frame: BodyFrame | null = null;
+export class FrameChannel implements FrameSource {
+  private frame: Frame | null = null;
   private readonly listeners = new Set<Listener>();
 
-  public latest(): BodyFrame | null {
+  public latest(): Frame | null {
     return this.frame;
   }
 
@@ -27,7 +27,7 @@ export class BodyFrameChannel implements BodyFrameSource {
     };
   }
 
-  public publish(frame: BodyFrame | null): void {
+  public publish(frame: Frame | null): void {
     if (frame === null && this.frame === null) {
       return;
     }

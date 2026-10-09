@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-10-08
+last_verified: 2026-10-09
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -18,7 +18,7 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | UI framework | Preact | 10.29.8 | `npm ls preact` |
 | Package manager | npm | 11.17.0 lockfile format | `npm run verify:toolchain` |
 | Build tool | Vite with Preact preset | 8.2.1 / 2.10.6 | `npm run build` |
-| Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Full Pose model; one GPU task |
+| Sensing | MediaPipe Tasks Vision | 1.0.1 | Vendored Full Pose and Hand Landmarker models; one GPU task at a time |
 | 3D renderer | Three.js WebGL2 | 0.186.1 | `npm ls three` |
 | Workspace organization | npm workspaces | npm 11.17.0 | `npm run verify:boundaries` |
 | Formatter | Biome | 2.5.8 | `npm run format` |
@@ -43,6 +43,8 @@ These commands are executable and are the only canonical paths for their concern
 | Test on a phone over the local network | `npm run dev:lan` |
 | Independent Desenhar development | `npm run dev:draw` |
 | Independent Corrida development | `npm run dev:race` |
+| Independent sensing bench development | `npm run dev:sense` |
+| Sensing bench unit tests | `npm test --workspace @jojixplay/sensores` |
 | Corrida unit tests | `npm test --workspace @jojixplay/corrida` |
 | Desenhar unit tests | `npm test --workspace @jojixplay/desenhar` |
 | Workspace import boundaries | `npm run verify:boundaries` |
@@ -66,13 +68,13 @@ These commands are executable and are the only canonical paths for their concern
 
 ## Rendering and game development
 
-Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run dev:race` runs Corrida independently with synthetic crouch, jump, pose and tracking-loss controls. `npm test` runs platform and both isolated game suites; `npm run build` builds the app and two standalone game pages. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles.
+Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run dev:race` runs Corrida independently with synthetic crouch, jump, pose and tracking-loss controls. `npm run dev:sense` runs the sensing bench with a synthetic person and synthetic hands that follow the pointer. `npm test` runs the platform suite and every isolated game suite; `npm run build` builds the app and each standalone game page. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles.
 
 The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. It is not suppressed; target-phone startup and memory remain acceptance risks.
 
 ## Static artifact and deployment
 
-- `npm run build` writes the root-hosted artifact to `dist/` and separate studio artifacts under each game's `dist/`. A small plugin in `vite.config.ts` publishes the MediaPipe runtime and the vendored model at their versioned paths in both development and builds; no copy dependency is installed.
+- `npm run build` writes the root-hosted artifact to `dist/` and separate studio artifacts under each game's `dist/`. A small plugin in `vite.config.ts` publishes the MediaPipe runtime and each vendored model at its own versioned path in both development and builds; no copy dependency is installed.
 - `BASE_PATH=/jojixplay/ npm run build` writes an artifact whose asset URLs target a GitHub Pages project path. Replace `jojixplay` only if the repository name changes.
 - `.github/workflows/pages.yml` validates every pull request and push to `main`. A validated `main` commit is rebuilt with `/${repository-name}/` as the base and deployed through GitHub Pages; pull requests never publish.
 - The production artifact is published at `https://josedacostafilho.github.io/jojixplay/`; GitHub Actions is the configured Pages source.

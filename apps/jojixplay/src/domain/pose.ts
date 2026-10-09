@@ -27,18 +27,21 @@ const POSE_PACKET_KEYS = ["sequence", "capturedAtMs", "frame", "poses"];
 const POSE_KEYS = ["landmarks"];
 const LANDMARK_KEYS = ["x", "y", "z", "visibility"];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasExactKeys(value: Record<string, unknown>, expectedKeys: readonly string[]): boolean {
+export function hasExactKeys(
+  value: Record<string, unknown>,
+  expectedKeys: readonly string[],
+): boolean {
   const keys = Object.keys(value);
   return (
     keys.length === expectedKeys.length && expectedKeys.every((key) => Object.hasOwn(value, key))
   );
 }
 
-function isFiniteNumber(value: unknown): value is number {
+export function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 

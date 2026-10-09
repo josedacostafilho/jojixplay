@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { LocalPlayPage } from "../../apps/jojixplay/src/pages/local-play-page";
-import { BodyFrameChannel } from "../../apps/jojixplay/src/pose/body-frame-source";
+import { FrameChannel } from "../../apps/jojixplay/src/pose/frame-source";
 import type { CameraPoseLifecycle } from "../../apps/jojixplay/src/pose/use-camera-pose";
 
 const mocks = vi.hoisted(() => ({
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   stop: vi.fn(),
   immersiveStop: vi.fn(),
   setPoseLimit: vi.fn(),
+  setSensing: vi.fn(),
 }));
 let camera: CameraPoseLifecycle;
 vi.mock("../../apps/jojixplay/src/pose/use-camera-pose", () => ({ useCameraPose: () => camera }));
@@ -18,11 +19,15 @@ vi.mock("../../apps/jojixplay/src/components/game-view", () => ({
     game,
     onExit,
     onFailed,
+    onSense,
+    onShowCamera,
   }: {
     players: 1 | 2;
     game: string;
     onExit: () => void;
     onFailed: () => void;
+    onSense: (sensing: "hands") => Promise<void>;
+    onShowCamera: (visible: boolean) => void;
   }) => (
     <div data-testid={game === "desenhar" ? "drawing" : "racing"}>
       {players} pessoas
@@ -31,6 +36,12 @@ vi.mock("../../apps/jojixplay/src/components/game-view", () => ({
       </button>
       <button type="button" onClick={onFailed}>
         game failure
+      </button>
+      <button type="button" onClick={() => void onSense("hands")}>
+        game senses hands
+      </button>
+      <button type="button" onClick={() => onShowCamera(true)}>
+        game shows camera
       </button>
     </div>
   ),
@@ -51,7 +62,7 @@ beforeEach(() => {
   Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => null });
   camera = {
     state: "idle",
-    frames: new BodyFrameChannel(),
+    frames: new FrameChannel(),
     normalization: null,
     poseLimit: 1,
     errorMessage: null,
@@ -59,6 +70,7 @@ beforeEach(() => {
     start: mocks.start.mockResolvedValue(undefined),
     stop: mocks.stop,
     setPoseLimit: mocks.setPoseLimit.mockResolvedValue(undefined),
+    setSensing: mocks.setSensing.mockResolvedValue(undefined),
   };
 });
 afterEach(() => {
@@ -116,10 +128,12 @@ it("returns to the menu when a game exits, and reports a game that cannot open",
   await act(async () => {});
   fireEvent.click(screen.getByRole("button", { name: "game exit" }));
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
+  await act(async () => {});
   fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
   fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   await act(async () => {});
   fireEvent.click(screen.getByRole("button", { name: "game failure" }));
+  await act(async () => {});
   expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível abrir Corrida dos Blocos");
   expect(screen.getByRole("button", { name: /^Jogar / })).toBeEnabled();
 });
@@ -199,4 +213,60 @@ it("does not mount a pending race after capture fails", async () => {
   view.rerender(<LocalPlayPage />);
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^Jogar / })).toBeVisible();
+});
+
+it("gives a game the sensing and camera image it asks for, and the menu its bodies back", async () => {
+  camera = { ...camera, state: "tracking" };
+  let restore: () => void = () => {};
+  const view = render(<LocalPlayPage />);
+  const backdrop = () => view.container.querySelector(".camera-backdrop--visible");
+  fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
+  await act(async () => {});
+
+  fireEvent.click(screen.getByRole("button", { name: "game senses hands" }));
+  expect(mocks.setSensing).toHaveBeenLastCalledWith("hands");
+  camera = {
+    ...camera,
+    normalization: {
+      source: { width: 1280, height: 720 },
+      rotation: 0,
+      frame: { width: 1280, height: 720, layout: "landscape", epoch: 0 },
+      screen: { type: "landscape-primary", layout: "landscape", angle: 0 },
+    },
+  };
+  view.rerender(<LocalPlayPage />);
+  expect(backdrop()).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "game shows camera" }));
+  expect(backdrop()).not.toBeNull();
+
+  mocks.setSensing.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        restore = resolve;
+      }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "game exit" }));
+  expect(mocks.setSensing).toHaveBeenLastCalledWith("body");
+  // No game opens until the menu is sensing bodies again.
+  expect(screen.getByRole("button", { name: /^Jogar / })).toBeDisabled();
+  await act(async () => {
+    restore();
+  });
+  expect(screen.getByRole("button", { name: /^Jogar / })).toBeEnabled();
+});
+
+it("ends the session the moment the page is hidden, and only then", () => {
+  camera = { ...camera, state: "tracking" };
+  render(<LocalPlayPage />);
+  const visibility = vi.spyOn(document, "visibilityState", "get");
+
+  visibility.mockReturnValue("visible");
+  document.dispatchEvent(new Event("visibilitychange"));
+  expect(mocks.stop).not.toHaveBeenCalled();
+
+  visibility.mockReturnValue("hidden");
+  document.dispatchEvent(new Event("visibilitychange"));
+  expect(mocks.stop).toHaveBeenCalledOnce();
+  expect(mocks.immersiveStop).toHaveBeenCalled();
 });

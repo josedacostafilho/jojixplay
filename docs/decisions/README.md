@@ -42,6 +42,8 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0028](0028-contextual-race-actions.md) | Accepted | Disambiguate race gestures by obstacle and share reachable visible race controls |
 | [0029](0029-game-owned-controls-and-frame-channel.md) | Accepted | Games own every in-game control; pose frames reach consumers without interface state |
 | [0030](0030-body-anchored-menu.md) | Accepted | Attach the game menu to the player's body in the mirror, with rest as the default |
+| [0031](0031-host-sensing-service.md) | Accepted | Sense bodies or hands once in the host on a game's request; games interpret |
+| [0032](0032-silhouette-trial-and-camera-pixels.md) | Accepted | Sense silhouettes with the pose model's own mask; let games draw the live camera picture |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

@@ -13,7 +13,8 @@ npm ci
 npm run dev
 npm run dev:draw
 npm run dev:race
+npm run dev:sense
 npm run validate
 ```
 
-The Desenhar and Corrida studios run independently from the application. In the drawing studio, move the pointer and hold Shift to simulate painting. In the race studio, hold Down to crouch, press Space to jump, and choose arm poses from the toolbar. See [Corrida](docs/product/corrida.md), [architecture](docs/architecture/overview.md), [stack](docs/architecture/stack.md) and [status](docs/project/status.md). Validated `main` deploys through GitHub Actions to GitHub Pages.
+**Sensores** on the menu shelf is a bench, not a game: it draws what the phone senses, a body or both hands, over the camera image. The Desenhar, Corrida and Sensores studios run independently from the application. In the drawing studio, move the pointer and hold Shift to simulate painting. In the race studio, hold Down to crouch, press Space to jump, and choose arm poses from the toolbar. See [Corrida](docs/product/corrida.md), [architecture](docs/architecture/overview.md), [stack](docs/architecture/stack.md) and [status](docs/project/status.md). Validated `main` deploys through GitHub Actions to GitHub Pages.

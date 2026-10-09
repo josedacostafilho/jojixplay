@@ -9,6 +9,7 @@ Current truth lives in these documents. Historical decisions may describe retire
 - [Architecture and workspace boundaries](architecture/overview.md)
 - [Phone playroom](product/local-play.md)
 - [Desenhar](product/desenhar.md)
+- [Sensores](product/sensores.md)
 - [Camera coordinates](product/camera-orientation.md)
 - [Tracking quality and device acceptance](engineering/pose-quality.md)
 - [Engineering standards](engineering/standards.md)

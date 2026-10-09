@@ -9,7 +9,12 @@ const stage = document.querySelector("main"),
   jump = document.querySelector<HTMLButtonElement>("#jump");
 if (!stage || !crouch || !lost || !edge || !pose || !jump)
   throw new Error("Missing studio controls");
-const view = mountCorrida(stage, { exit: () => location.reload() });
+const view = mountCorrida(stage, {
+  exit: () => location.reload(),
+  sense: async () => {},
+  showCamera: () => {},
+  camera: () => null,
+});
 let sequence = 0,
   jumpAt = -Infinity,
   down = false,

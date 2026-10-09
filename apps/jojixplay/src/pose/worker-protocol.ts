@@ -1,11 +1,14 @@
+import type { Sensing } from "@jojixplay/game-sdk";
 import type { CameraFrame, CameraRotation } from "../domain/camera";
-import type { PosePacket } from "../domain/pose";
+import type { SensedPacket } from "../domain/sensed-packet";
 import type { PoseLimit } from "../domain/pose-limit";
 
 export type PoseWorkerRequest =
   | {
       type: "initialize";
       wasmBaseUrl: string;
+      /** A worker senses one kind for its whole life; sensing another kind takes a new worker. */
+      sensing: Sensing;
       modelUrl: string;
       poseLimit: PoseLimit;
     }
@@ -25,7 +28,7 @@ export type PoseWorkerRequest =
 
 export type PoseWorkerResponse =
   | { type: "ready" }
-  | { type: "result"; packet: PosePacket }
+  | { type: "result"; packet: SensedPacket }
   | { type: "pose-limit-set"; poseLimit: PoseLimit }
   | { type: "tracking-reset" }
   | { type: "error"; message: string };

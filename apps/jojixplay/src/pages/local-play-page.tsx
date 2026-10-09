@@ -23,6 +23,8 @@ export function LocalPlayPage() {
   const [screen, setScreen] = useState<Screen>(MENU);
   const [error, setError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  /** A running game may ask for the camera image behind it. */
+  const [cameraShown, setCameraShown] = useState(false);
   const root = useRef<HTMLElement>(null);
   /** Advances whenever tracking ends, so a late player-mode change cannot open a game. */
   const trackingRun = useRef(0);
@@ -42,6 +44,7 @@ export function LocalPlayPage() {
     if (tracking) return;
     trackingRun.current += 1;
     setScreen(MENU);
+    setCameraShown(false);
   }, [tracking]);
   useEffect(() => {
     if (camera.state === "error") void immersive.stop();
@@ -57,6 +60,7 @@ export function LocalPlayPage() {
   function stop() {
     trackingRun.current += 1;
     setScreen(MENU);
+    setCameraShown(false);
     camera.stop();
     void immersive.stop();
     sounds.stop();
@@ -82,6 +86,41 @@ export function LocalPlayPage() {
     }
   }
 
+  // Leaving for another app must end the session at once: a hidden page that keeps the camera,
+  // the model and its GPU drawing running is wasted heat at best. Coming back starts from the
+  // touch screen, which camera access needs anyway.
+  const stopWhenHidden = useRef(stop);
+  stopWhenHidden.current = stop;
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") stopWhenHidden.current();
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("pagehide", onHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("pagehide", onHidden);
+    };
+  }, []);
+
+  /** The menu reads bodies, whatever the game was sensing. */
+  async function leaveGame(message: string | null) {
+    setScreen(MENU);
+    setCameraShown(false);
+    setError(message);
+    if (opening.current) return;
+    opening.current = true;
+    setPreparing(true);
+    try {
+      await camera.setSensing("body");
+    } catch {
+      // The camera reports its own failure and the session returns to the start screen.
+    } finally {
+      opening.current = false;
+      setPreparing(false);
+    }
+  }
+
   if (!capabilities.supported) return <UnsupportedPanel missing={capabilities.missing} />;
   return (
     <main
@@ -91,7 +130,7 @@ export function LocalPlayPage() {
       <CameraBackdrop
         videoRef={camera.videoRef}
         normalization={camera.normalization}
-        visible={!playing}
+        visible={!playing || cameraShown}
       />
       {playing ? (
         <section class="game-stage" aria-label={games[playing.game].stageLabel}>
@@ -99,11 +138,17 @@ export function LocalPlayPage() {
             game={playing.game}
             players={playing.players}
             frames={camera.frames}
-            onExit={() => setScreen(MENU)}
-            onFailed={() => {
-              setScreen(MENU);
-              setError(`Não foi possível abrir ${games[playing.game].name}. Tente novamente.`);
-            }}
+            onExit={() => void leaveGame(null)}
+            onFailed={() =>
+              void leaveGame(`Não foi possível abrir ${games[playing.game].name}. Tente novamente.`)
+            }
+            onSense={camera.setSensing}
+            onShowCamera={setCameraShown}
+            camera={() =>
+              camera.videoRef.current && camera.normalization
+                ? { video: camera.videoRef.current, rotation: camera.normalization.rotation }
+                : null
+            }
           />
         </section>
       ) : tracking ? (

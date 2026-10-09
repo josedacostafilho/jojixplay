@@ -1,3 +1,4 @@
+import type { Sensing } from "@jojixplay/game-sdk";
 import {
   type CameraFrameNormalization,
   CameraGeometryError,
@@ -5,15 +6,15 @@ import {
   resolveCameraFrameNormalization,
   sameCameraFrameNormalization,
 } from "../domain/camera";
-import type { PosePacket } from "../domain/pose";
+import type { SensedPacket } from "../domain/sensed-packet";
 import type { PoseLimit } from "../domain/pose-limit";
 import { PoseEngineError, PoseEstimator } from "./pose-estimator";
-import { POSE_MODEL } from "./pose-model";
+import { SENSING_MODELS } from "./models";
 
 interface CameraPoseControllerOptions {
   video: HTMLVideoElement;
   initialPoseLimit: PoseLimit;
-  onPacket: (packet: PosePacket) => void;
+  onPacket: (packet: SensedPacket, sensing: Sensing) => void;
   onCameraFrame: (frame: CameraFrameNormalization | null) => void;
   onError: (message: string) => void;
 }
@@ -57,13 +58,16 @@ function cameraErrorMessage(error: unknown): string {
 }
 
 export class CameraPoseController {
-  private readonly estimator = new PoseEstimator();
+  private estimator = new PoseEstimator();
   private stream: MediaStream | null = null;
   private frameCallbackId: number | null = null;
   private sequence = 0;
   private processingPromise: Promise<void> | null = null;
-  private changingPoseLimit = false;
+  /** Set while the worker rebuilds its graph; no frame is estimated meanwhile. */
+  private reconfiguring = false;
+  private sensingChange: Promise<void> = Promise.resolve();
   private poseLimit: PoseLimit;
+  private sensing: Sensing = "body";
   private active = false;
   private activeNormalization: CameraFrameNormalization | null = null;
   private pendingNormalization: PendingFrameNormalization | null = null;
@@ -102,14 +106,7 @@ export class CameraPoseController {
           }
           return stream;
         });
-      const [stream] = await Promise.all([
-        streamPromise,
-        this.estimator.initialize(
-          assetUrl("mediapipe/tasks-vision-1.0.1/wasm"),
-          assetUrl(POSE_MODEL.assetPath),
-          this.poseLimit,
-        ),
-      ]);
+      const [stream] = await Promise.all([streamPromise, this.initializeEstimator()]);
 
       if (!this.active) {
         for (const track of stream.getTracks()) {
@@ -132,14 +129,14 @@ export class CameraPoseController {
     if (!this.active) {
       throw new Error("O reconhecimento de movimentos não está ativo.");
     }
-    if (this.changingPoseLimit) {
+    if (this.reconfiguring) {
       throw new Error("A mudança de pessoas já está em andamento.");
     }
     if (poseLimit === this.poseLimit) {
       return;
     }
 
-    this.changingPoseLimit = true;
+    this.reconfiguring = true;
     try {
       await this.processingPromise;
       if (!this.active) {
@@ -154,7 +151,60 @@ export class CameraPoseController {
       }
       throw new Error("Não foi possível mudar o número de pessoas.");
     } finally {
-      this.changingPoseLimit = false;
+      this.reconfiguring = false;
+    }
+  }
+
+  /** Requests apply in the order they were made, so the last one asked for is what remains. */
+  public setSensing(sensing: Sensing): Promise<void> {
+    const change = this.sensingChange.then(() => this.applySensing(sensing));
+    this.sensingChange = change.catch(() => {});
+    return change;
+  }
+
+  private async applySensing(sensing: Sensing): Promise<void> {
+    if (!this.active) {
+      throw new Error("O reconhecimento de movimentos não está ativo.");
+    }
+    if (sensing === this.sensing) {
+      return;
+    }
+    if (this.reconfiguring) {
+      throw new Error("Outra mudança já está em andamento.");
+    }
+
+    this.reconfiguring = true;
+    try {
+      await this.processingPromise;
+      if (!this.active) {
+        throw new Error("O reconhecimento parou antes da mudança.");
+      }
+      // The camera keeps running; only the worker and its one model are replaced.
+      this.estimator.close();
+      this.estimator = new PoseEstimator();
+      this.sensing = sensing;
+      await this.initializeEstimator();
+      if (!this.active) {
+        throw new Error("O reconhecimento parou antes da mudança.");
+      }
+      // What the previous model saw must not be read as the new model's output.
+      if (this.activeNormalization !== null) {
+        this.commitFrameNormalization({
+          ...this.activeNormalization,
+          frame: {
+            ...this.activeNormalization.frame,
+            epoch: this.activeNormalization.frame.epoch + 1,
+          },
+        });
+      }
+    } catch {
+      if (this.active) {
+        this.options.onError("Não foi possível mudar o reconhecimento. Tente novamente.");
+        this.stop();
+      }
+      throw new Error("Não foi possível mudar o reconhecimento.");
+    } finally {
+      this.reconfiguring = false;
     }
   }
 
@@ -177,6 +227,15 @@ export class CameraPoseController {
     this.options.onCameraFrame(null);
   }
 
+  private initializeEstimator(): Promise<void> {
+    return this.estimator.initialize(
+      assetUrl("mediapipe/tasks-vision-1.0.1/wasm"),
+      this.sensing,
+      assetUrl(SENSING_MODELS[this.sensing]),
+      this.poseLimit,
+    );
+  }
+
   private scheduleFrame(): void {
     if (!this.active) {
       return;
@@ -189,7 +248,7 @@ export class CameraPoseController {
       this.scheduleFrame();
       if (
         this.processingPromise !== null ||
-        this.changingPoseLimit ||
+        this.reconfiguring ||
         this.options.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
         return;
@@ -226,7 +285,7 @@ export class CameraPoseController {
       ownedFrame = null;
       const packet = await estimate;
       if (this.active) {
-        this.options.onPacket(packet);
+        this.options.onPacket(packet, this.sensing);
       }
     } catch (error) {
       if (this.active) {

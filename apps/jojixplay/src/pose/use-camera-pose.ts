@@ -1,8 +1,9 @@
+import type { Sensing } from "@jojixplay/game-sdk";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { CameraFrameNormalization } from "../domain/camera";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
-import { toBodyFrame } from "./body-frame";
-import { BodyFrameChannel, type BodyFrameSource } from "./body-frame-source";
+import { toFrame } from "./frame";
+import { FrameChannel, type FrameSource } from "./frame-source";
 import { CameraPoseController } from "./camera-pose-controller";
 
 export type CameraTrackingState = "idle" | "starting" | "tracking" | "error";
@@ -10,13 +11,15 @@ export type CameraTrackingState = "idle" | "starting" | "tracking" | "error";
 export interface CameraPoseLifecycle {
   videoRef: preact.RefObject<HTMLVideoElement>;
   state: CameraTrackingState;
-  frames: BodyFrameSource;
+  frames: FrameSource;
   normalization: CameraFrameNormalization | null;
   poseLimit: PoseLimit;
   errorMessage: string | null;
   start: () => Promise<void>;
   stop: () => void;
   setPoseLimit: (poseLimit: PoseLimit) => Promise<void>;
+  /** Changes what the camera senses. A session starts, and restarts, sensing bodies. */
+  setSensing: (sensing: Sensing) => Promise<void>;
 }
 
 export function useCameraPose(): CameraPoseLifecycle {
@@ -26,7 +29,7 @@ export function useCameraPose(): CameraPoseLifecycle {
   const poseLimitRef = useRef<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [state, setState] = useState<CameraTrackingState>("idle");
   const [normalization, setNormalization] = useState<CameraFrameNormalization | null>(null);
-  const [frames] = useState(() => new BodyFrameChannel());
+  const [frames] = useState(() => new FrameChannel());
   const [poseLimit, setPoseLimitState] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -59,11 +62,11 @@ export function useCameraPose(): CameraPoseLifecycle {
     controller = new CameraPoseController({
       video,
       initialPoseLimit: poseLimitRef.current,
-      onPacket: (nextPacket) => {
+      onPacket: (nextPacket, sensing) => {
         if (!mounted.current || cameraController.current !== controller) {
           return;
         }
-        frames.publish(toBodyFrame(nextPacket));
+        frames.publish(toFrame(nextPacket, sensing));
       },
       onCameraFrame: (nextFrame) => {
         if (!mounted.current || cameraController.current !== controller) {
@@ -119,6 +122,14 @@ export function useCameraPose(): CameraPoseLifecycle {
     setPoseLimitState(nextPoseLimit);
   }, []);
 
+  const setSensing = useCallback(async (sensing: Sensing): Promise<void> => {
+    const controller = cameraController.current;
+    if (controller === null) {
+      throw new Error("O reconhecimento de movimentos não está ativo.");
+    }
+    await controller.setSensing(sensing);
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -139,5 +150,6 @@ export function useCameraPose(): CameraPoseLifecycle {
     start,
     stop,
     setPoseLimit,
+    setSensing,
   };
 }

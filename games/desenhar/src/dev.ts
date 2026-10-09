@@ -5,7 +5,12 @@ const stage = document.querySelector("main"),
   paint = document.querySelector<HTMLInputElement>("#paint"),
   lost = document.querySelector<HTMLInputElement>("#lost");
 if (!stage || !players || !paint || !lost) throw new Error("Controles de teste indisponíveis.");
-const host = { exit: () => location.reload() };
+const host = {
+  exit: () => location.reload(),
+  sense: async () => {},
+  showCamera: () => {},
+  camera: () => null,
+};
 let view = mountDesenhar(stage, host, 1),
   x = 0.5,
   y = 0.5,

@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-10-08
+last_verified: 2026-10-09
 scope: Automated test strategy and release quality gates
 ---
 
@@ -15,13 +15,15 @@ Browser tests use one worker so software GPU inference and game rendering do not
 ## Platform coverage
 
 - Unit tests cover canonical orientation, packet validation, independent visible joints, freshness, fullscreen camera/hand projection across source rotations, worker GPU configuration, camera single-flight inference, player reconfiguration, bounded GPU warm-up after graph rebuilds, and resource cleanup.
-- Component tests cover landscape gating, links with extra parameters, startup cancellation, camera-failure cleanup, deferred one-/two-person entry, game exit and a game that cannot open.
+- Component tests cover ending the session when the page is hidden, landscape gating, links with extra parameters, startup cancellation, camera-failure cleanup, deferred one-/two-person entry, game exit and a game that cannot open.
 - Production Chromium tests cover landscape entry, real Full GPU worker output, fullscreen menu video and hidden in-game capture, no peer APIs and stop/portrait cleanup.
 - Desenhar has its own isolated rules suite for solo/duo ownership, missing input, continuity, undo, handedness and bounded paint. Production browser coverage verifies both live-camera game entries and the standalone game's visible paint, tracking loss, clear cancellation and clear confirmation.
 - A production browser journey injects synthetic worker observations and operates the body-anchored menu, shelf turning, solo/duo entry, palette selection, clear/exit confirmations and stop without any post-setup click. Shared dwell regression coverage verifies neutral arming, loss reset, modal exclusivity, single activation, per-player control ownership and that a covered button is never chosen over the one drawn on top.
 - Unit coverage checks bounded index estimation, partial-body observations and the menu reach geometry: a hanging hand touches no object, a stretched arm reaches each, and objects stay on screen. Dwell coverage includes per-button hold times and hold-to-repeat. Browser coverage checks that the menu appears only with shoulders in view and that the whole journey works by movement.
 - Corrida has isolated full-run, scoring, life-reset, countdown, partial-joint, timing-window, normalized-pose and bounded-camera tests. Its standalone production studio exercises held crouch, movement feedback, points, loss, pause, help and replay at two phone-sized viewports. The app movement-only journey also enters Corrida after duo mode and exercises help, pause and confirmed exit with wrists restricted to the central half-width and 15–75% height. Race regression tests cover symbolic dip-and-rise, early/late timing, contextual camera gating, isolated outliers and longer airtime; browser layout checks enforce minimum essential text sizes and start-panel clearance.
 - Network coverage confirms no Corrida PNG requests during menus or Desenhar, then exactly seven same-origin texture URLs on Corrida entry. The studio checks loading and asset-failure cleanup in addition to its rendered game journeys.
+- Sensing coverage: hand packet validation at the worker boundary, named hand points and own-side reporting in the adapter, a worker started for hands building only the hand task and rotating its landmarks, the estimator accepting hand results, and the camera controller replacing the worker between frames, in request order, on the same camera stream, with a new epoch and a session-ending failure. A component test checks that a game's sensing and camera-image requests reach the camera and that the menu waits for bodies after a game. The bench has its own suite for mirrored projection, partial bodies, both hands and its fingertip pointers. One production browser journey loads the real pose and hand models in turn on the test camera; another injects synthetic observations and operates the bench by movement in body mode and in hand mode.
+- Silhouette coverage: grid validation and buffer hand-over at the worker boundary, turning a grid upright consistently with landmarks, the worker reading GPU mask textures itself, merging several people and restoring the drawing context's bindings, and the bench's coverage-based button pointer. The real-model browser journey senses a silhouette; the synthetic journey operates the bench by covering buttons with one. Mask drawing is checked by eye, not by pixel assertions.
 - Actual phones must pass [tracking acceptance](pose-quality.md). Automation is not hardware acceptance.
 
 ## Principles

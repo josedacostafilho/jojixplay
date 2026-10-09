@@ -33,11 +33,12 @@ describe("pose estimator worker protocol", () => {
 
   it("initializes in one-player mode and acknowledges a runtime switch to two players", async () => {
     const estimator = new PoseEstimator();
-    const initialized = estimator.initialize("/wasm", "/pose.task", 1);
+    const initialized = estimator.initialize("/wasm", "body", "/pose.task", 1);
 
     expect(worker.postMessage).toHaveBeenCalledWith({
       type: "initialize",
       wasmBaseUrl: "/wasm",
+      sensing: "body",
       modelUrl: "/pose.task",
       poseLimit: 1,
     });
@@ -58,10 +59,43 @@ describe("pose estimator worker protocol", () => {
     expect(worker.terminate).toHaveBeenCalledOnce();
   });
 
+  it("starts a hand-sensing worker and accepts its hand results", async () => {
+    const estimator = new PoseEstimator();
+    const ready = estimator.initialize("/wasm", "hands", "/hands.task", 1);
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: "initialize",
+      wasmBaseUrl: "/wasm",
+      sensing: "hands",
+      modelUrl: "/hands.task",
+      poseLimit: 1,
+    });
+    worker.respond({ type: "ready" });
+    await ready;
+
+    const frame = { width: 1280, height: 720, layout: "landscape", epoch: 0 } as const;
+    const packet = {
+      sequence: 0,
+      capturedAtMs: 0,
+      frame,
+      hands: [
+        {
+          label: "left" as const,
+          score: 0.9,
+          landmarks: Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 })),
+        },
+      ],
+    };
+    const bitmap = { close: vi.fn() } as unknown as ImageBitmap;
+    const estimate = estimator.estimate(bitmap, 0, 0, frame, 0);
+    worker.respond({ type: "result", packet });
+    await expect(estimate).resolves.toEqual(packet);
+    estimator.close();
+  });
+
   it("allows GPU warm-up on the first frame, then bounds subsequent estimates", async () => {
     vi.useFakeTimers();
     const estimator = new PoseEstimator();
-    const ready = estimator.initialize("/wasm", "/pose.task", 1);
+    const ready = estimator.initialize("/wasm", "body", "/pose.task", 1);
     worker.respond({ type: "ready" });
     await ready;
     const frame = { width: 1280, height: 720, layout: "landscape", epoch: 0 } as const;
@@ -85,7 +119,7 @@ describe("pose estimator worker protocol", () => {
     async (change) => {
       vi.useFakeTimers();
       const estimator = new PoseEstimator();
-      const ready = estimator.initialize("/wasm", "/pose.task", 1);
+      const ready = estimator.initialize("/wasm", "body", "/pose.task", 1);
       worker.respond({ type: "ready" });
       await ready;
       const frame = { width: 1280, height: 720, layout: "landscape", epoch: 0 } as const;
@@ -124,7 +158,7 @@ describe("pose estimator worker protocol", () => {
   it("bounds first-frame warm-up instead of leaving the camera permanently busy", async () => {
     vi.useFakeTimers();
     const estimator = new PoseEstimator();
-    const ready = estimator.initialize("/wasm", "/pose.task", 1);
+    const ready = estimator.initialize("/wasm", "body", "/pose.task", 1);
     worker.respond({ type: "ready" });
     await ready;
     const bitmap = { close: vi.fn() } as unknown as ImageBitmap;
@@ -144,7 +178,7 @@ describe("pose estimator worker protocol", () => {
 
   it("fails closed when the worker acknowledges a different player limit", async () => {
     const estimator = new PoseEstimator();
-    const initialized = estimator.initialize("/wasm", "/pose.task", 1);
+    const initialized = estimator.initialize("/wasm", "body", "/pose.task", 1);
     worker.respond({ type: "ready" });
     await initialized;
 

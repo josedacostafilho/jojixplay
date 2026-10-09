@@ -19,9 +19,16 @@ const contentTypes: Record<string, string> = {
 };
 const published = (file: string) => path.extname(file) in contentTypes;
 
-/** Publishes unbundled runtime directories at fixed, versioned paths in development and builds. */
+/**
+ * Publishes unbundled runtime files at fixed, versioned paths in development and builds. A source
+ * is one file, or a directory whose publishable files are all served.
+ */
 function versionedAssets(mounts: Readonly<Record<string, string>>): Plugin {
   let outDir = "dist";
+  const sources = Object.entries(mounts).map(([mount, source]) => {
+    const only = published(source) ? path.basename(source) : null;
+    return { mount, directory: only ? path.dirname(source) : source, only };
+  });
   return {
     name: "jojixplay-versioned-assets",
     configResolved(config) {
@@ -30,11 +37,12 @@ function versionedAssets(mounts: Readonly<Record<string, string>>): Plugin {
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
         const pathname = decodeURIComponent(new URL(request.url ?? "/", "http://dev").pathname);
-        for (const [mount, source] of Object.entries(mounts)) {
+        for (const { mount, directory, only } of sources) {
           const prefix = `${server.config.base}${mount}/`;
           const name = pathname.slice(prefix.length);
           if (!pathname.startsWith(prefix) || name.includes("/") || !published(name)) continue;
-          const file = path.join(source, name);
+          if (only !== null && name !== only) break;
+          const file = path.join(directory, name);
           const info = await stat(file).catch(() => null);
           if (!info?.isFile()) break;
           response.setHeader("Content-Type", contentTypes[path.extname(file)] ?? "");
@@ -46,10 +54,11 @@ function versionedAssets(mounts: Readonly<Record<string, string>>): Plugin {
       });
     },
     async closeBundle() {
-      for (const [mount, source] of Object.entries(mounts))
-        await cp(source, path.join(outDir, mount), {
+      for (const { mount, directory, only } of sources)
+        await cp(directory, path.join(outDir, mount), {
           recursive: true,
-          filter: (file) => file === source || published(file),
+          filter: (file) =>
+            file === directory || (only ? path.basename(file) === only : published(file)),
         });
     },
   };
@@ -61,7 +70,8 @@ export default defineConfig({
     preact(),
     versionedAssets({
       "mediapipe/tasks-vision-1.0.1/wasm": "node_modules/@mediapipe/tasks-vision/wasm",
-      "mediapipe/pose-landmarker-full-float16-1": "assets/models",
+      "mediapipe/pose-landmarker-full-float16-1": "assets/models/pose_landmarker_full.task",
+      "mediapipe/hand-landmarker-float16-1": "assets/models/hand_landmarker.task",
     }),
   ],
   ...(lanCertificate

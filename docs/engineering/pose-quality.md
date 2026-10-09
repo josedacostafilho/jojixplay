@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-24
+last_verified: 2026-10-09
 ---
 
 # Tracking quality and acceptance
@@ -28,6 +28,16 @@ The primary target is the owner’s Samsung Galaxy S22, assuming Chrome. Current
 For each device and one/two-person setting, compare stationary-hand jitter, a fast wave, wrists at screen edges, unequal adult/child heights, feet cropped, half-legs cropped, waist-up, one arm hidden and reacquisition. Check both landscape directions, ordinary household lighting, 10 minutes of continuous tracking, heat and external mirroring latency. Record only aggregate timing/error results, never camera pixels or coordinates without explicit consent.
 
 Acceptance targets: visible upper-body joints survive lower-body loss when detected; unavailable joints disappear within 250 ms; no motion bridges across reacquisition; responsive waving with fresh observations during sustained use. Full GPU performance and detection recall remain Unknown until measured. If these targets fail, replace the chosen path in a new hard cutover rather than introducing model selection or fallback bloat.
+
+## Hand sensing acceptance (Unknown)
+
+The Hand Landmarker (float16 revision 1, two hands, GPU) runs instead of the pose model while a game asks for hands. Nothing about it has been measured on a phone. Use the **Sensores** bench on the Galaxy S22 to find out: the distance at which a child's and an adult's hands are still found, since the model expects a hand that fills a fair share of the image and players normally stand across the room; whether **Esquerda** and **Direita** match the person's own hands on a live camera (see the photo check below); the reading rate and delay shown on the bench against the pose model's; the pause when switching kinds; and heat over ten minutes. Browser tests only prove that the real model loads and that its output is carried correctly.
+
+Exploratory photo check (2026-10-09): Google's public [two-hands test photo](https://storage.googleapis.com/mediapipe-assets/woman_hands.jpg), letterboxed to 1280×720 and played as Chromium's fake camera through the production build, was found as two hands with all 42 points on the fingers of the mirrored image. The model's own labels named her right and left hands correctly on the unmirrored frame, matching the labels Google's `left_hands.jpg` and `right_hands.jpg` fixtures expect, so the adapter passes them through unchanged. Older MediaPipe documentation says to swap them; doing so mislabelled this photo. One adult still image at close range is a feasibility check, not distance, child, motion or phone validation. No fixture was committed.
+
+## Silhouette acceptance (partly measured)
+
+The silhouette is the pose model's own mask on the GPU, shown in the **Sensores** bench under **Silhueta**. Owner's Galaxy S22, 2026-10-09: 60 to 70 ms from capture to arrival; a CPU variant tried beside it took about 100 ms and was removed. Laptop with a discrete GPU, one stock photo in Chromium: 18 ms. Still to judge on the phone at playing distance: outline quality on a whole child and a whole adult with arms out and legs apart, holes and background picked up, how far the outline trails a fast arm, and heat over ten minutes. Comparing the bench's delay in **Corpo** with **Silhueta** shows what the mask adds. Two other models were tried the same day and dropped: the selfie segmenter for quality, RF-DETR Seg Nano for taking about 500 ms a reading on the phone and drawing nothing.
 
 ## iPhone constraints
 

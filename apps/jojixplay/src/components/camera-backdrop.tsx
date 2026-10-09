@@ -1,7 +1,7 @@
 import { useEffect } from "preact/hooks";
 import type { RefObject } from "preact";
 import type { CameraFrameNormalization } from "../domain/camera";
-import { cameraCover } from "../domain/camera-view";
+import { cameraCover } from "@jojixplay/game-sdk";
 
 export function CameraBackdrop({
   videoRef,
