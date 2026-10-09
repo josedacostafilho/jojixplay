@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-27
+last_verified: 2026-10-08
 scope: Canonical technologies, supported versions, and developer commands
 ---
 
@@ -18,7 +18,7 @@ The following versions implement the prototype. `package-lock.json` is authorita
 | UI framework | Preact | 10.29.8 | `npm ls preact` |
 | Package manager | npm | 11.17.0 lockfile format | `npm run verify:toolchain` |
 | Build tool | Vite with Preact preset | 8.2.1 / 2.10.6 | `npm run build` |
-| Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Full Pose and Hand Landmarker models; one GPU task at a time |
+| Pose inference | MediaPipe Tasks Vision | 1.0.1 | Vendored Full Pose model; one GPU task |
 | 3D renderer | Three.js WebGL2 | 0.186.1 | `npm ls three` |
 | Workspace organization | npm workspaces | npm 11.17.0 | `npm run verify:boundaries` |
 | Formatter | Biome | 2.5.8 | `npm run format` |
@@ -42,9 +42,7 @@ These commands are executable and are the only canonical paths for their concern
 | Start local development | `npm run dev` |
 | Independent Desenhar development | `npm run dev:draw` |
 | Independent Corrida development | `npm run dev:race` |
-| Independent swinging prototype development | `npm run dev:swinging` |
 | Corrida unit tests | `npm test --workspace @jojixplay/corrida` |
-| Swinging prototype unit tests | `npm test --workspace @jojixplay/swinging` |
 | Desenhar unit tests | `npm test --workspace @jojixplay/desenhar` |
 | Workspace import boundaries | `npm run verify:boundaries` |
 | Format | `npm run format` |
@@ -65,7 +63,7 @@ These commands are executable and are the only canonical paths for their concern
 
 ## Rendering and game development
 
-Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run dev:race` runs Corrida independently with synthetic crouch, jump, pose and tracking-loss controls. `npm run dev:swinging` runs the independent plain-block swing studio with keyboard/touch fist buttons and independent crosshair range controls; the host mounts the same game with live camera gestures from its provisional menu entry. `npm test` runs platform and all three isolated game suites; `npm run build` builds the app and three standalone game pages. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles. Swinging renders procedural tracked fingers and virtual arms; no authored hand assets or asset lab exist.
+Three.js WebGL2 owns 3D scenes. No second engine, Canvas renderer or CPU inference fallback exists. `npm run dev:draw` runs Desenhar independently with pointer-driven synthetic wrists; `npm run dev:race` runs Corrida independently with synthetic crouch, jump, pose and tracking-loss controls. `npm test` runs platform and both isolated game suites; `npm run build` builds the app and two standalone game pages. Workspace contracts are checked by `npm run verify:boundaries`. Future authored assets use Blender GLB, with versions pinned when the first asset pipeline is introduced. Menu pointers are DOM circles.
 
 The app's Three.js-containing chunk currently triggers Vite's 500 kB advisory. It is not suppressed; target-phone startup and memory remain acceptance risks.
 

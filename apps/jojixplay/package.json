@@ -8,7 +8,6 @@
     "@mediapipe/tasks-vision": "1.0.1",
     "preact": "10.29.8",
     "@jojixplay/desenhar": "*",
-    "@jojixplay/corrida": "*",
-    "@jojixplay/swinging": "*"
+    "@jojixplay/corrida": "*"
   }
 }

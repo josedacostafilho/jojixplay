@@ -46,7 +46,7 @@ describe("pose packet parser", () => {
   });
 
   it("rejects extensions at every schema boundary", () => {
-    const topLevel = { ...validPacket(), version: 1 };
+    const topLevel = { ...validPacket(), poses: [], hands: [] };
     const frame = validPacket() as PosePacket & {
       frame: PosePacket["frame"] & { rotation: number };
     };

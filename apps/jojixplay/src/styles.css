@@ -213,14 +213,13 @@ a:focus-visible {
   padding: 0;
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   width: min(780px, 88vw);
   align-self: center;
 }
 .game-shelf--players {
   position: relative;
-  grid-template-columns: 1fr 1fr;
   width: min(520px, 72vw);
   padding-bottom: 48px;
 }
@@ -514,10 +513,6 @@ a:focus-visible {
   background: #a9dac6f5;
   color: #244f43;
 }
-.game-card--swing {
-  background: #a9d1e8f5;
-  color: #23445d;
-}
 .game-card--race strong {
   font-size: clamp(15px, 2.2vw, 23px);
 }
@@ -572,22 +567,22 @@ a:focus-visible {
 }
 
 /* Race controls are viewed across the room, including host-owned exit. */
-.game-stage:has(.race-game, .swing-game) > .game-back {
+.game-stage:has(.race-game) > .game-back {
   top: 12px;
   right: 3%;
   min-height: 54px;
   font-size: 22px;
   font-weight: 900;
 }
-.game-stage:has(.race-game, .swing-game) > .draw-dialog {
+.game-stage:has(.race-game) > .draw-dialog {
   max-width: min(650px, 90vw);
   font-size: 22px;
   text-align: center;
 }
-.game-stage:has(.race-game, .swing-game) > .draw-dialog h2 {
+.game-stage:has(.race-game) > .draw-dialog h2 {
   font-size: 32px;
 }
-.game-stage:has(.race-game, .swing-game) > .draw-dialog button {
+.game-stage:has(.race-game) > .draw-dialog button {
   font-size: 22px;
   min-height: 58px;
 }

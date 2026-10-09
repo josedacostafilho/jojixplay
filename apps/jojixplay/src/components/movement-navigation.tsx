@@ -1,7 +1,6 @@
 import {
   isFresh,
   mountMovementControls,
-  projectHandLandmarks,
   reachableHand,
   type BodyFrame,
   type ControlPoint,
@@ -30,7 +29,7 @@ export function MovementNavigation({
     if (!root || !container || !active) return;
     const controls = mountMovementControls(
       root,
-      (button) => !button.closest(".draw-game, .race-game, .swing-game"),
+      (button) => !button.closest(".draw-game, .race-game"),
       playing ? "target" : "always",
     );
     let request = 0;
@@ -44,9 +43,7 @@ export function MovementNavigation({
         const paper = drawing ? root?.querySelector(".draw-paper")?.getBoundingClientRect() : null;
         const cover = cameraCover(frame.width, frame.height, innerWidth, innerHeight);
         const race =
-          !drawing && playing
-            ? root?.querySelector(".race-game, .swing-game")?.getBoundingClientRect()
-            : null;
+          !drawing && playing ? root?.querySelector(".race-game")?.getBoundingClientRect() : null;
         const width = race
           ? race.width
           : paper
@@ -73,21 +70,6 @@ export function MovementNavigation({
               : cover.top;
         const back = root?.querySelector<HTMLElement>(".game-back");
         if (back && paper) back.style.right = `${Math.max(14, (paper.width - width) / 2 + 14)}px`;
-        for (const hand of frame.hands ?? []) {
-          if (frame.hands?.filter((other) => other.handedness === hand.handedness).length !== 1)
-            continue;
-          const index = hand.landmarks[8];
-          if (!index) continue;
-          const point = race
-            ? projectHandLandmarks(hand.landmarks)[8]
-            : { x: 1 - index.x, y: index.y };
-          if (!point) continue;
-          points.push({
-            key: `hand-${hand.handedness}`,
-            x: left + point.x * width,
-            y: top + point.y * height,
-          });
-        }
         for (const isLeft of [false, true]) {
           // Spatial hand slots only: no body/torso prerequisite or detector-array identity.
           const wrists = frame.bodies

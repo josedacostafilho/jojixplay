@@ -17,8 +17,7 @@ export function LocalPlayPage() {
   const [confirmExit, setConfirmExit] = useState(false);
   const exitDialog = useRef<HTMLDialogElement>(null);
   const [choosingPlayers, setChoosingPlayers] = useState(false);
-  const [game, setGame] = useState<"desenhar" | "corrida" | "swinging" | null>(null);
-  const [gameRunning, setGameRunning] = useState(false);
+  const [game, setGame] = useState<"desenhar" | "corrida" | null>(null);
   const drawing = game === "desenhar";
   const playing = game !== null;
   const opening = useRef(false);
@@ -60,7 +59,6 @@ export function LocalPlayPage() {
   useEffect(() => {
     if (!active) {
       setGame(null);
-      setGameRunning(false);
       setChoosingPlayers(false);
       setConfirmExit(false);
       if (camera.state === "error") void immersive.stop();
@@ -79,7 +77,6 @@ export function LocalPlayPage() {
 
   function stop() {
     setGame(null);
-    setGameRunning(false);
     setConfirmExit(false);
     run.current += 1;
     starting.current = false;
@@ -100,7 +97,7 @@ export function LocalPlayPage() {
     starting.current = false;
     if (!started) void immersive.stop();
   }
-  async function openGame(next: "desenhar" | "corrida" | "swinging", players: 1 | 2) {
+  async function openGame(next: "desenhar" | "corrida", players: 1 | 2) {
     if (opening.current || changingPlayers) return;
     opening.current = true;
     const currentRun = run.current;
@@ -108,11 +105,9 @@ export function LocalPlayPage() {
     setError(null);
     try {
       if (camera.poseLimit !== players) await camera.setPoseLimit(players);
-      await camera.setTrackingMode(next === "swinging" ? "hands" : "pose");
       if (mounted.current && trackingActive.current && run.current === currentRun) {
         setGrownups(false);
         setChoosingPlayers(false);
-        setGameRunning(false);
         setGame(next);
       }
     } catch {
@@ -123,24 +118,10 @@ export function LocalPlayPage() {
       if (mounted.current) setChangingPlayers(false);
     }
   }
-  async function closeGame() {
-    if (opening.current || changingPlayers) return;
-    opening.current = true;
-    const currentRun = run.current;
-    setChangingPlayers(true);
+  function closeGame() {
     setConfirmExit(false);
     setGame(null);
-    setGameRunning(false);
     setChoosingPlayers(false);
-    try {
-      await camera.setTrackingMode("pose");
-    } catch {
-      if (mounted.current && trackingActive.current && currentRun === run.current)
-        setError("Não foi possível voltar ao reconhecimento. Reinicie a brincadeira.");
-    } finally {
-      opening.current = false;
-      if (mounted.current) setChangingPlayers(false);
-    }
   }
   if (!capabilities.supported) return <UnsupportedPanel missing={capabilities.missing} />;
   const visible =
@@ -155,12 +136,7 @@ export function LocalPlayPage() {
         normalization={camera.normalization}
         visible={!playing}
       />
-      <MovementNavigation
-        frame={bodyFrame}
-        active={active && !gameRunning}
-        drawing={drawing}
-        playing={playing}
-      />
+      <MovementNavigation frame={bodyFrame} active={active} drawing={drawing} playing={playing} />
       <header class="room-header" hidden={playing}>
         <span class="brand">
           jojix<span>play</span>
@@ -178,53 +154,28 @@ export function LocalPlayPage() {
       {active && game ? (
         <section
           class="game-stage"
-          aria-label={
-            drawing
-              ? "Ateliê Desenhar"
-              : game === "corrida"
-                ? "Pista Corrida dos Blocos"
-                : "Protótipo de teias"
-          }
+          aria-label={drawing ? "Ateliê Desenhar" : "Pista Corrida dos Blocos"}
         >
           <GameView
             game={game}
-            frame={(stale && game !== "swinging") || grownups || confirmExit ? null : bodyFrame}
+            frame={stale || grownups || confirmExit ? null : bodyFrame}
             players={camera.poseLimit}
-            onRunningChange={setGameRunning}
           />
-          {!gameRunning && (
-            <button class="game-back" type="button" onClick={() => setConfirmExit(true)}>
-              ← Voltar
-            </button>
-          )}
+          <button class="game-back" type="button" onClick={() => setConfirmExit(true)}>
+            ← Voltar
+          </button>
           <dialog class="draw-dialog" ref={exitDialog} onCancel={() => setConfirmExit(false)}>
-            <h2>
-              {drawing
-                ? "Guardar na imaginação?"
-                : game === "corrida"
-                  ? "Sair da corrida?"
-                  : "Sair da cidade?"}
-            </h2>
+            <h2>{drawing ? "Guardar na imaginação?" : "Sair da corrida?"}</h2>
             <p>
               {drawing
                 ? "Ao sair, este desenho será apagado."
-                : game === "corrida"
-                  ? "Ao sair, esta corrida termina e os pontos não são guardados."
-                  : "Ao sair, esta tentativa termina."}
+                : "Ao sair, esta corrida termina e os pontos não são guardados."}
             </p>
             <button type="button" onClick={() => setConfirmExit(false)}>
-              {drawing
-                ? "Continuar desenhando"
-                : game === "corrida"
-                  ? "Continuar correndo"
-                  : "Continuar balançando"}
+              {drawing ? "Continuar desenhando" : "Continuar correndo"}
             </button>
-            <button type="button" onClick={() => void closeGame()}>
-              {drawing
-                ? "Sair e apagar"
-                : game === "corrida"
-                  ? "Sair da corrida"
-                  : "Sair da cidade"}
+            <button type="button" onClick={closeGame}>
+              {drawing ? "Sair e apagar" : "Sair da corrida"}
             </button>
           </dialog>
         </section>
@@ -240,7 +191,6 @@ export function LocalPlayPage() {
             onBack={() => setChoosingPlayers(false)}
             onPlay={(players) => void openGame("desenhar", players)}
             onRace={() => void openGame("corrida", 1)}
-            onSwing={() => void openGame("swinging", 1)}
           />
           <div class="menu-footer">
             <span class="tracking-note" role="status">

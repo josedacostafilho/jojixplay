@@ -37,7 +37,6 @@ export class PoseEstimator {
   private trackingResetTimeoutId: number | null = null;
   private failedError: Error | null = null;
   private ready = false;
-  private mode: "pose" | "hands" = "pose";
   private hasEstimated = false;
   private closed = false;
 
@@ -51,17 +50,11 @@ export class PoseEstimator {
     };
   }
 
-  public initialize(
-    wasmBaseUrl: string,
-    modelUrl: string,
-    poseLimit: PoseLimit,
-    mode: "pose" | "hands" = "pose",
-  ): Promise<void> {
+  public initialize(wasmBaseUrl: string, modelUrl: string, poseLimit: PoseLimit): Promise<void> {
     if (this.initializePromise !== null) {
       return this.initializePromise;
     }
 
-    this.mode = mode;
     this.initializePromise = new Promise<void>((resolve, reject) => {
       this.initializeResolve = resolve;
       this.initializeReject = reject;
@@ -69,7 +62,6 @@ export class PoseEstimator {
         type: "initialize",
         wasmBaseUrl,
         modelUrl,
-        mode,
         poseLimit,
       };
       this.worker.postMessage(request);
@@ -256,7 +248,7 @@ export class PoseEstimator {
     this.pendingEstimate = null;
     this.clearEstimateTimeout();
     const parsed = parsePosePacket(message.packet);
-    if (parsed.ok && (parsed.value.hands !== undefined) === (this.mode === "hands")) {
+    if (parsed.ok) {
       this.hasEstimated = true;
       pending?.resolve(parsed.value);
     } else {

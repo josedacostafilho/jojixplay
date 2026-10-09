@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-08-18
+last_verified: 2026-10-08
 scope: Architectural decision record process and index
 ---
 
@@ -40,12 +40,6 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0026](0026-circle-menu-pointer.md) | Accepted | Replace hand meshes with bounded index-aim circles |
 | [0027](0027-corrida-gesture-camera.md) | Superseded | Keep first-person gesture feedback and normalized pose walls game-owned |
 | [0028](0028-contextual-race-actions.md) | Accepted | Disambiguate race gestures by obstacle and share reachable visible race controls |
-| [0029](0029-hand-controlled-swinging.md) | Accepted | Use dedicated hand tracking, custom curl and manual web aiming for swinging; aim mapping amended by ADR-0030 |
-| [0030](0030-index-aim-and-first-person-hands.md) | Accepted | Align swinging aim with the index fingertip and retain detected hands at image edges |
-| [0031](0031-swinging-controls-outside-runs.md) | Accepted | Hide swinging navigation buttons and cursors during active runs |
-| [0032](0032-hand-results-and-stream-stalls.md) | Accepted | Drive Teias hand availability from delivered results and a receipt-based stream deadline |
-| [0033](0033-tracking-independent-of-gestures.md) | Accepted | Keep detected hand ownership and rendering independent of gesture recognition |
-| [0034](0034-index-pointers-in-teias-menus.md) | Accepted | Align Teias menu pointers with the mirrored index fingertip and game projection |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

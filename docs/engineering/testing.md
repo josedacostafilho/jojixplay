@@ -1,6 +1,6 @@
 ---
 status: Active
-last_verified: 2026-09-27
+last_verified: 2026-10-08
 scope: Automated test strategy and release quality gates
 ---
 
@@ -22,7 +22,6 @@ Browser tests use one worker so software GPU inference and game rendering do not
 - Unit coverage checks bounded index estimation, wrist-only input and partial-body observations. Browser coverage checks visible circles and movement-only navigation.
 - Corrida has isolated full-run, scoring, life-reset, countdown, partial-joint, timing-window, normalized-pose and bounded-camera tests. Its standalone production studio exercises held crouch, movement feedback, points, loss, pause, help and replay at two phone-sized viewports. The app movement-only journey also enters Corrida after duo mode and exercises help, pause and confirmed exit with wrists restricted to the central half-width and 15–75% height. Race regression tests cover symbolic dip-and-rise, early/late timing, contextual camera gating, isolated outliers and longer airtime; browser layout checks enforce minimum essential text sizes and start-panel clearance.
 - Network coverage confirms no Corrida PNG requests during menus or Desenhar, then exactly seven same-origin texture URLs on Corrida entry. The studio checks loading and asset-failure cleanup in addition to its rendered game journeys.
-- Swinging checks orientation-independent curl, noisy closures, stable ownership, stable entry, index-fingertip aim, front/back depth, edge visibility, close wrists, immediate missing-hand release, gesture-independent visibility during disabled gameplay, resets and unknown-curl reacquisition, delayed inference, receipt-based stream expiry and epoch reset, exact building rays, misses without automatic reattachment, independent fixed webs, release velocity and collision behavior. Host checks cover model switching, invalid hand packets, actual vendor landmark fields through normalization/validation at all four rotations, including detected fingers beyond image edges, and hand-only movement navigation. The hand-only host browser test delivers observations 500 ms after capture to catch both game and host age gates. Chromium verifies the manual-aim studio, no buttons or navigation cursors during runs, restored controls after death/replay, visible hands and index-aligned menu circles during help, and host preparation-screen help/exit at two phone sizes; real worker startup remains distinct from gesture accuracy. Across-room hand accuracy, repeated cornering and swing feel require phone acceptance.
 - Actual phones must pass [tracking acceptance](pose-quality.md). Automation is not hardware acceptance.
 
 ## Principles

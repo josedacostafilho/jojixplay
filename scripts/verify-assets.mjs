@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-for (const name of ["pose_landmarker_full", "hand_landmarker"]) {
+for (const name of ["pose_landmarker_full"]) {
   const path = `../assets/models/${name}.task`;
   const expected = (await readFile(new URL(`${path}.sha256`, import.meta.url), "utf8")).trim();
   if (!/^[a-f0-9]{64}$/u.test(expected)) throw new Error(`Malformed ${name} model checksum.`);

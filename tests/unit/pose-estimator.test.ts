@@ -37,7 +37,6 @@ describe("pose estimator worker protocol", () => {
 
     expect(worker.postMessage).toHaveBeenCalledWith({
       type: "initialize",
-      mode: "pose",
       wasmBaseUrl: "/wasm",
       modelUrl: "/pose.task",
       poseLimit: 1,

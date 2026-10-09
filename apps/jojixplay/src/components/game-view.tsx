@@ -5,12 +5,10 @@ export function GameView({
   frame,
   players,
   game,
-  onRunningChange,
 }: {
   frame: BodyFrame | null;
   players: 1 | 2;
-  game: "desenhar" | "corrida" | "swinging";
-  onRunningChange: (running: boolean) => void;
+  game: "desenhar" | "corrida";
 }) {
   const host = useRef<HTMLDivElement>(null),
     experience = useRef<Experience | null>(null),
@@ -27,13 +25,7 @@ export function GameView({
               (host: HTMLElement) =>
                 mountDesenhar(host, players),
           )
-        : game === "corrida"
-          ? import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida)
-          : import("@jojixplay/swinging").then(
-              ({ mountSwinging }) =>
-                (host: HTMLElement) =>
-                  mountSwinging(host, onRunningChange),
-            );
+        : import("@jojixplay/corrida").then(({ mountCorrida }) => mountCorrida);
     setLoading(true);
     setError(false);
     void load
@@ -54,7 +46,7 @@ export function GameView({
       experience.current?.dispose();
       experience.current = null;
     };
-  }, [players, game, onRunningChange]);
+  }, [players, game]);
   useEffect(() => {
     experience.current?.update(frame);
   }, [frame]);
@@ -62,22 +54,13 @@ export function GameView({
     <div class="game-mount" ref={host}>
       {loading ? (
         <p class="game-loading" role="status">
-          {game === "desenhar"
-            ? "Preparando suas cores…"
-            : game === "corrida"
-              ? "Preparando a pista…"
-              : "Preparando a cidade…"}
+          {game === "desenhar" ? "Preparando suas cores…" : "Preparando a pista…"}
         </p>
       ) : null}
       {error ? (
         <p class="inline-error" role="alert">
-          Não foi possível abrir{" "}
-          {game === "desenhar"
-            ? "Desenhar"
-            : game === "corrida"
-              ? "Corrida dos Blocos"
-              : "o protótipo de teias"}
-          . Volte e tente novamente.
+          Não foi possível abrir {game === "desenhar" ? "Desenhar" : "Corrida dos Blocos"}. Volte e
+          tente novamente.
         </p>
       ) : null}
     </div>

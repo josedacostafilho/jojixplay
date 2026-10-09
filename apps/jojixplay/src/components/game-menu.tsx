@@ -5,7 +5,6 @@ export function GameMenu({
   onBack,
   onPlay,
   onRace,
-  onSwing,
 }: {
   choosing: boolean;
   busy: boolean;
@@ -13,7 +12,6 @@ export function GameMenu({
   onBack: () => void;
   onPlay: (players: 1 | 2) => void;
   onRace: () => void;
-  onSwing: () => void;
 }) {
   return (
     <section class="game-menu" aria-labelledby="menu-title">
@@ -86,21 +84,6 @@ export function GameMenu({
               </span>
               <strong>Corrida dos Blocos</strong>
               <span>1 pessoa · pule, copie, agache!</span>
-            </button>
-          </li>
-          <li>
-            <button
-              class="game-card game-card--swing"
-              type="button"
-              disabled={busy}
-              onClick={onSwing}
-              aria-label="Protótipo de teias · 1 pessoa"
-            >
-              <span class="card-art" aria-hidden="true">
-                ◈
-              </span>
-              <strong>Protótipo de teias</strong>
-              <span>1 pessoa · balance pela cidade</span>
             </button>
           </li>
         </ul>

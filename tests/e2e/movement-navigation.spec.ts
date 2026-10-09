@@ -17,11 +17,9 @@ for (const viewport of [
       Reflect.set(window, "testLost", false);
       Reflect.set(window, "testHandsOnly", true);
       class SyntheticWorker {
-        mode = "pose";
         onmessage: ((event: { data: unknown }) => void) | null = null;
         postMessage(request: {
           type: string;
-          mode?: string;
           frame?: ImageBitmap;
           poseLimit?: number;
           sequence?: number;
@@ -30,7 +28,6 @@ for (const viewport of [
         }) {
           let response: unknown;
           if (request.type === "initialize") {
-            this.mode = request.mode ?? "pose";
             response = { type: "ready" };
           } else if (request.type === "set-pose-limit")
             response = { type: "pose-limit-set", poseLimit: request.poseLimit };
@@ -44,46 +41,23 @@ for (const viewport of [
                 sequence: request.sequence,
                 capturedAtMs: request.capturedAtMs,
                 frame: request.cameraFrame,
-                ...(this.mode === "hands"
-                  ? {
-                      hands: Reflect.get(window, "testLost")
-                        ? []
-                        : [
-                            {
-                              handedness: "right",
-                              handednessScore: 1,
-                              landmarks: Array.from({ length: 21 }, () => ({
-                                x: 1 - wrist.x,
-                                y: wrist.y,
-                                z: 0,
-                              })),
-                              worldLandmarks: Array.from({ length: 21 }, (_, i) => ({
-                                x: i * 0.001,
-                                y: -i * 0.002,
-                                z: 0,
-                              })),
-                            },
-                          ],
-                    }
-                  : {}),
-                poses:
-                  this.mode === "hands" || Reflect.get(window, "testLost")
-                    ? []
-                    : [
-                        {
-                          landmarks: Array.from({ length: 33 }, (_, i) => ({
-                            x: i === 16 ? 1 - wrist.x : i === 11 ? 0.7 : i === 12 ? 0.8 : 0.6,
-                            y: i === 16 ? wrist.y : i === 15 ? 0.7 : 0.4,
-                            z: 0,
-                            visibility: (Reflect.get(window, "testHandsOnly")
-                              ? [15, 16]
-                              : [11, 12, 15, 16]
-                            ).includes(i)
-                              ? 1
-                              : 0,
-                          })),
-                        },
-                      ],
+                poses: Reflect.get(window, "testLost")
+                  ? []
+                  : [
+                      {
+                        landmarks: Array.from({ length: 33 }, (_, i) => ({
+                          x: i === 16 ? 1 - wrist.x : i === 11 ? 0.7 : i === 12 ? 0.8 : 0.6,
+                          y: i === 16 ? wrist.y : i === 15 ? 0.7 : 0.4,
+                          z: 0,
+                          visibility: (Reflect.get(window, "testHandsOnly")
+                            ? [15, 16]
+                            : [11, 12, 15, 16]
+                          ).includes(i)
+                            ? 1
+                            : 0,
+                        })),
+                      },
+                    ],
               },
             };
           }
@@ -102,7 +76,6 @@ for (const viewport of [
     await expect(page.locator(".movement-pointer").first()).toHaveText("");
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator(".camera-backdrop")).toHaveCSS("opacity", "1");
-    await expect(page.getByRole("button", { name: "Protótipo de teias · 1 pessoa" })).toBeVisible();
     const cameraBounds = await page.locator("video").boundingBox();
     expect(cameraBounds?.x).toBeLessThanOrEqual(0);
     expect(cameraBounds?.y).toBeLessThanOrEqual(0);
@@ -113,10 +86,10 @@ for (const viewport of [
     async function select(name: string) {
       const game = await page
         .getByRole("button", { name, exact: true })
-        .evaluate((button) => !!button.closest(".draw-game, .race-game, .swing-game"));
+        .evaluate((button) => !!button.closest(".draw-game, .race-game"));
       const neutral = await page.evaluate((game) => {
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
-        const race = document.querySelector(".race-game, .swing-game")?.getBoundingClientRect();
+        const race = document.querySelector(".race-game")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
@@ -142,11 +115,9 @@ for (const viewport of [
               Reflect.set(
                 window,
                 "testWrist",
-                document.querySelector(".swing-game")
-                  ? { x, y }
-                  : race
-                    ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
-                    : { x, y: y + (paper ? 0 : 0.035) },
+                race
+                  ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
+                  : { x, y: y + (paper ? 0 : 0.035) },
               );
               return { x: left + x * width, y: top + y * height, game };
             }
@@ -160,7 +131,7 @@ for (const viewport of [
               [
                 ...document.querySelectorAll<HTMLElement>(
                   game
-                    ? ".draw-game .movement-pointer, .race-game .movement-pointer, .swing-game .movement-pointer"
+                    ? ".draw-game .movement-pointer, .race-game .movement-pointer"
                     : ".movement-pointer",
                 ),
               ].some(
@@ -179,7 +150,7 @@ for (const viewport of [
         });
         const b = button.getBoundingClientRect();
         const paper = document.querySelector(".draw-paper")?.getBoundingClientRect();
-        const race = document.querySelector(".race-game, .swing-game")?.getBoundingClientRect();
+        const race = document.querySelector(".race-game")?.getBoundingClientRect();
         const video = document.querySelector("video");
         if (!video) throw new Error("Missing capture");
         const aspect = video.videoWidth / video.videoHeight;
@@ -201,11 +172,9 @@ for (const viewport of [
             : (innerHeight - height) / 2;
         const x = (b.x + b.width / 2 - left) / width;
         const y = (b.y + b.height / 2 - top) / height;
-        return document.querySelector(".swing-game")
-          ? { x, y }
-          : race
-            ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
-            : { x, y: y + (paper ? 0 : 0.035) };
+        return race
+          ? { x: 0.5 + (x - 0.5) / 2, y: 0.45 + (y - 0.5) * 0.6 }
+          : { x, y: y + (paper ? 0 : 0.035) };
       });
       expect(point.x).toBeGreaterThanOrEqual(0);
       expect(point.x).toBeLessThanOrEqual(1);
@@ -285,16 +254,6 @@ for (const viewport of [
     await select("Sair da corrida");
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page.locator("video")).toHaveCSS("opacity", "1");
-    await select("Protótipo de teias · 1 pessoa");
-    await expect(page.getByRole("heading", { name: "Mostre as mãos abertas" })).toBeVisible();
-    await select("? Como jogar");
-    await expect(page.getByRole("heading", { name: "Balance com as teias" })).toBeVisible();
-    await select("Entendi");
-    await select("← Voltar");
-    await select("Continuar balançando");
-    await select("← Voltar");
-    await select("Sair da cidade");
-    await expect(page.locator("canvas")).toHaveCount(0);
     await select("Encerrar brincadeira");
     await expect(page.getByRole("button", { name: "Vamos começar" })).toBeVisible();
   });
