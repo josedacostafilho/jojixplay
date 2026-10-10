@@ -45,7 +45,11 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0031](0031-host-sensing-service.md) | Accepted | Sense bodies or hands once in the host on a game's request; games interpret |
 | [0032](0032-silhouette-trial-and-camera-pixels.md) | Accepted | Sense silhouettes with the pose model's own mask; let games draw the live camera picture |
 | [0033](0033-menu-row-and-forgiving-holds.md) | Accepted | Three selectable games in a row, bounded button sizes, and holds that survive tracking flicker |
-| [0034](0034-corrida-third-person-puppet.md) | Accepted | Rebuild Corrida as a third-person run with a body-normalized puppet character, feel first |
+| [0034](0034-corrida-third-person-puppet.md) | Accepted | Rebuild Corrida as a run controlled by a body-normalized puppet, feel first; its third-person view was replaced by 0038 |
+| [0035](0035-corrida-literal-rules.md) | Accepted | Judge Corrida's obstacles literally by the drawn character; drop pose walls and stars; jump logs from a stretch before them, hang from rails |
+| [0036](0036-body-in-its-own-space.md) | Accepted | Report each sensed body in its own space (world landmarks) beside its place in the image |
+| [0037](0037-camera-chosen-by-looking.md) | Accepted | Let the adult try every camera by touch after starting, remember the choice, and narrow "no persistence" to a privacy rule |
+| [0038](0038-corrida-first-person-depth-and-punch.md) | Accepted | Show Corrida through the character's eyes with only its arms, posed in depth, and add punching monsters |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

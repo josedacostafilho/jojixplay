@@ -81,6 +81,15 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await expect(captureSource).toHaveCSS("opacity", "0");
 
   await page.getByRole("button", { name: "Ligar a câmera" }).click();
+  // The adult's last touch step: the camera's picture, the phone's cameras by name, and no menu.
+  await expect(page.getByRole("button", { name: "Câmera 1" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+    { timeout: 30_000 },
+  );
+  await expect(captureSource).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("button", { name: "Encerrar brincadeira" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Começar" }).click();
   await expect(page.getByRole("button", { name: "Encerrar brincadeira" })).toBeVisible({
     timeout: 30_000,
   });
@@ -120,7 +129,7 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await choose("Próximo jogo");
   await choose("Jogar Corrida dos Blocos");
   await expect(page.locator(".race-prompt")).toBeVisible();
-  await expect.poll(() => new Set(textureRequests).size).toBe(5);
+  await expect.poll(() => new Set(textureRequests).size).toBe(6);
   expect(textureRequests.every((url) => new URL(url).origin === new URL(page.url()).origin)).toBe(
     true,
   );
@@ -137,6 +146,7 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
     .poll(() => page.evaluate(() => Number(Reflect.get(window, "__jojixplayWakeReleaseCount"))))
     .toBeGreaterThan(0);
   await page.getByRole("button", { name: "Ligar a câmera" }).click();
+  await page.getByRole("button", { name: "Começar" }).click({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: "Encerrar brincadeira" })).toBeVisible();
   await choose("Próximo jogo");
   await choose("Jogar Corrida dos Blocos");

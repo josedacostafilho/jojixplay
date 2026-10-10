@@ -175,6 +175,55 @@ a:focus-visible {
   font-weight: 800;
 }
 
+/* Choosing a camera: the picture fills the screen, so words and buttons keep to its edges. */
+.lens-step {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+.lens-step h1 {
+  align-self: center;
+  margin: 0;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: #14123acc;
+  font-size: clamp(15px, 5svh, 22px);
+  font-weight: 900;
+}
+.lens-footer {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+.lens-choices {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lens-choices button {
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: #14123acc;
+  color: #fff;
+  padding: 0 clamp(12px, 2.5vw, 22px);
+  min-height: clamp(48px, 15svh, 64px);
+  font-size: clamp(15px, 4.8svh, 20px);
+  font-weight: 800;
+}
+.lens-choices button[aria-pressed="true"] {
+  border-color: #ffd23f;
+  background: #ffd23f;
+  color: #14123a;
+}
+.lens-footer .setup-cancel {
+  background: #14123acc;
+}
+
 .playroom--game {
   padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
 }

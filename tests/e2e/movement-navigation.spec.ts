@@ -56,6 +56,7 @@ for (const viewport of [
                             ? 1
                             : 0,
                         })),
+                        world: Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 })),
                       },
                     ],
               },
@@ -71,6 +72,7 @@ for (const viewport of [
     });
     await page.goto("/");
     await page.getByRole("button", { name: "Ligar a câmera" }).click();
+    await page.getByRole("button", { name: "Começar" }).click({ timeout: 30_000 });
     // The menu hangs on the tracked body: a card above the head, a bubble at each side.
     await expect(page.getByRole("button", { name: "Jogar Desenhar" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Próximo jogo" })).toBeVisible();

@@ -8,7 +8,14 @@ import {
   type Sensing,
 } from "@jojixplay/game-sdk";
 import { render } from "preact";
-import { coverage, type Figures, figures, pointers, silhouettePointer } from "./figures";
+import {
+  coverage,
+  type Figures,
+  figures,
+  pointers,
+  silhouettePointer,
+  worldFigures,
+} from "./figures";
 import { createOverlay } from "./overlay";
 import { createSilhouetteLayer } from "./silhouette-layer";
 import "./style.css";
@@ -21,10 +28,17 @@ const STATUS_INTERVAL_MS = 500;
  * one, marked as late, until readings stop arriving for this long: slowness is what it is for.
  */
 const SILENCE_MS = 1000;
+/** The column of mode buttons down the screen's left edge. */
+const MODES_WIDTH = 132;
 const NOTHING: Figures = { segments: [], dots: [], labels: [] };
 
-const modes: ReadonlyArray<{ label: string; mode: Sensing | null }> = [
+/** What the bench shows. A body in its own space is sensed with the body in the picture. */
+type Mode = Sensing | "world";
+const sensingFor = (mode: Mode): Sensing => (mode === "world" ? "body" : mode);
+
+const modes: ReadonlyArray<{ label: string; mode: Mode | null }> = [
   { label: "Corpo", mode: "body" },
+  { label: "Corpo 3D", mode: "world" },
   { label: "Mãos", mode: "hands" },
   { label: "Silhueta", mode: "silhouette" },
   // Not built yet: the bench keeps its place.
@@ -43,11 +57,11 @@ function Bench({
   onCamera,
   onExit,
 }: {
-  mode: Sensing;
+  mode: Mode;
   switching: boolean;
   camera: boolean;
   status: string;
-  onMode: (mode: Sensing) => void;
+  onMode: (mode: Mode) => void;
   onCamera: () => void;
   onExit: () => void;
 }) {
@@ -96,6 +110,7 @@ export function mountSensores(container: HTMLElement, host: GameHost): Experienc
   root.append(ui);
   container.append(root);
 
+  let mode: Mode = "body";
   let sensing: Sensing = "body";
   let switching = false;
   /** Made on first use: only silhouettes need a WebGL context. */
@@ -133,7 +148,7 @@ export function mountSensores(container: HTMLElement, host: GameHost): Experienc
     root.classList.toggle("sense-game--camera", camera);
     render(
       <Bench
-        mode={sensing}
+        mode={mode}
         switching={switching}
         camera={camera}
         status={status(now)}
@@ -149,8 +164,16 @@ export function mountSensores(container: HTMLElement, host: GameHost): Experienc
       ui,
     );
   }
-  function sense(next: Sensing) {
-    if (switching || next === sensing) return;
+  function sense(wanted: Mode) {
+    if (switching || wanted === mode) return;
+    mode = wanted;
+    drawn = null;
+    const next = sensingFor(wanted);
+    if (next === sensing) {
+      // The same readings, looked at another way: nothing for the host to change.
+      drawUI(performance.now());
+      return;
+    }
     sensing = next;
     switching = true;
     arrivals = [];
@@ -172,7 +195,12 @@ export function mountSensores(container: HTMLElement, host: GameHost): Experienc
       const cover = cameraCover(current.width, current.height, innerWidth, innerHeight);
       // A new reading or a resized viewport moves the figure; nothing else does.
       const key = `${current.epoch}:${current.sequence}:${innerWidth}:${innerHeight}`;
-      if (key !== drawn) overlay.draw(figures(current, cover));
+      if (key !== drawn)
+        overlay.draw(
+          mode === "world"
+            ? worldFigures(current, { left: MODES_WIDTH, width: innerWidth, height: innerHeight })
+            : figures(current, cover),
+        );
       const { silhouette } = current;
       if (silhouette) {
         if (!layer && !layerFailed) {

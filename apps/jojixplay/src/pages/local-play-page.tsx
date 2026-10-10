@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { BodyMenu } from "../components/body-menu";
 import { CameraBackdrop } from "../components/camera-backdrop";
 import { GameView } from "../components/game-view";
+import { LensStep } from "../components/lens-step";
 import { SetupScreen } from "../components/setup-screen";
 import { UnsupportedPanel } from "../components/unsupported-panel";
 import type { PoseLimit } from "../domain/pose-limit";
@@ -23,6 +24,9 @@ export function LocalPlayPage() {
   const [screen, setScreen] = useState<Screen>(MENU);
   const [error, setError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  /** The adult has chosen a camera and let go of the phone; only then does the menu appear. */
+  const [framed, setFramed] = useState(false);
+  const [lensBusy, setLensBusy] = useState(false);
   /** A running game may ask for the camera image behind it. */
   const [cameraShown, setCameraShown] = useState(false);
   const root = useRef<HTMLElement>(null);
@@ -43,6 +47,7 @@ export function LocalPlayPage() {
   useEffect(() => {
     if (tracking) return;
     trackingRun.current += 1;
+    setFramed(false);
     setScreen(MENU);
     setCameraShown(false);
   }, [tracking]);
@@ -151,6 +156,26 @@ export function LocalPlayPage() {
             }
           />
         </section>
+      ) : tracking && !framed ? (
+        <LensStep
+          lenses={camera.lenses}
+          lensId={camera.lensId}
+          busy={lensBusy}
+          error={error}
+          onChoose={(lens) => {
+            setError(null);
+            setLensBusy(true);
+            camera
+              .setLens(lens)
+              .catch(() => setError("Essa câmera não pôde ser aberta. Escolha outra."))
+              .finally(() => setLensBusy(false));
+          }}
+          onDone={() => {
+            setError(null);
+            setFramed(true);
+          }}
+          onCancel={stop}
+        />
       ) : tracking ? (
         <>
           <BodyMenu

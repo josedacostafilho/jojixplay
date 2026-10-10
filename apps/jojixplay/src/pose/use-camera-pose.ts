@@ -4,7 +4,8 @@ import type { CameraFrameNormalization } from "../domain/camera";
 import { DEFAULT_POSE_LIMIT, type PoseLimit } from "../domain/pose-limit";
 import { toFrame } from "./frame";
 import { FrameChannel, type FrameSource } from "./frame-source";
-import { CameraPoseController } from "./camera-pose-controller";
+import { rememberedLens, rememberLens } from "../platform/camera-choice";
+import { type CameraLens, CameraPoseController } from "./camera-pose-controller";
 
 export type CameraTrackingState = "idle" | "starting" | "tracking" | "error";
 
@@ -20,6 +21,11 @@ export interface CameraPoseLifecycle {
   setPoseLimit: (poseLimit: PoseLimit) => Promise<void>;
   /** Changes what the camera senses. A session starts, and restarts, sensing bodies. */
   setSensing: (sensing: Sensing) => Promise<void>;
+  /** Every camera the phone offers, known once one is open, and which of them is. */
+  lenses: readonly CameraLens[];
+  lensId: string | null;
+  /** Opens another camera and remembers it for the next session. */
+  setLens: (lens: CameraLens) => Promise<void>;
 }
 
 export function useCameraPose(): CameraPoseLifecycle {
@@ -32,6 +38,8 @@ export function useCameraPose(): CameraPoseLifecycle {
   const [frames] = useState(() => new FrameChannel());
   const [poseLimit, setPoseLimitState] = useState<PoseLimit>(DEFAULT_POSE_LIMIT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lenses, setLenses] = useState<readonly CameraLens[]>([]);
+  const [lensId, setLensId] = useState<string | null>(null);
 
   const stop = useCallback(() => {
     const controller = cameraController.current;
@@ -44,6 +52,8 @@ export function useCameraPose(): CameraPoseLifecycle {
     setNormalization(null);
     setState("idle");
     setErrorMessage(null);
+    setLenses([]);
+    setLensId(null);
     poseLimitRef.current = DEFAULT_POSE_LIMIT;
     setPoseLimitState(DEFAULT_POSE_LIMIT);
   }, [frames]);
@@ -92,8 +102,11 @@ export function useCameraPose(): CameraPoseLifecycle {
     cameraController.current = controller;
 
     try {
-      await controller.start();
+      await controller.start(rememberedLens());
+      const offered = await controller.lenses();
       if (mounted.current && cameraController.current === controller) {
+        setLenses(offered);
+        setLensId(controller.lensId());
         setState("tracking");
       }
     } catch (error) {
@@ -130,6 +143,22 @@ export function useCameraPose(): CameraPoseLifecycle {
     await controller.setSensing(sensing);
   }, []);
 
+  const setLens = useCallback(async (lens: CameraLens): Promise<void> => {
+    const controller = cameraController.current;
+    if (controller === null) {
+      throw new Error("O reconhecimento de movimentos não está ativo.");
+    }
+    try {
+      await controller.setLens(lens.id);
+      rememberLens(lens.label);
+    } finally {
+      // Whether it opened or the previous camera came back, show the one now in use.
+      if (mounted.current && cameraController.current === controller) {
+        setLensId(controller.lensId());
+      }
+    }
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -151,5 +180,8 @@ export function useCameraPose(): CameraPoseLifecycle {
     stop,
     setPoseLimit,
     setSensing,
+    lenses,
+    lensId,
+    setLens,
   };
 }

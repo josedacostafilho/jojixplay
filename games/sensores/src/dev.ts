@@ -6,6 +6,7 @@ import {
   type HandPointName,
   handPointNames,
   type Sensing,
+  type WorldBody,
 } from "@jojixplay/game-sdk";
 import { mountSensores } from "./index";
 
@@ -55,6 +56,21 @@ function body(): Body {
     rightKnee: joint(0.46, 0.9),
   };
 }
+/** The same person in their own space: about 1.2 m from nose to knee, the pointer's arm reaching forward. */
+function worldBody(): WorldBody {
+  const reach: Partial<Record<string, number>> = { rightElbow: -0.15, rightWrist: -0.35 };
+  return Object.fromEntries(
+    Object.entries(body()).map(([name, joint]) => [
+      name,
+      {
+        x: (joint.x - 0.5) * 2 * (1280 / 720),
+        y: (joint.y - 0.74) * 2,
+        z: reach[name] ?? 0,
+        confidence: 1,
+      },
+    ]),
+  );
+}
 function hand(side: "left" | "right", wristX: number, wristY: number): Hand {
   const points = Object.fromEntries(
     handPointNames.map((name, index) => {
@@ -93,6 +109,7 @@ const timer = setInterval(() => {
     epoch,
     sensing,
     bodies: sensing === "body" || sensing.startsWith("silhouette") ? [body()] : [],
+    worldBodies: sensing === "body" || sensing.startsWith("silhouette") ? [worldBody()] : [],
     hands: sensing === "hands" ? [hand("right", x, y + 0.14), hand("left", 0.62, 0.6)] : [],
     silhouette: sensing.startsWith("silhouette") ? silhouette() : null,
   };

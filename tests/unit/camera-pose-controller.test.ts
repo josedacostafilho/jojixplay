@@ -349,4 +349,123 @@ describe("camera pose controller player limit", () => {
     );
     expect(trackStop).toHaveBeenCalledOnce();
   });
+
+  describe("lenses", () => {
+    const cameras = [
+      { kind: "videoinput", deviceId: "front", label: "camera 1, facing front" },
+      { kind: "audioinput", deviceId: "mic", label: "microphone" },
+      { kind: "videoinput", deviceId: "wide", label: "camera 2, facing back" },
+    ];
+    /** A stream whose one track says which camera it is, as real ones do. */
+    function streamOf(deviceId: string) {
+      const stop = vi.fn();
+      const track = { stop, getSettings: () => ({ deviceId }) };
+      return {
+        stop,
+        stream: {
+          getTracks: () => [track],
+          getVideoTracks: () => [track],
+        } as unknown as MediaStream,
+      };
+    }
+    function controllerWith(onCameraFrame = vi.fn(), onError = vi.fn()) {
+      return new CameraPoseController({
+        video,
+        initialPoseLimit: 1,
+        onPacket: vi.fn(),
+        onCameraFrame,
+        onError,
+      });
+    }
+    const wanted = (call: number) =>
+      (getUserMedia.mock.calls[call] as [{ video: MediaTrackConstraints }])[0].video;
+
+    beforeEach(() => {
+      vi.stubGlobal("navigator", {
+        mediaDevices: { getUserMedia, enumerateDevices: async () => cameras },
+      });
+    });
+
+    it("lists the phone's cameras and opens the remembered one by name when the browser tells names", async () => {
+      getUserMedia.mockResolvedValue(streamOf("wide").stream);
+      const controller = controllerWith();
+      await controller.start("camera 2, facing back");
+      expect(wanted(0).deviceId).toEqual({ exact: "wide" });
+      expect(controller.lensId()).toBe("wide");
+      expect(await controller.lenses()).toEqual([
+        { id: "front", label: "camera 1, facing front" },
+        { id: "wide", label: "camera 2, facing back" },
+      ]);
+      controller.stop();
+    });
+
+    it("opens the front camera when the remembered one is unknown or will not open", async () => {
+      getUserMedia.mockResolvedValue(streamOf("front").stream);
+      const unknown = controllerWith();
+      await unknown.start("a camera this phone does not have");
+      expect(getUserMedia).toHaveBeenCalledOnce();
+      expect(wanted(0).facingMode).toEqual({ ideal: "user" });
+      unknown.stop();
+
+      getUserMedia.mockReset().mockRejectedValueOnce(new DOMException("busy", "NotReadableError"));
+      getUserMedia.mockResolvedValue(streamOf("front").stream);
+      const refused = controllerWith();
+      await refused.start("camera 2, facing back");
+      expect(wanted(1).facingMode).toEqual({ ideal: "user" });
+      expect(refused.lensId()).toBe("front");
+      refused.stop();
+    });
+
+    it("lets go of the camera in use before opening another, and starts a new epoch", async () => {
+      const front = streamOf("front");
+      const wide = streamOf("wide");
+      getUserMedia.mockResolvedValueOnce(front.stream);
+      const onCameraFrame = vi.fn();
+      const controller = controllerWith(onCameraFrame);
+      await controller.start();
+      estimator.estimate.mockResolvedValue(EMPTY_PACKET);
+      frameCallbacks[0]?.(100, {} as VideoFrameCallbackMetadata);
+      await vi.waitFor(() =>
+        expect(onCameraFrame).toHaveBeenLastCalledWith(
+          expect.objectContaining({ frame: expect.objectContaining({ epoch: 0 }) }),
+        ),
+      );
+
+      getUserMedia.mockImplementationOnce(async () => {
+        // A phone refuses a second camera while the first is still held.
+        expect(front.stop).toHaveBeenCalledOnce();
+        return wide.stream;
+      });
+      await controller.setLens("wide");
+      expect(wanted(1).deviceId).toEqual({ exact: "wide" });
+      expect(controller.lensId()).toBe("wide");
+      expect(video.srcObject).toBe(wide.stream);
+      // What the other camera saw is not this one's.
+      expect(onCameraFrame).toHaveBeenLastCalledWith(
+        expect.objectContaining({ frame: expect.objectContaining({ epoch: 1 }) }),
+      );
+      controller.stop();
+      expect(wide.stop).toHaveBeenCalledOnce();
+    });
+
+    it("goes back to the previous camera when another will not open, and ends the session only if neither will", async () => {
+      const onError = vi.fn();
+      getUserMedia.mockResolvedValueOnce(streamOf("front").stream);
+      const controller = controllerWith(vi.fn(), onError);
+      await controller.start();
+
+      getUserMedia
+        .mockRejectedValueOnce(new DOMException("busy", "NotReadableError"))
+        .mockResolvedValueOnce(streamOf("front").stream);
+      await expect(controller.setLens("wide")).rejects.toThrow("não pôde ser aberta");
+      expect(wanted(2).deviceId).toEqual({ exact: "front" });
+      expect(controller.lensId()).toBe("front");
+      expect(onError).not.toHaveBeenCalled();
+
+      getUserMedia.mockRejectedValue(new DOMException("busy", "NotReadableError"));
+      await expect(controller.setLens("wide")).rejects.toThrow("trocar de câmera");
+      expect(onError).toHaveBeenCalledOnce();
+      expect(controller.lensId()).toBeNull();
+    });
+  });
 });

@@ -17,6 +17,7 @@ test("the bench runs real pose, hand and silhouette sensing in turn and hands bo
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Ligar a câmera" }).click();
+  await page.getByRole("button", { name: "Começar" }).click({ timeout: 30_000 });
   await expect(page.locator(".menu-diagnostic")).toContainText(/ms desde a captura/, {
     timeout: 30_000,
   });
@@ -155,6 +156,7 @@ test("the bench draws what is sensed and is operated by movement in body, hand a
                           z: 0,
                           visibility: [11, 12, 20].includes(i) ? 1 : 0,
                         })),
+                        world: Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 })),
                       },
                     ],
                   },
@@ -170,6 +172,7 @@ test("the bench draws what is sensed and is operated by movement in body, hand a
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Ligar a câmera" }).click();
+  await page.getByRole("button", { name: "Começar" }).click({ timeout: 30_000 });
   await page.getByRole("button", { name: "Próximo jogo" }).click();
   await page.getByRole("button", { name: "Próximo jogo" }).click();
   await page.getByRole("button", { name: "Jogar Sensores" }).click();
@@ -197,6 +200,15 @@ test("the bench draws what is sensed and is operated by movement in body, hand a
     "cy",
     "200.0",
   );
+
+  // The same readings in the person's own space: three views of the same three joints.
+  await hold("Corpo 3D");
+  await expect(page.getByRole("button", { name: "Corpo 3D" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(dots).toHaveCount(9);
+  await expect(page.locator(".sense-labels text").first()).toHaveText("De frente");
 
   await hold("Mãos");
   await expect(page.getByRole("button", { name: "Mãos" })).toHaveAttribute("aria-pressed", "true");

@@ -1,14 +1,13 @@
 import {
-  type BodyFrame,
-  cameraCover,
   type ControlPoint,
+  cameraCover,
   type Experience,
   type GameHost,
   isFresh,
   mountMovementControls,
 } from "@jojixplay/game-sdk";
 import { render } from "preact";
-import { Run } from "./run";
+import { RULES, Run, type RunFrame } from "./run";
 import { createScene } from "./scene";
 import "./style.css";
 
@@ -16,6 +15,9 @@ import "./style.css";
 const EXIT_HOLD_MS = 2000;
 const UI_INTERVAL_MS = 100;
 const LANES = { "-1": "esquerda", "0": "meio", "1": "direita" } as const;
+/** How long the screen answers a collision, and the return of hearts. */
+const HIT_FLASH_MS = 500;
+const REFILL_NOTE_MS = 2200;
 
 function Prompt({ run, state }: { run: Run; state: "loading" | "failed" | "ready" }) {
   if (state === "failed")
@@ -63,9 +65,30 @@ function RaceUI({
   state: "loading" | "failed" | "ready";
   onExit: () => void;
 }) {
+  const percent = (share: number | null) => (share === null ? "–" : `${Math.round(share * 100)}%`);
   const puppet = run.phase === "running" ? run.puppet : null;
+  const now = performance.now();
+  const hit = now - run.hitAt < HIT_FLASH_MS;
   return (
-    <div class="race-ui">
+    <div class={`race-ui ${hit ? "race-ui--hit" : ""}`}>
+      {puppet ? (
+        <div class="race-tally">
+          <span role="img" aria-label={`${run.hearts} corações`}>
+            {Array.from({ length: RULES.hearts }, (_, index) => (
+              <b class={index < run.hearts ? "" : "race-heart--lost"} aria-hidden="true">
+                ♥
+              </b>
+            ))}
+          </span>
+          <span>{run.points} pontos</span>
+        </div>
+      ) : null}
+      {now - run.refilledAt < REFILL_NOTE_MS ? (
+        // What losing every heart should cost is undecided; for now they simply come back.
+        <p class="race-note" role="status">
+          Corações de volta!
+        </p>
+      ) : null}
       <Prompt run={run} state={state} />
       <button class="race-back" type="button" data-dwell-ms={EXIT_HOLD_MS} onClick={onExit}>
         Voltar
@@ -74,7 +97,14 @@ function RaceUI({
         // For tuning on the phone: what the game currently reads from the player.
         <p class="race-reading">
           faixa {LANES[puppet.lane]} · agachado {Math.round(puppet.crouch * 100)}%
-          {puppet.ducked ? " ✓" : ""}
+          {puppet.ducked ? " ✓" : ""} · pulo {Math.round(puppet.rise * 100)}%
+          {puppet.jumping ? " ✓" : ""} · soco E {percent(puppet.reach.left)} D{" "}
+          {percent(puppet.reach.right)}
+          {puppet.lastPunch
+            ? ` · último ${puppet.lastPunch.side === "left" ? "E" : "D"} +${Math.round(
+                puppet.lastPunch.rise * 100,
+              )}% em ${Math.round(puppet.lastPunch.ms)} ms`
+            : ""}
         </p>
       ) : null}
     </div>
@@ -82,10 +112,11 @@ function RaceUI({
 }
 
 /**
- * Corrida, rebuilt from the feel outwards: a character seen from behind copies the player's arms,
- * lean and crouch and moves across the road as they step. There is no course yet.
+ * Corrida, rebuilt from the feel outwards: the road seen through the eyes of a character that
+ * steps, crouches, jumps and holds its arms as the player does, past every kind of obstacle in
+ * random order. The shape of a whole run is not decided yet.
  */
-export function mountCorrida(container: HTMLElement, host: GameHost): Experience {
+export function mountCorrida(container: HTMLElement, host: GameHost): Experience<RunFrame> {
   const root = document.createElement("section");
   root.className = "race-game";
   root.setAttribute("aria-label", "Corrida dos Blocos");
@@ -103,8 +134,8 @@ export function mountCorrida(container: HTMLElement, host: GameHost): Experience
     throw error;
   }
 
-  const run = new Run();
-  let frame: BodyFrame | null = null;
+  const run = new Run(Math.floor(Math.random() * 2 ** 31));
+  let frame: RunFrame | null = null;
   let state: "loading" | "failed" | "ready" = "loading";
   let disposed = false;
   let request = 0;

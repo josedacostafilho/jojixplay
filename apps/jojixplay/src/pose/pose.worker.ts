@@ -55,12 +55,20 @@ function fail(message: string, cause: unknown): void {
 
 function upright(
   landmarks: ReadonlyArray<{ x: number; y: number; z: number; visibility?: number }>,
+  world: ReadonlyArray<{ x: number; y: number; z: number }>,
   rotation: CameraRotation,
 ): DetectedPose {
   return {
     landmarks: landmarks.map((landmark) => {
       const point = rotateNormalizedPoint(landmark, rotation);
       return { x: point.x, y: point.y, z: landmark.z, visibility: landmark.visibility ?? 0 };
+    }),
+    // World landmarks are taken to lie on the same axes as the image ones, as MediaPipe projects
+    // both back to the image it was given. They are directions from the hips, so they turn with
+    // the image without its shift.
+    world: world.map((point) => {
+      const turned = rotateNormalizedPoint({ x: point.x + 0.5, y: point.y + 0.5 }, rotation);
+      return { x: turned.x - 0.5, y: turned.y - 0.5, z: point.z };
     }),
   };
 }
@@ -173,7 +181,9 @@ async function createPose(
     landmarker.detectForVideo(frame, capturedAtMs, { rotationDegrees: rotation }, (result) => {
       const poses = result.landmarks
         .slice(0, poseLimit)
-        .map((landmarks) => upright(landmarks, rotation));
+        .map((landmarks, index) =>
+          upright(landmarks, result.worldLandmarks[index] ?? [], rotation),
+        );
       observed = withSilhouette
         ? { poses, silhouette: silhouetteGrid(result.segmentationMasks ?? [], rotation) }
         : { poses };

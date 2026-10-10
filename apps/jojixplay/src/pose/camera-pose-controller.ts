@@ -19,6 +19,28 @@ interface CameraPoseControllerOptions {
   onError: (message: string) => void;
 }
 
+/** One of the phone's cameras, by the browser's own id and name for it. */
+export interface CameraLens {
+  readonly id: string;
+  readonly label: string;
+}
+
+function videoConstraints(lens: string | null): MediaTrackConstraints {
+  return {
+    // Without a chosen lens, the browser's own front camera.
+    ...(lens === null ? { facingMode: { ideal: "user" } } : { deviceId: { exact: lens } }),
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 30 },
+  };
+}
+
+function release(stream: MediaStream | null): void {
+  for (const track of stream?.getTracks() ?? []) {
+    track.stop();
+  }
+}
+
 interface PendingFrameNormalization {
   normalization: CameraFrameNormalization;
   observedAtMs: number;
@@ -77,7 +99,76 @@ export class CameraPoseController {
     this.poseLimit = options.initialPoseLimit;
   }
 
-  public async start(): Promise<void> {
+  /** Every camera the browser offers. Names are given only once camera access is. */
+  public async lenses(): Promise<CameraLens[]> {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices
+      .filter((device) => device.kind === "videoinput" && device.deviceId !== "")
+      .map((device) => ({ id: device.deviceId, label: device.label }));
+  }
+
+  /** The camera now open. */
+  public lensId(): string | null {
+    return this.stream?.getVideoTracks()[0]?.getSettings().deviceId ?? null;
+  }
+
+  /**
+   * Opens another camera in place of the one in use. If it cannot be opened the previous one
+   * comes back and the session carries on; if neither can, the session ends.
+   */
+  public async setLens(id: string): Promise<void> {
+    if (!this.active) {
+      throw new Error("O reconhecimento de movimentos não está ativo.");
+    }
+    if (this.reconfiguring) {
+      throw new Error("Outra mudança já está em andamento.");
+    }
+    const previous = this.lensId();
+    if (id === previous) {
+      return;
+    }
+
+    this.reconfiguring = true;
+    let refused = false;
+    try {
+      await this.processingPromise;
+      // A phone opens one camera at a time: the one in use must let go first.
+      release(this.stream);
+      this.stream = null;
+      const open = (lens: string | null) =>
+        navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints(lens) });
+      let stream: MediaStream;
+      try {
+        stream = await open(id);
+      } catch {
+        refused = true;
+        stream = await open(previous);
+      }
+      if (!this.active) {
+        release(stream);
+        throw new Error("O reconhecimento parou antes da mudança de câmera.");
+      }
+      this.stream = stream;
+      this.options.video.srcObject = stream;
+      await this.options.video.play();
+      // What another camera saw must not be read as this one's.
+      this.advanceEpoch();
+    } catch {
+      if (this.active) {
+        this.options.onError("Não foi possível trocar de câmera. Tente novamente.");
+        this.stop();
+      }
+      throw new Error("Não foi possível trocar de câmera.");
+    } finally {
+      this.reconfiguring = false;
+    }
+    if (refused) {
+      throw new Error("Essa câmera não pôde ser aberta.");
+    }
+  }
+
+  /** `preferredLens` is the name of the camera to open, when the browser already tells names. */
+  public async start(preferredLens: string | null = null): Promise<void> {
     if (this.active) {
       return;
     }
@@ -88,24 +179,12 @@ export class CameraPoseController {
     this.options.onCameraFrame(null);
 
     try {
-      const streamPromise = navigator.mediaDevices
-        .getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "user" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30, max: 30 },
-          },
-        })
-        .then((stream) => {
-          if (!this.active) {
-            for (const track of stream.getTracks()) {
-              track.stop();
-            }
-          }
-          return stream;
-        });
+      const streamPromise = this.open(preferredLens).then((stream) => {
+        if (!this.active) {
+          release(stream);
+        }
+        return stream;
+      });
       const [stream] = await Promise.all([streamPromise, this.initializeEstimator()]);
 
       if (!this.active) {
@@ -188,15 +267,7 @@ export class CameraPoseController {
         throw new Error("O reconhecimento parou antes da mudança.");
       }
       // What the previous model saw must not be read as the new model's output.
-      if (this.activeNormalization !== null) {
-        this.commitFrameNormalization({
-          ...this.activeNormalization,
-          frame: {
-            ...this.activeNormalization.frame,
-            epoch: this.activeNormalization.frame.epoch + 1,
-          },
-        });
-      }
+      this.advanceEpoch();
     } catch {
       if (this.active) {
         this.options.onError("Não foi possível mudar o reconhecimento. Tente novamente.");
@@ -206,6 +277,43 @@ export class CameraPoseController {
     } finally {
       this.reconfiguring = false;
     }
+  }
+
+  /**
+   * The remembered camera when the browser will say which one that is, which it does only where
+   * camera access was granted before; otherwise, or if it will not open, the front camera.
+   */
+  private async open(preferredLens: string | null): Promise<MediaStream> {
+    const front = () =>
+      navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints(null) });
+    if (preferredLens === null) {
+      return front();
+    }
+    const known = (await this.lenses()).find((lens) => lens.label === preferredLens);
+    if (!known) {
+      return front();
+    }
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: videoConstraints(known.id),
+      });
+    } catch {
+      return front();
+    }
+  }
+
+  private advanceEpoch(): void {
+    if (this.activeNormalization === null) {
+      return;
+    }
+    this.commitFrameNormalization({
+      ...this.activeNormalization,
+      frame: {
+        ...this.activeNormalization.frame,
+        epoch: this.activeNormalization.frame.epoch + 1,
+      },
+    });
   }
 
   public stop(): void {

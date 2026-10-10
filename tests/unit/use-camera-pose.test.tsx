@@ -67,12 +67,16 @@ describe("shared camera pose lifecycle", () => {
     estimator.resetTracking.mockReset().mockResolvedValue(undefined);
     estimator.close.mockReset();
     trackStop.mockReset();
+    const track = { stop: trackStop, getSettings: () => ({ deviceId: "front" }) };
     getUserMedia.mockReset().mockResolvedValue({
-      getTracks: () => [{ stop: trackStop }],
+      getTracks: () => [track],
+      getVideoTracks: () => [track],
     } as unknown as MediaStream);
     frameClose.mockReset();
     frameCallbacks = [];
-    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+    vi.stubGlobal("navigator", {
+      mediaDevices: { getUserMedia, enumerateDevices: async () => [] },
+    });
     vi.stubGlobal("screen", {
       orientation: { type: "landscape-primary", angle: 0 },
     });

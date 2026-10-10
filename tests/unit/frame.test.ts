@@ -1,7 +1,7 @@
-import { expect, it } from "vitest";
 import { isFresh } from "@jojixplay/game-sdk";
-import { toFrame } from "../../apps/jojixplay/src/pose/frame";
+import { expect, it } from "vitest";
 import type { PosePacket } from "../../apps/jojixplay/src/domain/pose";
+import { toFrame } from "../../apps/jojixplay/src/pose/frame";
 
 function upperBody(): PosePacket {
   return {
@@ -16,6 +16,7 @@ function upperBody(): PosePacket {
           z: 0,
           visibility: i >= 11 && i <= 16 ? 1 : 0,
         })),
+        world: Array.from({ length: 33 }, (_, i) => ({ x: i / 100, y: -0.5, z: -0.2 })),
       },
     ],
   };
@@ -38,6 +39,16 @@ it("removes only low-confidence or out-of-frame joints, not their neighbours", (
   expect(body?.leftWrist).toBeUndefined();
   expect(body?.rightWrist).toBeUndefined();
   expect(body?.leftElbow).toBeDefined();
+});
+it("reports each seen joint in the person's own space too, and no joint the picture lacks", () => {
+  const packet = upperBody();
+  const pose = packet.poses[0];
+  if (!pose) throw new Error("Missing pose");
+  pose.landmarks[16] = { x: 1.2, y: 0.3, z: 0, visibility: 1 };
+  const frame = toFrame(packet, "body");
+  expect(frame.worldBodies[0]?.leftWrist).toEqual({ x: 0.15, y: -0.5, z: -0.2, confidence: 1 });
+  expect(Object.keys(frame.worldBodies[0] ?? {})).toEqual(Object.keys(frame.bodies[0] ?? {}));
+  expect(frame.worldBodies[0]?.rightWrist).toBeUndefined();
 });
 it("expires input from capture time and rejects future timestamps", () => {
   const frame = toFrame(upperBody(), "body");

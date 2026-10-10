@@ -38,6 +38,20 @@ export const jointNames = [
 export type JointName = (typeof jointNames)[number];
 export type Body = Readonly<Partial<Record<JointName, Joint>>>;
 
+/**
+ * Where a joint is in the person's own space: metres from the midpoint of their hips, whatever
+ * their place in the camera image or distance from it. Axes follow the unmirrored camera image:
+ * x towards its right, y downwards, z away from the camera. It says how the body is held, never
+ * where it is. Depth is the model's estimate from one camera and is the least steady axis.
+ */
+export interface WorldJoint {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly confidence: number;
+}
+export type WorldBody = Readonly<Partial<Record<JointName, WorldJoint>>>;
+
 /** Unmirrored normalized camera coordinates. A detected hand always has every point; one may lie outside the frame. */
 export interface HandPoint {
   readonly x: number;
@@ -111,6 +125,14 @@ export interface BodyFrame extends Observation {
   readonly bodies: readonly Body[];
 }
 
+export interface WorldFrame extends Observation {
+  /**
+   * The same people as `bodies`, in the same order and with the same joints present, each in
+   * their own space. Empty unless the host is sensing bodies.
+   */
+  readonly worldBodies: readonly WorldBody[];
+}
+
 export interface HandFrame extends Observation {
   /** Observations, not stable identities. Empty unless the host is sensing hands. */
   readonly hands: readonly Hand[];
@@ -125,7 +147,7 @@ export interface SilhouetteFrame extends Observation {
 }
 
 /** Everything the host sensed in one camera image. A game types its input by the part it reads. */
-export interface Frame extends BodyFrame, HandFrame, SilhouetteFrame {
+export interface Frame extends BodyFrame, WorldFrame, HandFrame, SilhouetteFrame {
   readonly sensing: Sensing;
 }
 

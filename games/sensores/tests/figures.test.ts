@@ -1,6 +1,6 @@
 import { type Frame, type Hand, type HandPointName, handPointNames } from "@jojixplay/game-sdk";
 import { expect, it } from "vitest";
-import { coverage, figures, pointers, silhouettePointer } from "../src/figures";
+import { coverage, figures, pointers, silhouettePointer, worldFigures } from "../src/figures";
 
 const cover = { left: -100, top: 0, width: 1000, height: 500 };
 /** Projection is floating point; the expectations are whole pixels. */
@@ -19,6 +19,7 @@ function frame(input: Partial<Frame>): Frame {
     epoch: 0,
     sensing: "body",
     bodies: [],
+    worldBodies: [],
     hands: [],
     silhouette: null,
     ...input,
@@ -144,4 +145,43 @@ it("keeps the pointer off every button until enough of one is covered", () => {
     x: -1,
     y: -1,
   });
+});
+
+it("draws a body in its own space from the front, the side and above, on one scale", () => {
+  const at = (x: number, y: number, z: number) => ({ x, y, z, confidence: 1 });
+  // The person's left shoulder: to the camera image's right, above the hips. Their left wrist
+  // is held half a metre in front of them.
+  const drawn = whole(
+    worldFigures(
+      frame({
+        worldBodies: [{ leftShoulder: at(0.19, -0.57, 0), leftWrist: at(0.19, -0.57, -0.5) }],
+      }),
+      { left: 60, width: 1200, height: 475 },
+    ),
+  );
+  // Three views 380 px wide beside the buttons, 200 px to the metre, hips at 266 px down.
+  const [front, side, above] = [0, 1, 2].map((view) => drawn.dots.slice(view * 2, view * 2 + 2));
+  // From the front the two coincide, mirrored like the camera image: depth cannot be seen.
+  expect(front).toEqual([
+    { x: 212, y: 152, side: "left" },
+    { x: 212, y: 152, side: "left" },
+  ]);
+  // From the side the wrist is nearer the camera, which is to the left.
+  expect(side).toEqual([
+    { x: 630, y: 152, side: "left" },
+    { x: 530, y: 152, side: "left" },
+  ]);
+  // From above the wrist is nearer the camera, which is below.
+  expect(above).toEqual([
+    { x: 972, y: 266, side: "left" },
+    { x: 972, y: 366, side: "left" },
+  ]);
+  // No bone joins a shoulder to a wrist without the elbow.
+  expect(drawn.segments).toEqual([]);
+  expect(drawn.labels.map((label) => label.text)).toEqual([
+    "De frente",
+    "De lado · câmera à esquerda",
+    "De cima · câmera embaixo",
+    "50 cm",
+  ]);
 });

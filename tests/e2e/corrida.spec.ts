@@ -4,9 +4,10 @@ for (const viewport of [
   { width: 844, height: 390 },
   { width: 667, height: 320 },
 ]) {
-  test(`Corrida studio: the character starts where the player stands and follows steps, crouches and losses at ${viewport.width}px`, async ({
+  test(`Corrida studio: the character starts where the player stands and follows steps, crouches, jumps, punches and losses at ${viewport.width}px`, async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -40,16 +41,28 @@ for (const viewport of [
     await expect(reading).toContainText("✓");
     await page.locator("#crouch").uncheck();
     await expect(reading).not.toContainText("✓");
+    await page.locator("#jump").check();
+    await expect(reading).toContainText(/pulo \d+% ✓/);
+    await page.locator("#jump").uncheck();
+    await expect(reading).toContainText("pulo 0%");
+    // An arm thrown out at the camera is a punch by that arm.
+    await page.locator("#punch").selectOption("right");
+    await expect(reading).toContainText(/último D \+\d+% em \d+ ms/);
+    await page.locator("#punch").selectOption("none");
+    await expect(reading).not.toContainText("✓");
     // Leaning the torso is not a step.
-    await page.locator("#lean").check();
+    await page.locator("#lean").selectOption("1");
     await expect(reading).toContainText("faixa meio");
-    await page.locator("#lean").uncheck();
+    await page.locator("#lean").selectOption("0");
 
     await page.locator("#lost").check();
     await expect(prompt).toContainText("Cadê você?");
     await page.locator("#lost").uncheck();
     await expect(prompt).toHaveCount(0);
     await expect(reading).toContainText("faixa meio");
+
+    // Standing still in the middle, something soon runs into the character and costs a heart.
+    await expect(page.locator(".race-heart--lost").first()).toBeVisible({ timeout: 40_000 });
 
     // The one button is not smaller than a hand can hold from across the room.
     const back = await page.getByRole("button", { name: "Voltar" }).boundingBox();

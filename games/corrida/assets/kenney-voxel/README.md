@@ -6,12 +6,13 @@ Source: https://kenney.nl/assets/voxel-pack (version 1.0, retrieved 2026-09-25).
 Original archive: https://kenney.nl/media/pages/assets/voxel-pack/a3a73d0ff7-1677662501/kenney_voxel-pack.zip
 Archive SHA-256: `667c05e3f6d95718aaef888c7fc06f7137ba5dede95f4574deb17d4436257958`.
 
-These five 128×128 PNGs are copied unchanged from the archive's `PNG/Tiles/` directory. No archive, unused tiles, sample scenes or vector editing sources are shipped.
+These six 128×128 PNGs are copied unchanged from the archive's `PNG/Tiles/` directory. Combined size: 20,747 bytes. No archive, unused tiles, sample scenes or vector editing sources are shipped.
 
 | File | Use |
 | --- | --- |
-| trunk_side.png | Tree bark |
-| leaves.png | Tree canopies |
+| trunk_side.png | Tree bark and logs |
+| wood.png | Blocks and beams |
+| leaves.png | Tree canopies and bushes |
 | grass_top.png | Ground and bank tops |
 | dirt_grass.png | Bank sides |
 | sand.png | Moving path |

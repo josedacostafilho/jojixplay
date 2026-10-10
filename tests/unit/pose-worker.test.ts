@@ -104,7 +104,10 @@ describe("pose worker player limit", () => {
         _frame: ImageBitmap,
         _capturedAtMs: number,
         _options: { rotationDegrees: number },
-        callback: (result: { landmarks: Array<Array<Record<string, number>>> }) => void,
+        callback: (result: {
+          landmarks: Array<Array<Record<string, number>>>;
+          worldLandmarks: Array<Array<Record<string, number>>>;
+        }) => void,
       ) => {
         callback({
           landmarks: [
@@ -115,6 +118,7 @@ describe("pose worker player limit", () => {
               visibility: 0.8,
             })),
           ],
+          worldLandmarks: [Array.from({ length: 33 }, () => ({ x: 0.1, y: 0.2, z: -0.3 }))],
         });
       },
     );
@@ -171,6 +175,10 @@ describe("pose worker player limit", () => {
         poses: [
           {
             landmarks: expect.arrayContaining([{ x: 0.7, y: 0.2, z: -0.4, visibility: 0.8 }]),
+            // A direction from the hips turns with the image and is not shifted with it.
+            world: expect.arrayContaining([
+              { x: expect.closeTo(-0.2), y: expect.closeTo(0.1), z: -0.3 },
+            ]),
           },
         ],
       }),
@@ -305,6 +313,7 @@ describe("pose worker player limit", () => {
     mediaPipe.detectForVideo.mockImplementation((_frame, _time, _options, callback) => {
       callback({
         landmarks: [Array.from({ length: 33 }, () => ({ x: 0.2, y: 0.3, z: 0, visibility: 1 }))],
+        worldLandmarks: [Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }))],
         segmentationMasks: [gpuMask([255, 0]), gpuMask([0, 128])],
       });
     });

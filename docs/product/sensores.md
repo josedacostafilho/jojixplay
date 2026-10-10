@@ -12,6 +12,7 @@ The owner's bench for looking at what the phone senses, with no game rules in th
 Whatever the host is sensing, drawn over the whole screen exactly where the mirrored camera image shows it:
 
 - **Corpo**: every sensed joint as a dot and the bones between joints that are both present. A missing joint removes only its own bones.
+- **Corpo 3D**: the same body in its own space, which says how it is held and not where it is: three views side by side on one scale, from the front, from the side with the camera to the left, and from above with the camera below. The hips' midpoint is the middle of each. A number at each wrist in the view from above says how many centimetres it is in front of the hips. Depth is the axis to watch for trembling; the front view should look like **Corpo** without its position.
 - **Mãos**: both hands, 21 points and every finger each, with **Esquerda** or **Direita** under the wrist.
 - **Silhueta**: everyone in view as one shape. With the camera image showing, the shape is a yellow tint over the person. With **Ver fundo**, only the person's own live camera pixels show, on the plain background. The silhouette is the pose model's own mask, so the joints are drawn with it.
 - **Corpo + silhueta**: a disabled placeholder. Nothing is built behind it.
@@ -28,4 +29,4 @@ Leaving returns the host to body sensing for the menu.
 
 ## Standalone studio
 
-`npm run dev:sense` runs the bench without a camera: a synthetic person, or two synthetic hands, with the right hand following the pointer.
+`npm run dev:sense` runs the bench without a camera: a synthetic person, or two synthetic hands, with the right hand following the pointer. In **Corpo 3D** the synthetic person's right arm reaches a fixed distance forward.

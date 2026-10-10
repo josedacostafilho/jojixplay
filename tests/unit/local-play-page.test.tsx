@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { lensNames } from "../../apps/jojixplay/src/components/lens-step";
 import { LocalPlayPage } from "../../apps/jojixplay/src/pages/local-play-page";
 import { FrameChannel } from "../../apps/jojixplay/src/pose/frame-source";
 import type { CameraPoseLifecycle } from "../../apps/jojixplay/src/pose/use-camera-pose";
@@ -10,8 +11,16 @@ const mocks = vi.hoisted(() => ({
   immersiveStop: vi.fn(),
   setPoseLimit: vi.fn(),
   setSensing: vi.fn(),
+  setLens: vi.fn(),
 }));
 let camera: CameraPoseLifecycle;
+/** Mounts the page and, when the camera is already on, takes the adult's last touch step. */
+function open() {
+  const view = render(<LocalPlayPage />);
+  const done = screen.queryByRole("button", { name: "Começar" });
+  if (done) fireEvent.click(done);
+  return view;
+}
 vi.mock("../../apps/jojixplay/src/pose/use-camera-pose", () => ({ useCameraPose: () => camera }));
 vi.mock("../../apps/jojixplay/src/components/game-view", () => ({
   GameView: ({
@@ -71,6 +80,13 @@ beforeEach(() => {
     stop: mocks.stop,
     setPoseLimit: mocks.setPoseLimit.mockResolvedValue(undefined),
     setSensing: mocks.setSensing.mockResolvedValue(undefined),
+    lenses: [
+      { id: "a", label: "camera 1, facing front" },
+      { id: "b", label: "camera 2, facing back" },
+      { id: "c", label: "camera 0, facing back" },
+    ],
+    lensId: "a",
+    setLens: mocks.setLens.mockReset().mockResolvedValue(undefined),
   };
 });
 afterEach(() => {
@@ -79,7 +95,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 it("requires touch to start, states the camera privacy and cleans up on unmount", async () => {
-  const view = render(<LocalPlayPage />);
+  const view = open();
   expect(mocks.start).not.toHaveBeenCalled();
   expect(screen.getByText(/Nada é gravado nem enviado/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Ligar a câmera" }));
@@ -92,7 +108,7 @@ it("requires touch to start, states the camera privacy and cleans up on unmount"
 it("reports a rejected player-mode change and retains the applied setting", async () => {
   camera = { ...camera, state: "tracking" };
   mocks.setPoseLimit.mockRejectedValue(new Error("Camera stopped"));
-  render(<LocalPlayPage />);
+  open();
   fireEvent.click(screen.getByRole("button", { name: "Jogar Desenhar" }));
   fireEvent.click(screen.getByRole("button", { name: "2 pessoas" }));
   await act(async () => {});
@@ -101,7 +117,7 @@ it("reports a rejected player-mode change and retains the applied setting", asyn
 });
 
 it("cancels startup and releases the camera and immersive state", () => {
-  const view = render(<LocalPlayPage />);
+  const view = open();
   fireEvent.click(screen.getByRole("button", { name: "Ligar a câmera" }));
   camera = { ...camera, state: "starting" };
   view.rerender(<LocalPlayPage />);
@@ -111,7 +127,7 @@ it("cancels startup and releases the camera and immersive state", () => {
 });
 
 it("releases immersive state when the camera fails", () => {
-  const view = render(<LocalPlayPage />);
+  const view = open();
   fireEvent.click(screen.getByRole("button", { name: "Ligar a câmera" }));
   expect(mocks.immersiveStop).not.toHaveBeenCalled();
   camera = { ...camera, state: "error", errorMessage: "O acesso à câmera foi negado." };
@@ -122,7 +138,7 @@ it("releases immersive state when the camera fails", () => {
 
 it("returns to the menu when a game exits, and reports a game that cannot open", async () => {
   camera = { ...camera, state: "tracking" };
-  render(<LocalPlayPage />);
+  open();
   fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
   fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   await act(async () => {});
@@ -147,7 +163,7 @@ it("enters solo directly and waits for two-person inference before opening a duo
         apply = resolve;
       }),
   );
-  const view = render(<LocalPlayPage />);
+  const view = open();
   fireEvent.click(screen.getByRole("button", { name: "Jogar Desenhar" }));
   fireEvent.click(screen.getByRole("button", { name: "2 pessoas" }));
   expect(mocks.setPoseLimit).toHaveBeenCalledWith(2);
@@ -160,7 +176,7 @@ it("enters solo directly and waits for two-person inference before opening a duo
   expect(screen.getByTestId("drawing")).toHaveTextContent("2 pessoas");
   view.unmount();
   camera = { ...camera, poseLimit: 1 };
-  render(<LocalPlayPage />);
+  open();
   fireEvent.click(screen.getByRole("button", { name: "Jogar Desenhar" }));
   fireEvent.click(screen.getByRole("button", { name: "1 pessoa" }));
   await act(async () => {});
@@ -176,7 +192,7 @@ it("waits for single-person inference before mounting Corrida after duo play", a
         apply = resolve;
       }),
   );
-  const view = render(<LocalPlayPage />);
+  const view = open();
   fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
   fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   expect(mocks.setPoseLimit).toHaveBeenCalledWith(1);
@@ -201,7 +217,7 @@ it("does not mount a pending race after capture fails", async () => {
         apply = resolve;
       }),
   );
-  const view = render(<LocalPlayPage />);
+  const view = open();
   fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
   fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
   camera = { ...camera, state: "error" };
@@ -212,13 +228,15 @@ it("does not mount a pending race after capture fails", async () => {
   camera = { ...camera, state: "tracking", poseLimit: 1 };
   view.rerender(<LocalPlayPage />);
   expect(screen.queryByTestId("racing")).not.toBeInTheDocument();
+  // A new session begins with the adult's touch step again.
+  fireEvent.click(screen.getByRole("button", { name: "Começar" }));
   expect(screen.getByRole("button", { name: "Jogar Desenhar" })).toBeVisible();
 });
 
 it("gives a game the sensing and camera image it asks for, and the menu its bodies back", async () => {
   camera = { ...camera, state: "tracking" };
   let restore: () => void = () => {};
-  const view = render(<LocalPlayPage />);
+  const view = open();
   const backdrop = () => view.container.querySelector(".camera-backdrop--visible");
   fireEvent.click(screen.getByRole("button", { name: "Próximo jogo" }));
   fireEvent.click(screen.getByRole("button", { name: "Jogar Corrida dos Blocos" }));
@@ -258,7 +276,7 @@ it("gives a game the sensing and camera image it asks for, and the menu its bodi
 
 it("ends the session the moment the page is hidden, and only then", () => {
   camera = { ...camera, state: "tracking" };
-  render(<LocalPlayPage />);
+  open();
   const visibility = vi.spyOn(document, "visibilityState", "get");
 
   visibility.mockReturnValue("visible");
@@ -269,4 +287,43 @@ it("ends the session the moment the page is hidden, and only then", () => {
   document.dispatchEvent(new Event("visibilitychange"));
   expect(mocks.stop).toHaveBeenCalledOnce();
   expect(mocks.immersiveStop).toHaveBeenCalled();
+});
+
+it("lets the adult try each camera by touch before the menu appears, and says when one will not open", async () => {
+  camera = { ...camera, state: "tracking" };
+  render(<LocalPlayPage />);
+  // Nothing is operated by movement until the adult is done.
+  expect(screen.queryByRole("button", { name: "Jogar Desenhar" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Frente 1" })).toHaveAttribute("aria-pressed", "true");
+
+  fireEvent.click(screen.getByRole("button", { name: "Trás 1" }));
+  expect(mocks.setLens).toHaveBeenCalledWith({ id: "b", label: "camera 2, facing back" });
+  await act(async () => {});
+
+  mocks.setLens.mockRejectedValueOnce(new Error("refused"));
+  fireEvent.click(screen.getByRole("button", { name: "Trás 2" }));
+  await act(async () => {});
+  expect(screen.getByRole("alert")).toHaveTextContent("Essa câmera não pôde ser aberta");
+
+  fireEvent.click(screen.getByRole("button", { name: "Começar" }));
+  expect(screen.getByRole("button", { name: "Jogar Desenhar" })).toBeEnabled();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("names cameras by side and order, since phones do not say how wide each one sees", () => {
+  const named = (labels: string[]) =>
+    lensNames(labels.map((label, id) => ({ id: `${id}`, label })));
+  expect(
+    named([
+      "camera 1, facing front",
+      "camera 3, facing front",
+      "camera 2, facing back",
+      "camera 0, facing back",
+    ]),
+  ).toEqual(["Frente 1", "Frente 2", "Trás 1", "Trás 2"]);
+  expect(named(["Back Ultra Wide Camera", "FaceTime HD", ""])).toEqual([
+    "Trás 1",
+    "Câmera 1",
+    "Câmera 2",
+  ]);
 });

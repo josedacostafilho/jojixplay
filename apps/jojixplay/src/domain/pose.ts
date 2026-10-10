@@ -10,8 +10,17 @@ export interface PoseLandmark {
   visibility: number;
 }
 
+/** Metres from the midpoint of the hips, on the upright camera image's axes. */
+export interface WorldPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface DetectedPose {
   landmarks: PoseLandmark[];
+  /** The same landmarks, in the same order, in the person's own space. */
+  world: WorldPoint[];
 }
 
 export interface PosePacket {
@@ -24,7 +33,8 @@ export interface PosePacket {
 export type PosePacketParseResult = { ok: true; value: PosePacket } | { ok: false; error: string };
 
 const POSE_PACKET_KEYS = ["sequence", "capturedAtMs", "frame", "poses"];
-const POSE_KEYS = ["landmarks"];
+const POSE_KEYS = ["landmarks", "world"];
+const WORLD_KEYS = ["x", "y", "z"];
 const LANDMARK_KEYS = ["x", "y", "z", "visibility"];
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,7 +83,9 @@ export function parsePosePacket(value: unknown): PosePacketParseResult {
       !isRecord(pose) ||
       !hasExactKeys(pose, POSE_KEYS) ||
       !Array.isArray(pose.landmarks) ||
-      pose.landmarks.length !== LANDMARKS_PER_POSE
+      pose.landmarks.length !== LANDMARKS_PER_POSE ||
+      !Array.isArray(pose.world) ||
+      pose.world.length !== LANDMARKS_PER_POSE
     ) {
       return { ok: false, error: "Pose packet landmarks are invalid." };
     }
@@ -101,7 +113,21 @@ export function parsePosePacket(value: unknown): PosePacketParseResult {
       });
     }
 
-    poses.push({ landmarks });
+    const world: WorldPoint[] = [];
+    for (const point of pose.world) {
+      if (
+        !isRecord(point) ||
+        !hasExactKeys(point, WORLD_KEYS) ||
+        !isFiniteNumber(point.x) ||
+        !isFiniteNumber(point.y) ||
+        !isFiniteNumber(point.z)
+      ) {
+        return { ok: false, error: "Pose packet contains an invalid world landmark." };
+      }
+      world.push({ x: point.x, y: point.y, z: point.z });
+    }
+
+    poses.push({ landmarks, world });
   }
 
   return {

@@ -7,10 +7,11 @@ import {
   handPointNames,
   type JointName,
   type Sensing,
+  type WorldBody,
 } from "@jojixplay/game-sdk";
 import type { DetectedHand } from "../domain/hands";
-import type { SensedPacket } from "../domain/sensed-packet";
 import type { DetectedPose } from "../domain/pose";
+import type { SensedPacket } from "../domain/sensed-packet";
 
 const jointIndices: ReadonlyArray<readonly [JointName, number]> = [
   ["nose", 0],
@@ -42,20 +43,38 @@ const jointIndices: ReadonlyArray<readonly [JointName, number]> = [
   ["rightFoot", 32],
 ];
 
-function toBody({ landmarks }: DetectedPose): Body {
+/** The joints sure enough, and inside the picture, to be reported at all. */
+function seen({ landmarks }: DetectedPose) {
+  return jointIndices.flatMap(([name, index]) => {
+    const point = landmarks[index];
+    if (
+      !point ||
+      point.visibility < 0.6 ||
+      point.x < 0 ||
+      point.x > 1 ||
+      point.y < 0 ||
+      point.y > 1
+    )
+      return [];
+    return [{ name, index, point }];
+  });
+}
+
+function toBody(pose: DetectedPose): Body {
   return Object.fromEntries(
-    jointIndices.flatMap(([name, index]) => {
-      const point = landmarks[index];
-      if (
-        !point ||
-        point.visibility < 0.6 ||
-        point.x < 0 ||
-        point.x > 1 ||
-        point.y < 0 ||
-        point.y > 1
-      )
-        return [];
-      return [[name, { x: point.x, y: point.y, z: point.z, confidence: point.visibility }]];
+    seen(pose).map(({ name, point }) => [
+      name,
+      { x: point.x, y: point.y, z: point.z, confidence: point.visibility },
+    ]),
+  );
+}
+
+/** A joint the picture does not show is not reported in the person's own space either. */
+function toWorldBody(pose: DetectedPose): WorldBody {
+  return Object.fromEntries(
+    seen(pose).flatMap(({ name, index, point }) => {
+      const world = pose.world[index];
+      return world ? [[name, { ...world, confidence: point.visibility }]] : [];
     }),
   );
 }
@@ -82,6 +101,7 @@ export function toFrame(packet: SensedPacket, sensing: Sensing): Frame {
     epoch: packet.frame.epoch,
     sensing,
     bodies: hands ? [] : packet.poses.map(toBody),
+    worldBodies: hands ? [] : packet.poses.map(toWorldBody),
     hands: hands ? packet.hands.map(toHand) : [],
     silhouette: "silhouette" in packet ? packet.silhouette : null,
   };

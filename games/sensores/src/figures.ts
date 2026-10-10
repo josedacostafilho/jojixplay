@@ -116,6 +116,68 @@ export function figures(frame: Frame, cover: Cover): Figures {
   return { segments, dots, labels };
 }
 
+/** How much of a view's width and height a person of about 1.9 m may fill. */
+const WORLD_SPAN = 1.9;
+const WORLD_VIEWS = [
+  { title: "De frente", across: "x", down: "y" },
+  { title: "De lado · câmera à esquerda", across: "z", down: "y" },
+  { title: "De cima · câmera embaixo", across: "x", down: "z" },
+] as const;
+
+/**
+ * Each body in its own space, drawn three times side by side: from the front, from the side and
+ * from above. The last two show depth, which the camera image cannot. The hips' midpoint is the
+ * middle of every view, and all three share one scale.
+ */
+export function worldFigures(
+  frame: Frame,
+  viewport: { readonly left: number; readonly width: number; readonly height: number },
+): Figures {
+  const segments: Array<Figures["segments"][number]> = [];
+  const dots: Array<Figures["dots"][number]> = [];
+  const labels: Array<Figures["labels"][number]> = [];
+  // The views share what is left of the screen beside the bench's own buttons.
+  const panel = (viewport.width - viewport.left) / WORLD_VIEWS.length;
+  const middle = viewport.height * 0.56;
+  const scale = Math.min(panel, viewport.height * 0.8) / WORLD_SPAN;
+
+  WORLD_VIEWS.forEach((view, index) => {
+    const centre = viewport.left + panel * (index + 0.5);
+    labels.push({
+      x: centre,
+      // Above each view, clear of the status line along the bottom.
+      y: middle - (WORLD_SPAN / 2) * scale - 8,
+      side: "center",
+      text: view.title,
+    });
+    const place = (joint: { x: number; y: number; z: number }) => ({
+      // Mirrored like the camera image, so the person's left is on the screen's left. In depth,
+      // nearer the camera is to the left from the side and downwards from above.
+      x: centre + (view.across === "x" ? -joint.x : joint.z) * scale,
+      y: middle + (view.down === "y" ? joint.y : -joint.z) * scale,
+    });
+    for (const body of frame.worldBodies) {
+      for (const [from, to, side] of bodyBones) {
+        const a = body[from];
+        const b = body[to];
+        if (!a || !b) continue;
+        const start = place(a);
+        const end = place(b);
+        segments.push({ x1: start.x, y1: start.y, x2: end.x, y2: end.y, side });
+      }
+      for (const [name, joint] of Object.entries(body))
+        dots.push({ ...place(joint), side: jointSide(name) });
+      if (view.down !== "z") continue;
+      // How far in front of the hips each wrist is: the number to watch for steadiness.
+      for (const side of ["left", "right"] as const) {
+        const wrist = body[`${side}Wrist`];
+        if (wrist) labels.push({ ...place(wrist), side, text: `${Math.round(-wrist.z * 100)} cm` });
+      }
+    }
+  });
+  return { segments, dots, labels };
+}
+
 function bodyPointers(body: Body, cover: Cover): ControlPoint[] {
   return (["left", "right"] as const).flatMap((side) => {
     const joint = body[`${side}Index`] ?? body[`${side}Wrist`];

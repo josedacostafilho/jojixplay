@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePosePacket, type PosePacket } from "../../apps/jojixplay/src/domain/pose";
+import { type PosePacket, parsePosePacket } from "../../apps/jojixplay/src/domain/pose";
 
 function validPacket(): PosePacket {
   return {
@@ -14,6 +14,7 @@ function validPacket(): PosePacket {
           z: -0.1,
           visibility: 0.9,
         })),
+        world: Array.from({ length: 33 }, (_, index) => ({ x: index / 100, y: -0.4, z: 0.1 })),
       },
     ],
   };
@@ -87,6 +88,16 @@ describe("pose packet parser", () => {
     }
     tooMany.poses = [pose, structuredClone(pose), structuredClone(pose)];
     expect(parsePosePacket(tooMany).ok).toBe(false);
+
+    const shortWorld = validPacket();
+    shortWorld.poses[0]?.world.pop();
+    expect(parsePosePacket(shortWorld).ok).toBe(false);
+    const noWorld = validPacket() as unknown as { poses: Array<Record<string, unknown>> };
+    delete noWorld.poses[0]?.world;
+    expect(parsePosePacket(noWorld).ok).toBe(false);
+    const wildWorld = validPacket();
+    Object.assign(wildWorld.poses[0]?.world[3] ?? {}, { z: Number.POSITIVE_INFINITY });
+    expect(parsePosePacket(wildWorld).ok).toBe(false);
 
     const invalidVisibility = validPacket();
     const firstLandmark = invalidVisibility.poses[0]?.landmarks[0];
