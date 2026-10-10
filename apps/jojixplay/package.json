@@ -9,6 +9,6 @@
     "@jojixplay/game-sdk": "*",
     "@jojixplay/sensores": "*",
     "@mediapipe/tasks-vision": "1.0.1",
-    "preact": "10.29.8"
+    "preact": "11.0.0"
   }
 }
