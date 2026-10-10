@@ -23,10 +23,12 @@ export const TUNING = {
   landAt: 0.05,
   /**
    * A punch is a wrist moving forward by `rise` of its arm's own length inside `withinMs`,
-   * wherever it starts from, and ending at least `least` in front of its shoulder. The arm can
-   * punch again once the wrist has come back by `rearm` from the furthest it reached.
+   * wherever it starts from, and ending at least `least` in front of its shoulder with the arm
+   * at least `straight` of its full length from shoulder to wrist. Raising the fists into a guard
+   * moves the wrists forward too, but leaves the elbows bent: that is getting ready, not a punch.
+   * The arm can punch again once the wrist has come back by `rearm` from the furthest it reached.
    */
-  punch: { rise: 0.2, withinMs: 260, least: 0.15, rearm: 0.15 },
+  punch: { rise: 0.2, withinMs: 260, least: 0.15, straight: 0.8, rearm: 0.15 },
   /** How far the torso is taken to lean back and forward, in radians. */
   pitch: { back: -0.3, forward: 0.8 },
   /** A torso the camera cannot measure is taken to be this many shoulder widths long. */
@@ -77,6 +79,11 @@ export interface Puppet {
    * arm the camera cannot see whole.
    */
   readonly reach: { readonly left: number | null; readonly right: number | null };
+  /**
+   * How straight each arm is: the distance from shoulder to wrist as a share of the arm's
+   * length, 1 with the elbow locked. Null for an arm the camera cannot see whole.
+   */
+  readonly straight: { readonly left: number | null; readonly right: number | null };
   /** A punch was thrown in this very reading, by the player's own side. */
   readonly thrown: { readonly left: boolean; readonly right: boolean };
   /** The last punch read: how far the wrist went forward, and in how long. */
@@ -199,7 +206,11 @@ function arm(world: WorldBody, side: "left" | "right"): Arm | null {
   return { upper, lower: elbow && wrist ? towards(elbow, wrist) : null };
 }
 
-function reach(world: WorldBody, side: "left" | "right"): number | null {
+/** How far forward an arm's wrist is and how straight the arm is, both against its own length. */
+function extent(
+  world: WorldBody,
+  side: "left" | "right",
+): { reach: number; straight: number } | null {
   const shoulder = world[`${side}Shoulder`];
   const elbow = world[`${side}Elbow`];
   const wrist = world[`${side}Wrist`];
@@ -207,7 +218,11 @@ function reach(world: WorldBody, side: "left" | "right"): number | null {
   const length =
     Math.hypot(elbow.x - shoulder.x, elbow.y - shoulder.y, elbow.z - shoulder.z) +
     Math.hypot(wrist.x - elbow.x, wrist.y - elbow.y, wrist.z - elbow.z);
-  return length < 0.05 ? null : -(wrist.z - shoulder.z) / length;
+  if (length < 0.05) return null;
+  return {
+    reach: -(wrist.z - shoulder.z) / length,
+    straight: Math.hypot(wrist.x - shoulder.x, wrist.y - shoulder.y, wrist.z - shoulder.z) / length,
+  };
 }
 
 function pitch(world: WorldBody): number {
@@ -242,7 +257,14 @@ export function preview(body: Body, world: WorldBody, aspect: number): Puppet {
     lean: lean(body, aspect),
     pitch: pitch(world),
     arms: { left: arm(world, "left"), right: arm(world, "right") },
-    reach: { left: reach(world, "left"), right: reach(world, "right") },
+    reach: {
+      left: extent(world, "left")?.reach ?? null,
+      right: extent(world, "right")?.reach ?? null,
+    },
+    straight: {
+      left: extent(world, "left")?.straight ?? null,
+      right: extent(world, "right")?.straight ?? null,
+    },
     thrown: { left: false, right: false },
     lastPunch: null,
     nearEdge: false,
@@ -300,10 +322,11 @@ export class PuppetReader {
     const rise = drops.length > 0 ? Math.max(0, -Math.max(...drops) / torso) : 0;
     this.jumping = rise >= (this.jumping ? TUNING.landAt : TUNING.jumpAt);
 
-    const reaches = { left: reach(world, "left"), right: reach(world, "right") };
+    const extents = { left: extent(world, "left"), right: extent(world, "right") };
     const thrown = { left: false, right: false };
     for (const side of ["left", "right"] as const) {
-      const forward = reaches[side];
+      const forward = extents[side]?.reach ?? null;
+      const straight = extents[side]?.straight ?? 0;
       const arm = this.arms[side];
       // An arm the camera cannot see whole tells nothing new.
       if (forward === null || arm.samples.at(-1)?.at === at) continue;
@@ -317,7 +340,12 @@ export class PuppetReader {
         (least, sample) => (sample.reach < least.reach ? sample : least),
         { at, reach: forward },
       );
-      if (arm.ready && forward - from.reach >= TUNING.punch.rise && forward >= TUNING.punch.least) {
+      if (
+        arm.ready &&
+        forward - from.reach >= TUNING.punch.rise &&
+        forward >= TUNING.punch.least &&
+        straight >= TUNING.punch.straight
+      ) {
         thrown[side] = true;
         arm.ready = false;
         arm.furthest = forward;
@@ -338,7 +366,8 @@ export class PuppetReader {
       lean: lean(body, aspect),
       pitch: pitch(world),
       arms: { left: arm(world, "left"), right: arm(world, "right") },
-      reach: reaches,
+      reach: { left: extents.left?.reach ?? null, right: extents.right?.reach ?? null },
+      straight: { left: extents.left?.straight ?? null, right: extents.right?.straight ?? null },
       thrown,
       lastPunch: this.lastPunch,
       nearEdge: seen !== null && (seen < TUNING.viewEdge || seen > 1 - TUNING.viewEdge),

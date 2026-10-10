@@ -21,8 +21,11 @@ import {
   FIGURE,
   figure,
   LOG_HEIGHT,
+  MONSTER,
   POOL_DEPTH,
   RAIL_HEIGHT,
+  SPEED,
+  stretch,
 } from "./world";
 
 /** How long the player must stand in place before the lanes are laid out around them. */
@@ -31,30 +34,42 @@ export const SETTLE_MS = 800;
 const FLICKER_MS = 400;
 /** A player unseen for this long has left; the next run starts from where they stand then. */
 const ABSENCE_MS = 6000;
-/** World units a second. */
-export const SPEED = 7;
+
+/** What kind of run this is. */
+export interface RunOptions {
+  /** How long the road takes to run, from start to finish line. */
+  readonly seconds: number;
+  /** Hearts that run out come back, and the run goes on. Without it, the run is failed. */
+  readonly immortal: boolean;
+}
+/** While the game is being tried out: five minutes, and nothing ends a run early. */
+export const TRIAL: RunOptions = { seconds: 300, immortal: true };
 
 // Phone-tuning parameters.
 export const RULES = {
   hearts: 5,
   /**
-   * Leaving the ground while a log is between `earliest` and `latest` world units ahead carries
-   * the character over it, in an arc that lands `past` it. At this speed that is from about 0.85
-   * to 0.15 seconds before the log arrives. A jump anywhere else is only for fun.
+   * Leaving the ground while a log is between `earliest` and `latest` ahead, from 0.85 to 0.15
+   * seconds before it arrives, carries the character over it in an arc that lands `past` it. A
+   * jump anywhere else is only for fun.
    */
-  jump: { earliest: 6, latest: 1, past: 2, height: 1.1 },
+  jump: { earliest: stretch(0.85), latest: stretch(0.15), past: stretch(0.3), height: 1.1 },
   /**
    * Away from a log the character leaves the ground as far as the player does, a little more
    * for show, and never as high as a log.
    */
   hop: { gain: 1.5, most: 0.4 },
   /**
-   * A punch thrown while a monster is between `earliest` and `latest` world units ahead knocks
-   * it away: from about 1.15 seconds before it arrives until it is upon the character.
+   * A punch thrown while a monster is seen within `reach` of the character knocks it away: near
+   * enough that the fist looks to meet it. It comes fast, so that is about a third of a second.
+   * A monster that has arrived looms over the character for `late` more before it strikes, and
+   * can still be punched then.
    */
-  punch: { earliest: 8, latest: 0.1, points: 10 },
+  punch: { reach: 10, late: stretch(0.12), points: 10 },
+  /** Time itself slows through the last stretch before the finish, to this share of its speed. */
+  slow: { finishFrom: stretch(0.7), finishPace: 0.4 },
   /** How far ahead obstacles are laid, and how far behind they are forgotten. */
-  ahead: 110,
+  ahead: stretch(7),
   behind: 14,
 } as const;
 
@@ -90,11 +105,12 @@ function player(frame: RunFrame): { body: Body; world: WorldBody } | null {
 
 /**
  * One go at the road: waiting for the player to stand in place, then running past whatever
- * comes until they leave. How long a run should be and how it ends are not decided yet, so it
- * does not end: hearts that run out come back.
+ * comes to the finish line, or until the last heart goes. Then it waits to be started again.
  */
 export class Run {
-  public phase: "waiting" | "settling" | "running" = "waiting";
+  public phase: "waiting" | "settling" | "running" | "finished" | "failed" = "waiting";
+  /** Where the finish line is, in world units from the start. */
+  public readonly length: number;
   /** Why a run has not started, while waiting. */
   public waitingFor: "player" | "middle" = "player";
   /** 0 to 1 while settling. */
@@ -117,6 +133,17 @@ export class Run {
   public arms: Puppet["arms"] = { left: null, right: null };
   /** When each arm last threw a punch, at a monster or at nothing. */
   public readonly punchedAt = { left: Number.NEGATIVE_INFINITY, right: Number.NEGATIVE_INFINITY };
+  /** When a punch last landed on a monster. */
+  public connectedAt = Number.NEGATIVE_INFINITY;
+  /** How far along its arc over a log the character is, from 0 to 1; null on the ground. */
+  public arc: number | null = null;
+  /** When the character last came down from such an arc, and last fell into a pool. */
+  public landedAt = Number.NEGATIVE_INFINITY;
+  public fellAt = Number.NEGATIVE_INFINITY;
+  /** Wading through a pool it fell into. */
+  public wading = false;
+  /** When the player last changed lane, and which way: -1 to the screen's left. */
+  public stepped: { readonly at: number; readonly way: -1 | 1 } | null = null;
   /** When the character last ran into something, and when hearts last ran out. */
   public hitAt = Number.NEGATIVE_INFINITY;
   public refilledAt = Number.NEGATIVE_INFINITY;
@@ -125,6 +152,7 @@ export class Run {
   /** The arc carrying the character over a log, by distances along the road. */
   private jump: { readonly from: number; readonly to: number; readonly over: Item } | null = null;
   private wasJumping = false;
+  private lane: Puppet["lane"] = 0;
   private course: Course;
   private laid = 0;
   private reader: PuppetReader | null = null;
@@ -133,8 +161,12 @@ export class Run {
   private previousAt: number | null = null;
   private epoch: number | null = null;
 
-  public constructor(private readonly seed: number) {
-    this.course = new Course(seed);
+  public constructor(
+    private readonly seed: number,
+    private readonly options: RunOptions,
+  ) {
+    this.length = options.seconds * SPEED;
+    this.course = new Course(seed, this.length);
   }
 
   public tick(now: number, frame: RunFrame | null): void {
@@ -147,6 +179,11 @@ export class Run {
 
     const seen = frame && isFresh(frame, now) ? player(frame) : null;
     this.tracking = seen !== null;
+    if (this.phase === "finished" || this.phase === "failed") {
+      // The run is over until it is started again; the arms go on being the player's.
+      if (frame && seen) this.puppet = preview(seen.body, seen.world, frame.width / frame.height);
+      return;
+    }
     if (!frame || !seen) {
       this.lostSince ??= now;
       if (this.phase === "settling" && now - this.lostSince <= FLICKER_MS) return;
@@ -193,7 +230,12 @@ export class Run {
   private advance(now: number, elapsed: number): void {
     const puppet = this.puppet;
     if (!puppet) return;
-    this.distance += (SPEED * elapsed) / 1000;
+    const pace = this.distance >= this.length - RULES.slow.finishFrom ? RULES.slow.finishPace : 1;
+    this.distance += (SPEED * pace * elapsed) / 1000;
+    if (this.lane !== puppet.lane) {
+      this.stepped = { at: now, way: puppet.lane > this.lane ? 1 : -1 };
+      this.lane = puppet.lane;
+    }
     this.course.layTo(this.distance + RULES.ahead);
     for (; this.laid < this.course.obstacles.length; this.laid += 1) {
       const obstacle = this.course.obstacles[this.laid];
@@ -237,7 +279,10 @@ export class Run {
         this.jump = { from: this.distance, to: log.obstacle.at + RULES.jump.past, over: log };
     }
     this.wasJumping = puppet.jumping;
-    if (this.jump && this.distance >= this.jump.to) this.jump = null;
+    if (this.jump && this.distance >= this.jump.to) {
+      this.jump = null;
+      this.landedAt = now;
+    }
 
     // A punch thrown with a monster the right distance ahead knocks it away, if it is thrown
     // with the arm on the monster's side of the road. Either arm will do for one in the middle,
@@ -252,14 +297,16 @@ export class Run {
         return (
           item.state === "coming" &&
           obstacle.kind === "monster" &&
-          ahead <= RULES.punch.earliest &&
-          ahead >= RULES.punch.latest &&
+          // As far off as it is seen to be.
+          ahead * MONSTER.charge <= RULES.punch.reach &&
+          ahead >= -RULES.punch.late &&
           (obstacle.lane === puppet.lane || obstacle.lane !== (side === "left" ? 1 : -1))
         );
       });
       if (!monster) continue;
       monster.state = "punched";
       monster.punched = { at: now, side };
+      this.connectedAt = now;
       this.points += RULES.punch.points;
     }
 
@@ -267,6 +314,7 @@ export class Run {
     if (this.jump) {
       const along = (this.distance - this.jump.from) / (this.jump.to - this.jump.from);
       this.lift = 4 * RULES.jump.height * along * (1 - along);
+      this.arc = along;
     } else if (this.hanging) {
       // The character hangs by its highest holding hand.
       const hands = (["left", "right"] as const).flatMap((side) =>
@@ -275,10 +323,18 @@ export class Run {
       this.lift = RAIL_HEIGHT - Math.max(...hands);
     } else if (over) {
       this.lift = -POOL_DEPTH;
+      if (!this.wading) this.fellAt = now;
     } else {
       // A player the camera has lost is not taken to be still in the air.
       const rise = this.tracking ? puppet.rise : 0;
       this.lift = Math.min(RULES.hop.most, rise * FIGURE.torso * RULES.hop.gain);
+    }
+
+    if (!this.jump) this.arc = null;
+    this.wading = !!over && !this.hanging;
+    if (this.distance >= this.length) {
+      this.end("finished");
+      return;
     }
 
     // Each obstacle is judged at the moment it reaches the character, by what the character is
@@ -289,8 +345,9 @@ export class Run {
       if (obstacle.kind === "block") {
         this.judge(item, !obstacle.lanes.includes(puppet.lane), now);
       } else if (obstacle.kind === "monster") {
-        // It reaches across the whole road: unpunched, it gets the character wherever it is.
-        this.judge(item, false, now);
+        // It reaches across the whole road: unpunched, it gets the character wherever it is,
+        // a moment after it arrives.
+        if (this.distance >= obstacle.at + RULES.punch.late) this.judge(item, false, now);
       } else if (obstacle.kind === "log") {
         this.judge(item, this.jump?.over === item && this.lift > LOG_HEIGHT, now);
       } else if (obstacle.kind === "beam") {
@@ -323,11 +380,27 @@ export class Run {
     this.hitAt = now;
     this.hearts -= 1;
     if (this.hearts > 0) return;
+    if (!this.options.immortal) {
+      this.end("failed");
+      return;
+    }
     this.hearts = RULES.hearts;
     this.refilledAt = now;
   }
 
-  private restart(): void {
+  private end(phase: "finished" | "failed"): void {
+    this.phase = phase;
+    this.reader = null;
+    this.lift = 0;
+    this.hanging = false;
+    this.jump = null;
+    this.arc = null;
+    this.wading = false;
+    this.pull = 0;
+  }
+
+  /** Back to waiting for the player to stand in place, with the same road ahead. */
+  public restart(): void {
     this.phase = "waiting";
     this.waitingFor = "player";
     this.reader = null;
@@ -345,8 +418,12 @@ export class Run {
     this.grip.left = this.grip.right = false;
     this.arms = { left: null, right: null };
     this.jump = null;
+    this.arc = null;
+    this.wading = false;
+    this.stepped = null;
+    this.lane = 0;
     this.wasJumping = false;
     this.laid = 0;
-    this.course = new Course(this.seed);
+    this.course = new Course(this.seed, this.length);
   }
 }

@@ -1,5 +1,5 @@
 import type { Body, WorldBody } from "@jojixplay/game-sdk";
-import { mountCorrida } from "./index";
+import { mountRun } from "./index";
 
 // Stands in for the camera: a synthetic person whose position follows the pointer, with switches
 // for crouching, jumping, arm shapes, punches, leaning, a smaller and more distant player, and
@@ -17,12 +17,18 @@ const leaning = need<HTMLSelectElement>("#lean");
 const small = need<HTMLInputElement>("#small");
 const lost = need<HTMLInputElement>("#lost");
 const arms = need<HTMLSelectElement>("#arms");
-const view = mountCorrida(stage, {
-  exit: () => location.reload(),
-  sense: async () => {},
-  showCamera: () => {},
-  camera: () => null,
-});
+// `?seconds=20` shortens the run and `?mortal` lets it be failed, to reach either ending quickly.
+const query = new URLSearchParams(location.search);
+const view = mountRun(
+  stage,
+  {
+    exit: () => location.reload(),
+    sense: async () => {},
+    showCamera: () => {},
+    camera: () => null,
+  },
+  { seconds: Number(query.get("seconds")) || 300, immortal: !query.has("mortal") },
+);
 let sequence = 0;
 let down = false;
 let up = false;

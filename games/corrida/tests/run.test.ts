@@ -1,8 +1,8 @@
 import type { Body, WorldBody } from "@jojixplay/game-sdk";
 import { expect, it } from "vitest";
-import { Course, extent, type Obstacle } from "../src/course";
-import { RULES, Run, type RunFrame, SETTLE_MS, SPEED } from "../src/run";
-import { BEAM_SPACING, LOG_HEIGHT, POOL_DEPTH } from "../src/world";
+import { Course, extent, type Obstacle, RUN_IN } from "../src/course";
+import { RULES, Run, type RunFrame, SETTLE_MS, TRIAL } from "../src/run";
+import { BEAM_SPACING, LOG_HEIGHT, MONSTER, POOL_DEPTH, SPEED } from "../src/world";
 
 const joint = (x: number, y: number) => ({ x, y, z: 0, confidence: 1 });
 const person = (x = 0.5): Body => ({
@@ -46,7 +46,7 @@ function play(run: Run, from: number, forMs: number, bodies: Body[] | null, epoc
 }
 
 it("waits for the player to stand near the middle, then starts where they stand", () => {
-  const run = new Run(1);
+  const run = new Run(1, TRIAL);
   run.tick(0, null);
   expect([run.phase, run.waitingFor]).toEqual(["waiting", "player"]);
   let now = play(run, 50, 500, [person(0.9)]);
@@ -68,7 +68,7 @@ it("waits for the player to stand near the middle, then starts where they stand"
 });
 
 it("does not start the wait again when tracking drops a reading while the player stands still", () => {
-  const run = new Run(1);
+  const run = new Run(1, TRIAL);
   let now = play(run, 0, SETTLE_MS / 2, [person()]);
   expect(run.phase).toBe("settling");
   now = play(run, now, 200, null);
@@ -77,7 +77,7 @@ it("does not start the wait again when tracking drops a reading while the player
   expect(run.phase).toBe("running");
 
   // A real absence does start it again.
-  const other = new Run(1);
+  const other = new Run(1, TRIAL);
   now = play(other, 0, SETTLE_MS / 2, [person()]);
   now = play(other, now, 600, null);
   expect(other.phase).toBe("waiting");
@@ -86,7 +86,7 @@ it("does not start the wait again when tracking drops a reading while the player
 });
 
 it("follows the person nearest the middle and runs at a steady pace", () => {
-  const run = new Run(1);
+  const run = new Run(1, TRIAL);
   let now = play(run, 0, SETTLE_MS + 100, [person(0.9), person(0.5)]);
   expect(run.phase).toBe("running");
   const before = run.distance;
@@ -96,7 +96,7 @@ it("follows the person nearest the middle and runs at a steady pace", () => {
 });
 
 it("keeps the avatar where it was through a short loss and starts over after a long one", () => {
-  const run = new Run(1);
+  const run = new Run(1, TRIAL);
   let now = play(run, 0, SETTLE_MS + 100, [person()]);
   now = play(run, now, 300, [person(0.35)]);
   expect(run.puppet?.lane).toBe(1);
@@ -115,7 +115,7 @@ it("keeps the avatar where it was through a short loss and starts over after a l
 });
 
 it("lays the lanes out again when the camera's own basis changes", () => {
-  const run = new Run(1);
+  const run = new Run(1, TRIAL);
   const now = play(run, 0, SETTLE_MS + 100, [person()]);
   expect(run.phase).toBe("running");
   run.tick(now, frame(now, [person()], 1));
@@ -163,48 +163,49 @@ function acting({
   if (punch) thrown.set(body, punch);
   return body;
 }
-/** What a careful player does for an obstacle that is `ahead` of them. */
+/** What a careful player does for an obstacle that is `ahead` of them, in seconds of running. */
 function clear(obstacle: Obstacle, ahead: number): Body {
   if (obstacle.kind === "block")
     return acting({
       lane: ([-1, 0, 1] as const).find((lane) => !obstacle.lanes.includes(lane)) ?? 0,
     });
   if (obstacle.kind === "beam") return acting({ crouched: true });
-  if (obstacle.kind === "log") return acting({ air: ahead < 4 && ahead > 2 });
+  if (obstacle.kind === "log") return acting({ air: ahead < 0.4 && ahead > 0.2 });
   if (obstacle.kind === "monster")
     return acting({
-      punch: ahead < 4 && ahead > 2 ? (obstacle.lane === 1 ? "right" : "left") : null,
+      punch: ahead < 0.25 && ahead > 0.1 ? (obstacle.lane === 1 ? "right" : "left") : null,
     });
   return acting({ hands: "both" });
 }
 /**
  * Runs up to the first obstacle of the wanted kind, clearing everything before it, and through
- * it doing `how`, which is told how far ahead the obstacle starts.
+ * it doing `how`, which is told how many seconds of running ahead the obstacle starts.
  */
 function meet(
   want: (obstacle: Obstacle) => boolean,
   how: (obstacle: Obstacle, ahead: number, run: Run) => Body,
   seed = 5,
 ) {
-  const course = new Course(seed);
+  const course = new Course(seed, TRIAL.seconds * SPEED);
   course.layTo(4000);
   const target = course.obstacles.find(want);
   if (!target) throw new Error("No such obstacle on this road");
-  const run = new Run(seed);
+  const run = new Run(seed, TRIAL);
   let now = play(run, 0, SETTLE_MS + 100, [acting()]);
   let hearts = run.hearts;
   let points = run.points;
-  while (run.distance < target.at + extent(target) + 3) {
+  // Half a second on, whatever was begun at the obstacle is over.
+  while (run.distance < target.at + extent(target) + 0.5 * SPEED) {
     const next = run.items.find((item) => item.state === "coming")?.obstacle;
-    const near = run.distance >= target.at - 14;
+    const near = run.distance >= target.at - 1.4 * SPEED;
     if (!near) {
       hearts = run.hearts;
       points = run.points;
     }
     const body = near
-      ? how(target, target.at - run.distance, run)
+      ? how(target, (target.at - run.distance) / SPEED, run)
       : next
-        ? clear(next, next.at - run.distance)
+        ? clear(next, (next.at - run.distance) / SPEED)
         : acting();
     run.tick(now, frame(now, [body]));
     now += 30;
@@ -246,23 +247,26 @@ it("clears a tunnel only by staying ducked under every beam, and charges one hea
   const through = meet(tunnel, () => acting({ crouched: true }));
   expect([through.state, through.lostHearts]).toEqual(["passed", 0]);
   // Standing up after the second beam meets the third.
-  const stoodUp = meet(tunnel, (_, ahead) => acting({ crouched: ahead > -1.5 * BEAM_SPACING }));
+  const stoodUp = meet(tunnel, (_, ahead) =>
+    acting({ crouched: ahead > (-1.5 * BEAM_SPACING) / SPEED }),
+  );
   expect([stoodUp.state, stoodUp.lostHearts]).toEqual(["hit", 1]);
   // Walking into every beam upright is still one stumble, not one for each.
   expect(meet(tunnel, () => acting()).lostHearts).toBe(1);
 });
 
 it("carries the character over a log when the player leaves the ground a short way before it", () => {
-  const { earliest, latest } = RULES.jump;
+  const earliest = RULES.jump.earliest / SPEED;
+  const latest = RULES.jump.latest / SPEED;
   // Anywhere in the stretch before the log will do, from its far end to its near one.
   for (const [from, to] of [
-    [earliest - 0.1, earliest - 2],
-    [4, 2],
-    [latest + 0.4, -1],
+    [earliest - 0.02, earliest - 0.25],
+    [0.4, 0.2],
+    [latest + 0.05, -0.1],
   ] as const) {
     let over = 0;
     const jumped = meet(log, (_, ahead, run) => {
-      if (Math.abs(ahead) < 0.15) over = run.lift;
+      if (Math.abs(ahead) < 0.02) over = run.lift;
       return acting({ air: ahead < from && ahead > to });
     });
     expect([jumped.state, jumped.lostHearts]).toEqual(["passed", 0]);
@@ -275,22 +279,23 @@ it("carries the character over a log when the player leaves the ground a short w
 
 it("runs into a log without a jump begun in the stretch before it", () => {
   expect(meet(log, () => acting()).state).toBe("hit");
-  const { earliest, latest } = RULES.jump;
+  const earliest = RULES.jump.earliest / SPEED;
+  const latest = RULES.jump.latest / SPEED;
   // Too soon, and already landed.
-  const soon = meet(log, (_, ahead) => acting({ air: ahead < 13 && ahead > 9 }));
+  const soon = meet(log, (_, ahead) => acting({ air: ahead < 1.3 && ahead > 1.1 }));
   expect([soon.state, soon.lostHearts]).toEqual(["hit", 1]);
   // Too soon, and still off the ground when the log arrives: a hop does not reach over a log.
-  expect(meet(log, (_, ahead) => acting({ air: ahead < earliest + 2 && ahead > -1 })).state).toBe(
-    "hit",
-  );
+  expect(
+    meet(log, (_, ahead) => acting({ air: ahead < earliest + 0.2 && ahead > -0.1 })).state,
+  ).toBe("hit");
   // Too late.
-  expect(meet(log, (_, ahead) => acting({ air: ahead < latest - 0.4 && ahead > -1 })).state).toBe(
-    "hit",
-  );
+  expect(
+    meet(log, (_, ahead) => acting({ air: ahead < latest - 0.05 && ahead > -0.1 })).state,
+  ).toBe("hit");
 });
 
 it("lets the character hop as the player does anywhere else, for nothing", () => {
-  const run = new Run(5);
+  const run = new Run(5, TRIAL);
   let now = play(run, 0, SETTLE_MS + 100, [acting()]);
   expect(run.lift).toBe(0);
   now = play(run, now, 200, [acting({ air: true })]);
@@ -306,7 +311,7 @@ it("crosses a pool hanging from the rails by any raised hand, and lets hands cha
   for (const hands of ["left", "right", "both"] as const) {
     let lift = 0;
     const crossed = meet(rails, (_, ahead, run) => {
-      if (ahead < -3 && ahead > -4) lift = run.lift;
+      if (ahead < -0.3 && ahead > -0.4) lift = run.lift;
       return acting({ hands });
     });
     expect([crossed.state, crossed.lostHearts]).toEqual(["passed", 0]);
@@ -315,7 +320,9 @@ it("crosses a pool hanging from the rails by any raised hand, and lets hands cha
   }
   // Both, then only the left, then both again, then only the right: one hand always holds.
   const playing = meet(rails, (_, ahead) =>
-    acting({ hands: ahead > -2 ? "both" : ahead > -4 ? "left" : ahead > -5 ? "both" : "right" }),
+    acting({
+      hands: ahead > -0.2 ? "both" : ahead > -0.4 ? "left" : ahead > -0.5 ? "both" : "right",
+    }),
   );
   expect(playing.state).toBe("passed");
 });
@@ -323,23 +330,23 @@ it("crosses a pool hanging from the rails by any raised hand, and lets hands cha
 it("drops the character into the pool when no hand is raised, at the start or part of the way", () => {
   let depth = 0;
   const walkedIn = meet(rails, (_, ahead, run) => {
-    if (ahead < -3 && ahead > -4) depth = run.lift;
+    if (ahead < -0.3 && ahead > -0.4) depth = run.lift;
     // A hand raised after falling in does not climb back out.
-    return acting({ hands: ahead < -1 ? "both" : null });
+    return acting({ hands: ahead < -0.1 ? "both" : null });
   });
   expect([walkedIn.state, walkedIn.lostHearts]).toEqual(["hit", 1]);
   expect(depth).toBe(-POOL_DEPTH);
   expect(walkedIn.run.lift).toBe(0);
 
-  const letGo = meet(rails, (_, ahead) => acting({ hands: ahead > -3 ? "left" : null }));
+  const letGo = meet(rails, (_, ahead) => acting({ hands: ahead > -0.3 ? "left" : null }));
   expect([letGo.state, letGo.lostHearts]).toEqual(["hit", 1]);
 });
 
 it("keeps hold of a rail with an arm the camera loses, drawn still reaching up", () => {
   let arm: unknown = null;
   const crossed = meet(rails, (_, ahead, run) => {
-    if (ahead < -3 && ahead > -4) arm = run.arms.left;
-    return ahead > -1 ? acting({ hands: "left" }) : acting({ arms: false });
+    if (ahead < -0.3 && ahead > -0.4) arm = run.arms.left;
+    return ahead > -0.1 ? acting({ hands: "left" }) : acting({ arms: false });
   });
   expect(crossed.state).toBe("passed");
   expect(arm).toEqual({ upper: { x: 0, y: 1, z: 0 }, lower: { x: 0, y: 1, z: 0 } });
@@ -349,7 +356,7 @@ it("keeps hold of a rail with an arm the camera loses, drawn still reaching up",
 
 it("knocks a monster away with a punch from the arm on its side, thrown shortly before it", () => {
   const jab = (side: "left" | "right") => (_: Obstacle, ahead: number) =>
-    acting({ punch: ahead < 4 && ahead > 2 ? side : null });
+    acting({ punch: ahead < 0.25 && ahead > 0.1 ? side : null });
   // On the left of the road it takes the left arm, on the right the right; in the middle, either.
   for (const [lane, side] of [
     [-1, "left"],
@@ -377,13 +384,15 @@ it("knocks a monster away with a punch from the arm on its side, thrown shortly 
     [1, "left"],
   ] as const) {
     const facing = meet(monsterIn(lane), (_, ahead) =>
-      acting({ lane, punch: ahead < 4 && ahead > 2 ? side : null }),
+      acting({ lane, punch: ahead < 0.25 && ahead > 0.1 ? side : null }),
     );
     expect([facing.state, facing.wonPoints]).toEqual(["punched", RULES.punch.points]);
   }
   // The wrong arm first costs nothing if the right one follows in time.
   const corrected = meet(monsterIn(1), (_, ahead) =>
-    acting({ punch: ahead < 5 && ahead > 4 ? "left" : ahead < 3 && ahead > 2 ? "right" : null }),
+    acting({
+      punch: ahead < 0.34 && ahead > 0.25 ? "left" : ahead < 0.2 && ahead > 0.1 ? "right" : null,
+    }),
   );
   expect(corrected.state).toBe("punched");
 });
@@ -391,19 +400,37 @@ it("knocks a monster away with a punch from the arm on its side, thrown shortly 
 it("is caught by a monster that is not punched in time, wherever the player stands", () => {
   for (const lane of [-1, 0, 1])
     expect(meet(monsterIn(0), () => acting({ lane })).state).toBe("hit");
-  const { earliest } = RULES.punch;
+  // How long before it arrives a monster comes within reach.
+  const earliest = RULES.punch.reach / MONSTER.charge / SPEED;
+  expect(earliest).toBeGreaterThan(0.3);
+  expect(earliest).toBeLessThan(0.45);
+  // A monster that has just arrived looms for a moment before it strikes: still time to punch.
+  const late = meet(monsterIn(-1), (_, ahead) =>
+    acting({ punch: ahead < -0.03 && ahead > -0.1 ? "left" : null }),
+  );
+  expect([late.state, late.lostHearts]).toEqual(["punched", 0]);
+  // But only a moment.
+  const tooLate = meet(monsterIn(-1), (_, ahead) =>
+    acting({ punch: ahead < -0.2 ? "left" : null }),
+  );
+  expect([tooLate.state, tooLate.lostHearts]).toEqual(["hit", 1]);
+  // A punch at a monster still well down the road hits nothing.
+  const far = meet(monsterIn(-1), (_, ahead) =>
+    acting({ punch: ahead < earliest + 0.3 && ahead > earliest + 0.15 ? "left" : null }),
+  );
+  expect([far.state, far.wonPoints]).toEqual(["hit", 0]);
   // Thrown and pulled back too soon.
   const soon = meet(monsterIn(-1), (_, ahead) =>
-    acting({ punch: ahead < 13 && ahead > 10 ? "left" : null }),
+    acting({ punch: ahead < 1.38 && ahead > 1.25 ? "left" : null }),
   );
   expect([soon.state, soon.lostHearts]).toEqual(["hit", 1]);
   // An arm held out since long before was not thrown at this monster.
   const held = meet(monsterIn(-1), (_, ahead) =>
-    acting({ punch: ahead < earliest + 4 ? "left" : null }),
+    acting({ punch: ahead < earliest + 0.2 ? "left" : null }),
   );
   expect(held.state).toBe("hit");
   // A punch at nothing costs nothing and wins nothing.
-  const run = new Run(5);
+  const run = new Run(5, TRIAL);
   let now = play(run, 0, SETTLE_MS + 100, [acting()]);
   now = play(run, now, 200, [acting({ punch: "right" })]);
   play(run, now, 200, [acting()]);
@@ -411,7 +438,7 @@ it("is caught by a monster that is not punched in time, wherever the player stan
 });
 
 it("keeps the road moving for a player it cannot see, who meets things as last seen", () => {
-  const run = new Run(5);
+  const run = new Run(5, TRIAL);
   let now = play(run, 0, SETTLE_MS + 100, [acting()]);
   const from = run.distance;
   now = play(run, now, 2000, null);
@@ -419,11 +446,11 @@ it("keeps the road moving for a player it cannot see, who meets things as last s
   expect(run.phase).toBe("running");
 
   // Ducked and then lost to the camera, as when lying on the floor: still ducked for the beam.
-  const course = new Course(5);
+  const course = new Course(5, TRIAL.seconds * SPEED);
   course.layTo(4000);
   const target = course.obstacles.find(beam);
   if (!target) throw new Error("No beam on this road");
-  const hidden = new Run(5);
+  const hidden = new Run(5, TRIAL);
   now = play(hidden, 0, SETTLE_MS + 100, [acting()]);
   while (hidden.distance < target.at - 12) {
     const next = hidden.items.find((item) => item.state === "coming")?.obstacle;
@@ -439,7 +466,7 @@ it("keeps the road moving for a player it cannot see, who meets things as last s
 });
 
 it("gives every heart back when the last one goes", () => {
-  const run = new Run(5);
+  const run = new Run(5, TRIAL);
   let now = play(run, 0, SETTLE_MS + 100, [acting()]);
   let least: number = RULES.hearts;
   for (; run.refilledAt < 0 && now < 600_000; now += 30) {
@@ -448,4 +475,52 @@ it("gives every heart back when the last one goes", () => {
   }
   expect(least).toBe(1);
   expect(run.hearts).toBe(RULES.hearts);
+});
+
+it("ends at the finish line after its set time, with clear road before it, and can be run again", () => {
+  const run = new Run(5, { seconds: 12, immortal: true });
+  expect(run.length).toBe(12 * SPEED);
+  let now = play(run, 0, SETTLE_MS + 100, [acting()]);
+  now = play(run, now, 11_000, [acting()]);
+  expect(run.phase).toBe("running");
+  // Nothing is laid in the last stretch: the finish is run up to, not stumbled into.
+  expect(run.items.every((item) => item.obstacle.at < run.length - RUN_IN)).toBe(true);
+  // The last stretch is run in slow motion, so it takes longer than its length says.
+  now = play(run, now, 900, [acting()]);
+  expect(run.phase).toBe("running");
+  now = play(run, now, 2000, [acting()]);
+  expect(run.phase).toBe("finished");
+  // The road has stopped, and stays stopped whether or not the player is seen.
+  const stopped = run.distance;
+  now = play(run, now, 500, [acting({ hands: "left" })]);
+  now = play(run, now, 7000, null);
+  expect([run.phase, run.distance]).toEqual(["finished", stopped]);
+
+  run.restart();
+  expect([run.phase, run.distance, run.hearts]).toEqual(["waiting", 0, RULES.hearts]);
+  play(run, now, SETTLE_MS + 100, [acting()]);
+  expect(run.phase).toBe("running");
+});
+
+it("fails the run when the last heart goes, unless hearts come back", () => {
+  const run = new Run(5, { seconds: 300, immortal: false });
+  let now = play(run, 0, SETTLE_MS + 100, [acting()]);
+  for (; run.phase === "running" && now < 600_000; now += 30) run.tick(now, frame(now, [acting()]));
+  expect([run.phase, run.hearts]).toEqual(["failed", 0]);
+  expect(run.refilledAt).toBeLessThan(0);
+  const stopped = run.distance;
+  play(run, now, 1000, [acting()]);
+  expect(run.distance).toBe(stopped);
+  run.restart();
+  expect([run.phase, run.hearts]).toEqual(["waiting", RULES.hearts]);
+});
+
+it("tells the view which way the player stepped", () => {
+  const run = new Run(5, TRIAL);
+  let now = play(run, 0, SETTLE_MS + 100, [acting()]);
+  expect(run.stepped).toBeNull();
+  now = play(run, now, 200, [acting({ lane: 1 })]);
+  expect(run.stepped?.way).toBe(1);
+  play(run, now, 200, [acting({ lane: 0 })]);
+  expect(run.stepped?.way).toBe(-1);
 });

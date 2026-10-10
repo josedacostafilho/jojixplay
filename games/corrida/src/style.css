@@ -123,3 +123,44 @@
     inset 0 0 70px #ff5a4eaa;
   pointer-events: none;
 }
+
+/* The run is over: what happened, and the two things to do next, in the middle of the screen. */
+.race-end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 5vh, 28px);
+  background: #14123a99;
+}
+.race-end h2 {
+  margin: 0;
+  font-size: clamp(30px, 11vh, 56px);
+  font-weight: 900;
+}
+.race-end div {
+  display: flex;
+  gap: clamp(16px, 6vw, 60px);
+}
+.race-end button {
+  min-width: 200px;
+  min-height: clamp(64px, 20vh, 96px);
+  border: 3px solid #fff;
+  border-radius: 22px;
+  padding: 4px 22px;
+  background-color: #14123a;
+  background-image: linear-gradient(0deg, #2ecc71 var(--dwell, 0%), transparent var(--dwell, 0%));
+  color: #fff;
+  font: inherit;
+  font-size: clamp(20px, 6vh, 30px);
+  cursor: pointer;
+}
+.race-end button:first-child {
+  border-color: #ffd23f;
+}
+.race-end button:focus-visible {
+  outline: 3px solid #ffd23f;
+  outline-offset: 2px;
+}

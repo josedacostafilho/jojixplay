@@ -18,6 +18,7 @@ import {
   MONSTER,
   RAIL_HEIGHT,
   RAIL_SPREAD,
+  stretch,
   torsoTip,
 } from "./world";
 
@@ -41,16 +42,33 @@ const STANDING: ArmsPose = {
 const EYE_HEIGHT = FIGURE.hip + FIGURE.torso + FIGURE.neck;
 /** The view follows a little more slowly than the arms do: tremor here moves the whole picture. */
 const EYES_FOLLOW_MS = 110;
+/** How near the view an arrived monster stands for the moment before it strikes. */
+const MONSTER_LOOMS = 1.3;
 /** How long a punched monster takes to fly off. */
 const KNOCKED_MS = 700;
+/** Hanging from rails, the view draws back and looks up at the hands that hold them. */
+const HANGING_VIEW = { back: 0.55, up: 0.4, ms: 260 } as const;
 /** How long a glove stays red after its arm throws a punch. */
 const PUNCH_FLASH_MS = 250;
 /** Stars burst from where a punch lands on a monster: how many, for how long, and how far. */
 const BURST = { stars: 14, ms: 550, reach: 3.2 } as const;
 /** How far past the character something is still drawn: it is behind the view by then. */
 const PASSED_FROM = 1;
-/** How long the view shakes after running into something. */
-const STUMBLE_MS = 650;
+/**
+ * What the view does of its own accord, each set off by something that happens in the run.
+ * Angles are radians, distances world units.
+ */
+const FX = {
+  hit: { ms: 650, back: 0.7, up: 0.12, shake: 0.12 },
+  punch: { ms: 240, lunge: 0.55, narrow: 5, jolt: 0.025 },
+  jump: { down: 0.3, landMs: 280, dip: 0.24 },
+  pool: { ms: 600, down: 0.5, stride: 1.4, bob: 0.06, sway: 0.03 },
+  swing: { ms: 380, tilt: 0.06, reach: 0.12 },
+  stride: { rate: 0.7, bob: 0.045, sway: 0.008 },
+  step: { ms: 380, lean: 0.06 },
+  monster: { from: stretch(2.6), turn: 0.13, ms: 260 },
+  finish: { from: stretch(0.9), rise: 0.5, up: 0.12 },
+} as const;
 
 /**
  * The road seen through the character's eyes. The world slides towards the view, which stays at
@@ -333,6 +351,33 @@ export function createScene(container: HTMLElement) {
   let burstFor: Item | null = null;
   let previousAt: number | null = null;
   const eyes = new THREE.Vector3(0, EYE_HEIGHT, 0);
+  let hang = 0;
+  let stride = 0;
+  let turn = 0;
+  let lifted = 0;
+  let baseFov = 66;
+
+  // The finish: a chequered banner over the road, where the run's length ends.
+  const finish = new THREE.Group();
+  const white = new THREE.MeshBasicMaterial({ color: "#ffffff" });
+  const black = new THREE.MeshBasicMaterial({ color: "#14123a" });
+  materials.push(white, black);
+  const SQUARES = 16;
+  for (let column = 0; column < SQUARES; column += 1)
+    for (let row = 0; row < 2; row += 1) {
+      const square = new THREE.Mesh(unitBox, (column + row) % 2 ? white : black);
+      const size = (edge * 2 + 1) / SQUARES;
+      square.scale.set(size, size, 0.2);
+      square.position.set((column + 0.5) * size - edge - 0.5, 3.4 + (row + 0.5) * size, 0);
+      finish.add(square);
+    }
+  for (const side of [-1, 1]) {
+    const post = new THREE.Mesh(unitBox, white);
+    post.scale.set(0.3, 3.4, 0.3);
+    post.position.set(side * (edge + 0.35), 1.7, 0);
+    finish.add(post);
+  }
+  scene.add(finish);
 
   function resize() {
     const width = Math.max(1, container.clientWidth);
@@ -340,10 +385,11 @@ export function createScene(container: HTMLElement) {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     // The same width of world on any screen shape, as far as the angle of view can be opened.
-    camera.fov = Math.max(
+    baseFov = Math.max(
       50,
       Math.min(82, THREE.MathUtils.radToDeg(2 * Math.atan(VIEW_HALF_WIDTH / camera.aspect))),
     );
+    camera.fov = baseFov;
     camera.updateProjectionMatrix();
   }
   const observer = new ResizeObserver(resize);
@@ -394,11 +440,89 @@ export function createScene(container: HTMLElement) {
         : 0;
       eyes.x += (x + head.x - eyes.x) * follow;
       eyes.y += (lift + head.y - eyes.y) * follow;
-      eyes.z += (0.05 - ahead - eyes.z) * follow;
-      camera.position.copy(eyes);
-      // Running into something shakes the view for a moment.
-      const reel = Math.max(0, 1 - (now - run.hitAt) / STUMBLE_MS);
-      camera.rotation.set(0, 0, Math.sin(reel * Math.PI * 3) * 0.12);
+      hang += ((run.hanging ? 1 : 0) - hang) * (1 - Math.exp(-elapsed / HANGING_VIEW.ms));
+      eyes.z += (0.05 - ahead + hang * HANGING_VIEW.back - eyes.z) * follow;
+
+      // On top of following the player, the view acts out what happens. Every move here is set
+      // off by the game and eased, never by the body's own tremor.
+      const since = (at: number, ms: number) => Math.min(1, Math.max(0, (now - at) / ms));
+      /** Out and back over a span: 0 at both ends, 1 in the middle. */
+      const swell = (share: number) => Math.sin(Math.min(1, Math.max(0, share)) * Math.PI);
+      const reel = 1 - since(run.hitAt, FX.hit.ms);
+      // Running into something takes over from everything else for a moment.
+      const calm = 1 - reel;
+      let pitch = hang * HANGING_VIEW.up;
+      let roll = 0;
+      let rise = 0;
+      let back = 0;
+      let narrow = 0;
+
+      // A hit throws the view back and up and shakes it.
+      back += reel * reel * FX.hit.back;
+      pitch += reel * reel * FX.hit.up;
+      roll += Math.sin(reel * Math.PI * 3) * FX.hit.shake;
+
+      // A punch that lands: a lunge at the monster, a jolt, and the picture pulled in.
+      const landed = swell(since(run.connectedAt, FX.punch.ms));
+      back -= landed * FX.punch.lunge * calm;
+      narrow += landed * FX.punch.narrow * calm;
+      roll += Math.sin(since(run.connectedAt, FX.punch.ms) * Math.PI * 4) * landed * FX.punch.jolt;
+
+      // Over a log the view looks down at it passing underneath, and dips on landing.
+      if (running && run.arc !== null) pitch -= swell(run.arc) * FX.jump.down * calm;
+      rise -= swell(since(run.landedAt, FX.jump.landMs)) * FX.jump.dip * calm;
+
+      // Letting go of the rails pitches the view down at the water; wading through it bobs.
+      pitch -= (1 - since(run.fellAt, FX.pool.ms)) ** 2 * FX.pool.down * calm;
+      if (running && run.wading) {
+        rise += Math.sin(run.distance * FX.pool.stride) * FX.pool.bob;
+        roll += Math.sin(run.distance * FX.pool.stride * 0.5) * FX.pool.sway;
+      }
+
+      // Hanging, the body swings a little under the hands.
+      pitch += hang * Math.sin(now / FX.swing.ms) * FX.swing.tilt;
+      back += hang * Math.sin(now / FX.swing.ms) * FX.swing.reach;
+
+      // On the road the view bobs with each stride.
+      const grounded = running && !run.hanging && !run.wading && run.lift < 0.05;
+      stride += ((grounded ? 1 : 0) - stride) * (1 - Math.exp(-elapsed / 150));
+      rise += Math.abs(Math.sin(run.distance * FX.stride.rate)) * FX.stride.bob * stride;
+      roll += Math.sin(run.distance * FX.stride.rate) * FX.stride.sway * stride;
+
+      // A step into another lane leans into it, once.
+      if (run.stepped)
+        roll -= run.stepped.way * swell(since(run.stepped.at, FX.step.ms)) * FX.step.lean * calm;
+
+      // A monster draws the eye: the view turns towards its side of the road as it nears.
+      const monster = running
+        ? run.items.find((item) => item.state === "coming" && item.obstacle.kind === "monster")
+        : undefined;
+      const near =
+        monster && monster.obstacle.kind === "monster"
+          ? -monster.obstacle.lane *
+            Math.max(0, 1 - (monster.obstacle.at - run.distance) / FX.monster.from)
+          : 0;
+      turn += (near * FX.monster.turn - turn) * (1 - Math.exp(-elapsed / FX.monster.ms));
+
+      // Coming up to the finish, time slows and the view lifts to take the banner in.
+      const closing = running
+        ? Math.max(0, 1 - (run.length - run.distance) / FX.finish.from)
+        : run.phase === "finished"
+          ? 1
+          : 0;
+      lifted += (closing - lifted) * (1 - Math.exp(-elapsed / 200));
+      rise += lifted * FX.finish.rise;
+      pitch += lifted * FX.finish.up;
+
+      camera.position.set(eyes.x, eyes.y + rise, eyes.z + back);
+      camera.rotation.set(pitch, turn * calm, roll);
+      const fov = baseFov - narrow;
+      if (Math.abs(camera.fov - fov) > 0.01) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+      finish.position.z = run.distance - run.length;
+      finish.visible = finish.position.z < PASSED_FROM;
 
       for (const item of run.items) {
         let made = built.get(item);
@@ -407,8 +531,17 @@ export function createScene(container: HTMLElement) {
           built.set(item, made);
           scene.add(made);
         }
-        const behind = run.distance - item.obstacle.at;
-        made.position.z = behind;
+        // A monster comes at the character: further off than its place on the road, closing
+        // faster, and waddling as it comes.
+        const charging = item.obstacle.kind === "monster";
+        const behind = (run.distance - item.obstacle.at) * (charging ? MONSTER.charge : 1);
+        // Once it has arrived it looms right in front of the view until it strikes or is punched.
+        made.position.z =
+          charging && item.state !== "hit" ? Math.min(behind, -MONSTER_LOOMS) : behind;
+        if (charging && !item.punched) {
+          made.position.y = Math.abs(Math.sin(now / 90)) * 0.25;
+          made.rotation.z = Math.sin(now / 90) * 0.06;
+        }
         // Each part goes before it reaches the camera.
         for (const part of made.children)
           part.visible = behind - (part.userData.end ?? 0) < PASSED_FROM;

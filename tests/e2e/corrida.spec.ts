@@ -88,3 +88,31 @@ test("the road waits for its pictures and says so when one cannot be loaded", as
   await expect(page.locator(".race-world")).toBeHidden();
   await expect(page.getByRole("button", { name: "Voltar" })).toBeVisible();
 });
+
+test("a run ends at its finish line and offers to run again or leave, and a mortal run can be failed", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("http://127.0.0.1:4176/?seconds=6");
+  const stage = await page.locator("main").boundingBox();
+  if (!stage) throw new Error("Missing stage");
+  await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height * 0.8, { steps: 4 });
+  await expect(page.getByRole("heading", { name: "Você chegou!" })).toBeVisible({
+    timeout: 20_000,
+  });
+  // The corner button gives way to the two choices.
+  await expect(page.getByRole("button", { name: "Voltar" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sair" })).toBeVisible();
+  await page.getByRole("button", { name: "Correr de novo" }).press("Enter");
+  await expect(page.locator(".race-reading")).toContainText("faixa meio", { timeout: 10_000 });
+  await expect(page.getByRole("heading", { name: "Você chegou!" })).toHaveCount(0);
+
+  // Standing still on a long road with hearts that do not come back.
+  await page.goto("http://127.0.0.1:4176/?mortal");
+  await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height * 0.8, { steps: 4 });
+  await expect(page.getByRole("heading", { name: "Não foi dessa vez" })).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(page.getByRole("button", { name: "Tentar de novo" })).toBeVisible();
+});

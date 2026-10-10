@@ -26,10 +26,19 @@ export const FIGURE = {
   armRest: 0.14,
 } as const;
 
+/**
+ * World units a second down the road. Everything that is a length of time for the player (the
+ * moment before a log in which a jump counts, the clear road between obstacles, how long a tunnel
+ * lasts) is written as seconds at this speed, so changing it changes the pace and nothing else.
+ */
+export const SPEED = 16;
+/** How much road goes by in this many seconds. */
+export const stretch = (seconds: number) => seconds * SPEED;
+
 /** The underside of a beam. A character clears it when the top of its head is lower. */
 export const BEAM_UNDERSIDE = 1.45;
-/** A tunnel is a row of beams this far apart: too close together to stand up between. */
-export const BEAM_SPACING = 1.8;
+/** A tunnel is a row of beams this far apart: too close together in time to stand up between. */
+export const BEAM_SPACING = stretch(0.17);
 /** How high a log lies across the road. */
 export const LOG_HEIGHT = 0.55;
 /**
@@ -41,8 +50,12 @@ export const RAIL_HEIGHT = 3;
 export const RAIL_SPREAD = FIGURE.shoulder;
 /** How deep a character that let go of the rails stands in the pool. */
 export const POOL_DEPTH = 0.4;
-/** A monster is far taller and wider than the character. */
-export const MONSTER = { height: 3.4, width: 3 } as const;
+/**
+ * A monster is far taller and wider than the character, and comes at it: it is always `charge`
+ * times as far off as a thing standing on the road would be, so it closes that much faster and
+ * still arrives when the road says it does.
+ */
+export const MONSTER = { height: 3.4, width: 3, charge: 1.7 } as const;
 
 export interface Spot {
   readonly x: number;

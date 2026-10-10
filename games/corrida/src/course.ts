@@ -1,5 +1,5 @@
 import type { Lane } from "./puppet";
-import { BEAM_SPACING } from "./world";
+import { BEAM_SPACING, stretch } from "./world";
 
 /** Something on the road, starting `at` this many world units from where the run began. */
 export type Obstacle =
@@ -14,14 +14,16 @@ export type Obstacle =
   /** Stands in a lane and cannot be stepped around: punch it, with the arm on its side. */
   | { readonly kind: "monster"; readonly at: number; readonly lane: Lane };
 
-const FIRST_AT = 34;
-/** Clear road after an obstacle: about three seconds of running, time enough to see and move. */
-const GAP = { least: 20, most: 26 } as const;
+const FIRST_AT = stretch(3);
+/** The last stretch before the finish is clear road. */
+export const RUN_IN = stretch(3);
+/** Clear road after an obstacle: about a second and a half of running. */
+const GAP = { least: stretch(1.4), most: stretch(1.9) } as const;
 const LANES: readonly Lane[] = [-1, 0, 1];
-/** Tunnels last from under a second to about a second and a half. */
-const TUNNEL_BEAMS = [3, 4, 5, 6, 7] as const;
+/** Tunnels last from about half a second to a second and a half. */
+const TUNNEL_BEAMS = [4, 5, 6, 8, 10] as const;
 /** Rails last from about a second to two. */
-const RAILS = { least: 8, most: 14 } as const;
+const RAILS = { least: stretch(1.1), most: stretch(2) } as const;
 
 /** How much road an obstacle takes up, from where it starts. */
 export function extent(obstacle: Obstacle): number {
@@ -41,21 +43,25 @@ function random(seed: number): () => number {
 }
 
 /**
- * An endless road of every kind of obstacle in random order, for trying them all at once. What
- * order and pace make a good run is not decided here.
+ * A road of a set length with every kind of obstacle in random order, for trying them all at
+ * once. What order and pace make a good run is not decided here.
  */
 export class Course {
   public readonly obstacles: Obstacle[] = [];
   private readonly next: () => number;
   private laidTo = FIRST_AT;
 
-  public constructor(seed: number) {
+  /** `length` is where the finish is, in world units from the start. */
+  public constructor(
+    seed: number,
+    private readonly length: number,
+  ) {
     this.next = random(seed);
   }
 
-  /** Lays obstacles as far as `distance`. */
+  /** Lays obstacles as far as `distance`, and none that would not end well before the finish. */
   public layTo(distance: number): void {
-    while (this.laidTo <= distance) {
+    while (this.laidTo <= Math.min(distance, this.length - RUN_IN - RAILS.most)) {
       const at = this.laidTo;
       const pick = <T>(choices: readonly T[]) =>
         choices[Math.floor(this.next() * choices.length)] as T;

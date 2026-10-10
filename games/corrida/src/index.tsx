@@ -7,7 +7,7 @@ import {
   mountMovementControls,
 } from "@jojixplay/game-sdk";
 import { render } from "preact";
-import { RULES, Run, type RunFrame } from "./run";
+import { RULES, Run, type RunFrame, type RunOptions, TRIAL } from "./run";
 import { createScene } from "./scene";
 import "./style.css";
 
@@ -18,6 +18,8 @@ const LANES = { "-1": "esquerda", "0": "meio", "1": "direita" } as const;
 /** How long the screen answers a collision, and the return of hearts. */
 const HIT_FLASH_MS = 500;
 const REFILL_NOTE_MS = 2200;
+/** Starting again and leaving are each held a moment, as any button is. */
+const END_HOLD_MS = 1200;
 
 function Prompt({ run, state }: { run: Run; state: "loading" | "failed" | "ready" }) {
   if (state === "failed")
@@ -32,6 +34,7 @@ function Prompt({ run, state }: { run: Run; state: "loading" | "failed" | "ready
         Preparando a pista…
       </p>
     );
+  if (run.phase === "finished" || run.phase === "failed") return null;
   if (run.phase === "running") {
     // While running the road is left clear: words appear only when the player needs to move.
     const text = !run.tracking
@@ -59,12 +62,15 @@ function Prompt({ run, state }: { run: Run; state: "loading" | "failed" | "ready
 function RaceUI({
   run,
   state,
+  onAgain,
   onExit,
 }: {
   run: Run;
   state: "loading" | "failed" | "ready";
+  onAgain: () => void;
   onExit: () => void;
 }) {
+  const over = run.phase === "finished" || run.phase === "failed";
   const percent = (share: number | null) => (share === null ? "–" : `${Math.round(share * 100)}%`);
   const puppet = run.phase === "running" ? run.puppet : null;
   const now = performance.now();
@@ -90,16 +96,33 @@ function RaceUI({
         </p>
       ) : null}
       <Prompt run={run} state={state} />
-      <button class="race-back" type="button" data-dwell-ms={EXIT_HOLD_MS} onClick={onExit}>
-        Voltar
-      </button>
+      {over ? (
+        <section class="race-end" aria-labelledby="race-end-title">
+          <h2 id="race-end-title">
+            {run.phase === "finished" ? "Você chegou!" : "Não foi dessa vez"}
+          </h2>
+          <div>
+            <button type="button" data-dwell-ms={END_HOLD_MS} onClick={onAgain}>
+              {run.phase === "finished" ? "Correr de novo" : "Tentar de novo"}
+            </button>
+            <button type="button" data-dwell-ms={END_HOLD_MS} onClick={onExit}>
+              Sair
+            </button>
+          </div>
+        </section>
+      ) : (
+        <button class="race-back" type="button" data-dwell-ms={EXIT_HOLD_MS} onClick={onExit}>
+          Voltar
+        </button>
+      )}
       {puppet ? (
         // For tuning on the phone: what the game currently reads from the player.
         <p class="race-reading">
           faixa {LANES[puppet.lane]} · agachado {Math.round(puppet.crouch * 100)}%
           {puppet.ducked ? " ✓" : ""} · pulo {Math.round(puppet.rise * 100)}%
           {puppet.jumping ? " ✓" : ""} · soco E {percent(puppet.reach.left)} D{" "}
-          {percent(puppet.reach.right)}
+          {percent(puppet.reach.right)} · reto E {percent(puppet.straight.left)} D{" "}
+          {percent(puppet.straight.right)}
           {puppet.lastPunch
             ? ` · último ${puppet.lastPunch.side === "left" ? "E" : "D"} +${Math.round(
                 puppet.lastPunch.rise * 100,
@@ -116,7 +139,11 @@ function RaceUI({
  * steps, crouches, jumps and holds its arms as the player does, past every kind of obstacle in
  * random order. The shape of a whole run is not decided yet.
  */
-export function mountCorrida(container: HTMLElement, host: GameHost): Experience<RunFrame> {
+export function mountRun(
+  container: HTMLElement,
+  host: GameHost,
+  options: RunOptions,
+): Experience<RunFrame> {
   const root = document.createElement("section");
   root.className = "race-game";
   root.setAttribute("aria-label", "Corrida dos Blocos");
@@ -134,14 +161,26 @@ export function mountCorrida(container: HTMLElement, host: GameHost): Experience
     throw error;
   }
 
-  const run = new Run(Math.floor(Math.random() * 2 ** 31));
+  const run = new Run(Math.floor(Math.random() * 2 ** 31), options);
   let frame: RunFrame | null = null;
   let state: "loading" | "failed" | "ready" = "loading";
   let disposed = false;
   let request = 0;
   let drawnAt = Number.NEGATIVE_INFINITY;
   const controls = mountMovementControls(root, { pointer: "target" });
-  const drawUI = () => render(<RaceUI run={run} state={state} onExit={host.exit} />, ui);
+  const drawUI = () =>
+    render(
+      <RaceUI
+        run={run}
+        state={state}
+        onAgain={() => {
+          run.restart();
+          drawUI();
+        }}
+        onExit={host.exit}
+      />,
+      ui,
+    );
   const fail = () => {
     if (disposed) return;
     state = "failed";
@@ -205,4 +244,9 @@ export function mountCorrida(container: HTMLElement, host: GameHost): Experience
       root.remove();
     },
   };
+}
+
+/** The game as the host opens it. */
+export function mountCorrida(container: HTMLElement, host: GameHost): Experience<RunFrame> {
+  return mountRun(container, host, TRIAL);
 }

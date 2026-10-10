@@ -301,6 +301,39 @@ it("reads a punch as a wrist moving quickly forward, wherever it starts, and onc
   expect(twice.read(person(), own(person(), { left: 0.2 }), ASPECT, now).thrown.left).toBe(false);
 });
 
+it("does not take raising the fists into a guard for a punch, and takes a jab from the guard for one", () => {
+  const run = reader();
+  const at = (x: number, y: number, z: number) => ({ x, y, z, confidence: 1 });
+  /** The right arm alone, in the person's own space: shoulder at the origin, y downwards. */
+  const arm = (elbow: [number, number, number], wrist: [number, number, number]): WorldBody => ({
+    rightShoulder: at(0, 0, 0),
+    rightElbow: at(...elbow),
+    rightWrist: at(...wrist),
+  });
+  const read = (world: WorldBody) => run.read(person(), world, ASPECT, later());
+  // Hanging by the side.
+  expect(read(arm([0, 0.28, 0], [0, 0.55, 0])).thrown.right).toBe(false);
+  // Fist brought up in front of the chin: the wrist has come well forward, the elbow is bent.
+  const guard = read(arm([0, 0.2, -0.15], [0, -0.05, -0.25]));
+  expect(guard.reach.right).toBeGreaterThan(0.4);
+  expect(guard.straight.right).toBeLessThan(0.6);
+  expect(guard.thrown.right).toBe(false);
+  // Thrown out from there: forward again, and now straight.
+  const jab = read(arm([0, 0.03, -0.27], [0, 0, -0.54]));
+  expect(jab.straight.right).toBeGreaterThan(0.95);
+  expect(jab.thrown.right).toBe(true);
+  // Back to the guard, and a second jab counts as well.
+  read(arm([0, 0.2, -0.15], [0, -0.05, -0.25]));
+  expect(read(arm([0, 0.03, -0.27], [0, 0, -0.54])).thrown.right).toBe(true);
+
+  // A straight arm swung up from the side to point ahead is a punch too: it ends straight.
+  const swing = reader();
+  swing.read(person(), arm([0, 0.28, 0], [0, 0.55, 0]), ASPECT, later());
+  expect(
+    swing.read(person(), arm([0, 0.03, -0.27], [0, 0, -0.54]), ASPECT, later()).thrown.right,
+  ).toBe(true);
+});
+
 it("warns before the player walks out of the camera's view", () => {
   const run = reader();
   expect(run.read(person({ x: 0.5 }), own(person({ x: 0.5 })), ASPECT, later()).nearEdge).toBe(
