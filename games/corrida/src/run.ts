@@ -78,6 +78,8 @@ export const RULES = {
   slow: { finishFrom: stretch(0.7), finishPace: 0.4 },
   /** The character is drawn into line with a hollow trunk over this much road before its mouth. */
   lineUp: stretch(0.3),
+  /** How long after going into a river what lives there bites. */
+  bite: stretch(0.4),
   /** How far ahead obstacles are laid, and how far behind they are forgotten. */
   ahead: stretch(7.8),
   behind: 14,
@@ -107,6 +109,8 @@ export interface Item {
   beside?: Lane;
   /** Where along the road the character fell into this gap. */
   fellFrom?: number;
+  /** This obstacle has cost its heart. A fall costs it later than it begins. */
+  hurt?: boolean;
   /** When a monster was punched, and by which arm. */
   punched?: { readonly at: number; readonly side: "left" | "right" };
 }
@@ -356,8 +360,8 @@ export class Run {
       if (chasm.vine !== null) this.heldLane = chasm.vine;
     }
     // Neither held nor inside: into the gap, for the rest of the way across.
-    if (gap && crossing && gap.state === "coming" && !this.hanging && !inside)
-      this.judge(gap, false, now);
+    // Stepping off costs nothing yet: what hurts comes after.
+    if (gap && crossing && gap.state === "coming" && !this.hanging && !inside) gap.state = "hit";
     if (gap && crossing && gap.state === "hit" && gap.fellFrom === undefined) {
       gap.fellFrom = this.distance;
       this.fellAt = now;
@@ -455,6 +459,8 @@ export class Run {
         // wall may be it is gone from sight, and past the furthest the wall may be it is put
         // back above the road and comes down onto it. The road never stops.
         const vanish = Math.max(from, ideal - RAVINE.vanish);
+        // It strikes the bottom unseen, as the dark closes over it.
+        if (this.distance >= vanish) this.hurt(gap, now);
         if (this.distance < vanish) {
           const seconds = (this.distance - from) / SPEED;
           this.lift = -Math.min(RAVINE.deepest, (RAVINE.fall * seconds * seconds) / 2);
@@ -470,7 +476,9 @@ export class Run {
         }
       } else {
         // Down one bank into the water and up the other, to be out where the far bank may
-        // first be.
+        // first be. What lives in the water bites a moment after the character is in it.
+        if (this.distance >= Math.min(from + RULES.bite, Math.max(from, ideal)))
+          this.hurt(gap, now);
         const down = (this.distance - from) / (BANK / 2);
         const up = (ideal - this.distance - BANK / 2) / BANK;
         const sunk = Math.min(1, Math.max(0, Math.min(down, up)));
@@ -555,7 +563,13 @@ export class Run {
 
   private judge(item: Item, cleared: boolean, now: number): void {
     item.state = cleared ? "passed" : "hit";
-    if (cleared) return;
+    if (!cleared) this.hurt(item, now);
+  }
+
+  /** Takes the heart an obstacle costs, once. */
+  private hurt(item: Item, now: number): void {
+    if (item.hurt) return;
+    item.hurt = true;
     this.hitAt = now;
     this.hearts -= 1;
     if (this.hearts > 0) return;

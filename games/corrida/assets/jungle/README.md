@@ -17,12 +17,12 @@ Twenty-two models for the night-jungle world, each downloaded from [Poly Pizza](
 | monstera.glb | [Monstera Plant](https://poly.pizza/m/s9Nocqk1Ge) | Isa Lousberg | CC0 1.0 | Undergrowth |
 | bromeliad.glb | [Bromeliad](https://poly.pizza/m/5FZIGjZBWTB) | Poly by Google | CC-BY 3.0 | Undergrowth |
 | bush.glb | [Bush](https://poly.pizza/m/ooG6CkLyE8) | Quaternius | CC0 1.0 | Undergrowth; canopy overhead |
-| vines_a.glb | [Vines](https://poly.pizza/m/2jffIS8PMjZ) | Poly by Google | CC-BY 3.0 | Vines over the path |
-| vines_b.glb | [Vines](https://poly.pizza/m/EVS4viM9BL) | Quaternius | CC0 1.0 | Vines over the path and the river bank |
+| vines_a.glb | [Vines](https://poly.pizza/m/2jffIS8PMjZ) | Poly by Google | CC-BY 3.0 | Creepers down a ravine's wall |
+| vines_b.glb | [Vines](https://poly.pizza/m/EVS4viM9BL) | Quaternius | CC0 1.0 | Creepers down a ravine's wall |
 | rock_a.glb | [Rock Medium](https://poly.pizza/m/KZdEP3uUpa) | Quaternius | CC0 1.0 | Boulders to step round |
 | rock_b.glb | [Rock Medium](https://poly.pizza/m/JQxF95498B) | Quaternius | CC0 1.0 | Boulders to step round |
 | stump.glb | [Tree stump](https://poly.pizza/m/7etYPFVlpgm) | Poly by Google | CC-BY 3.0 | Giant stumps to step round |
-| mushrooms.glb | [Mushrooms](https://poly.pizza/m/alUv2htodmq) | Jarlan Perez | CC-BY 3.0 | Glowing toadstools, small and giant |
+| mushrooms.glb | [Mushrooms](https://poly.pizza/m/alUv2htodmq) | Jarlan Perez | CC-BY 3.0 | Small glowing fungi in the litter and on fallen wood |
 | jaguar.glb | [Jaguar](https://poly.pizza/m/4fb-oMr2uUF) | Poly by Google | CC-BY 3.0 | Monster |
 | anaconda.glb | [Anaconda](https://poly.pizza/m/1pi9DfAbsz0) | Poly by Google | CC-BY 3.0 | Monster |
 | peccary.glb | [Collared peccary](https://poly.pizza/m/3eoOcw_d00X) | Poly by Google | CC-BY 3.0 | Monster |

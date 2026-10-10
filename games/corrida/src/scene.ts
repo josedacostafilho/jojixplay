@@ -433,8 +433,14 @@ export function createScene(container: HTMLElement, makeTheme: ThemeMaker) {
         // One that has struck is gone in the blow: it is not drawn passing through the view.
         if (charging && item.state === "hit") made.visible = false;
         if (charging && !item.punched) {
-          made.position.y = Math.abs(Math.sin(now / 90)) * 0.25;
-          made.rotation.z = Math.sin(now / 90) * 0.06;
+          if (made.userData.gait === "slide") {
+            // A snake keeps to the ground and weaves from side to side as it comes.
+            made.position.x = Math.sin(now / 210) * 0.55;
+            made.rotation.y = Math.cos(now / 210) * 0.16;
+          } else {
+            made.position.y = Math.abs(Math.sin(now / 90)) * 0.25;
+            made.rotation.z = Math.sin(now / 90) * 0.06;
+          }
         }
         // Each part goes before it reaches the camera.
         for (const part of made.children)

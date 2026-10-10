@@ -385,12 +385,18 @@ it("crosses a gap hanging from its vine by any raised hand, and lets hands chang
 
 it("drops the character into a river when no hand is raised, at the start or part of the way", () => {
   let depth = 0;
+  // What lives in the water bites a moment after the character is in it, not at the bank.
+  const hearts = { dry: 0, justIn: 0, bitten: 0 };
   const walkedIn = meet(river, (water, ahead, run) => {
+    if (ahead > 0) hearts.dry = run.hearts;
     if (ahead < -0.3 && ahead > -0.4) depth = run.lift;
+    if (ahead < -0.25 && ahead > -0.35) hearts.justIn = run.hearts;
+    if (ahead < -0.5 && ahead > -0.6) hearts.bitten = run.hearts;
     // A hand raised after falling in does not climb back out.
     return acting({ lane: over(water), hands: ahead < -0.1 ? "both" : null });
   });
   expect([walkedIn.state, walkedIn.lostHearts]).toEqual(["hit", 1]);
+  expect([hearts.justIn, hearts.bitten]).toEqual([hearts.dry, hearts.dry - 1]);
   // Standing in the water, which runs below the road.
   expect(depth).toBeCloseTo(WATER_LEVEL - POOL_DEPTH);
   expect(walkedIn.run.lift).toBe(0);
@@ -406,9 +412,17 @@ it("drops the character down a ravine, never back up, and puts it on the road be
   let rose = false;
   let darkest = 0;
   let sawDark = false;
-  const fell = meet(ravine, (_, __, run) => {
-    // Until the dark has closed it only ever goes down.
+  let whole = 0;
+  let hurtFalling = false;
+  // A ravine with nothing in the middle lane to run into first.
+  const open = (obstacle: Obstacle) =>
+    ravine(obstacle) && obstacle.kind === "gap" && obstacle.trunk !== 0;
+  const fell = meet(open, (_, ahead, run) => {
+    // Until the dark has closed it only ever goes down, and is not yet hurt: the heart goes
+    // when it strikes the bottom, unseen.
+    if (ahead > 0) whole = run.hearts;
     sawDark ||= run.dark === 1;
+    if (run.falling && !sawDark && run.hearts < whole) hurtFalling = true;
     if (run.falling && !sawDark && run.lift > deepest + 1e-9) rose = true;
     deepest = Math.min(deepest, run.lift);
     darkest = Math.max(darkest, run.dark);
@@ -416,7 +430,7 @@ it("drops the character down a ravine, never back up, and puts it on the road be
   });
   expect([fell.state, fell.lostHearts]).toEqual(["hit", 1]);
   expect(deepest).toBeLessThan(-6);
-  expect([rose, darkest]).toEqual([false, 1]);
+  expect([rose, darkest, hurtFalling]).toEqual([false, 1, false]);
   expect([fell.run.lift, fell.run.falling, fell.run.dark]).toEqual([0, false, 0]);
 });
 

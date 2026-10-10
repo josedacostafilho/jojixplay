@@ -36,6 +36,7 @@ export interface Theme {
    * One obstacle, standing at the origin and stretching away down the road. A part that should
    * go from sight once it is behind the view says how far along it ends, in `userData.end`.
    * The scene keeps `userData.struck` on it: whether the character has struck its hollow trunk.
+   * A monster that should slide along the ground and not bound says so in `userData.gait`.
    */
   build(obstacle: Obstacle): THREE.Group;
   update(frame: ThemeFrame): void;

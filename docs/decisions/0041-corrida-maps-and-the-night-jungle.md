@@ -17,7 +17,7 @@ Code-built shapes cannot reach that look, and the repository is public, so nothi
 
 - **A map is a themed run of four levels, the last a boss.** Passing a level gives back every heart. A level is two minutes for now. Only the first level of the jungle exists, so a run ends there.
 - **Jungle is the Amazon forest; its first level is deep forest at night under a full moon.** Its boss will be the Boitatá.
-- **The same rules wear the forest's clothes.** Monsters are animals grown huge, one of three chosen at random with no difference in play: jaguar, anaconda, peccary. What stands in a lane is a giant stump, a boulder or giant toadstools. What is jumped is a fallen log or roots. What is ducked is a bough, and a tunnel is a row of them. The rails are a river with caimans and piranhas, crossed by a vine: both hands hold its one end.
+- **The same rules wear the forest's clothes.** Monsters are animals grown huge, one of three chosen at random with no difference in play: jaguar, anaconda, peccary. What stands in a lane is a giant stump or a boulder. What is jumped is a fallen log or roots. What is ducked is a bough, and a tunnel is a row of them. The rails are a river with caimans and piranhas, crossed by a vine: both hands hold its one end.
 - **A world is a theme.** The scene keeps the rules' side of drawing (the view and its acting, the arms, when obstacles appear and go) and asks a theme for light, scenery and what each obstacle looks like. The block forest is kept as a second theme that only the developer studio can open, at the owner's wish, in case something in it is wanted again.
 - **Models are free ones from Poly Pizza,** CC0 or CC-BY 3.0, credited beside the files, with textures scaled down. Everything else (ground, moon, stars, light shafts, fireflies, the rope) is made in code. Blender was not needed for this.
 - **The look aimed at is stylised, not realistic:** flat-shaded models under cool moonlight from ahead with a dim fill from behind the view, mist for depth, and many copies of few models drawn together.
@@ -71,6 +71,16 @@ The direction was right; four things were not, and were changed:
 - **A ravine has no floor.** A bright bottom made the road look like an island in the sky. The walls now go down 48 units into the dark.
 - **Nothing restarts a run.** A run used to start over when the player was unseen for six seconds and when the camera's picture changed; the owner saw runs reset for no reason they could see. The road now goes on through any absence, and a changed picture has its lanes laid out again around where the player was.
 - **The falling tree is drawn lower than its rule,** 1.2 units over the middle lane against a beam's 1.45, because at the true height it looked passable upright.
+
+## After the owner's fifth look
+
+- **A gap showed the forest's tricks.** Cutting the forest away across a river or a ravine opened a view sideways into it, where only the first rank of giants has crowns and the far wall is a picture. Two proposals were refused: closing the cut near the road, and building the whole forest in depth. What was agreed: the cut stays open and moonlit, and each gap plants its own facing along both banks (crowned giants leaning over it, thickets on the lip, dark leaves between the trunks), with mist in sheets at its far ends. It is a set for the cut, not a deeper forest.
+- **Bark in a few dark shades.** The falling tree, and all fallen wood, had been made paler to stand out, and looked like another forest's. Every trunk and wooden prop now takes one of seven dark shades at random.
+- **Nothing hangs from nothing.** The vine models hung in the air over the path are gone. Giants by the path grow limbs out over it, and lianas made in code hang from those. The vine to swing by hangs from a bough of a tree on the near bank.
+- **Hurt comes when the character is hurt.** Red flash, shake and the breaking heart had fired at the lip of a gap, as if something unseen had struck. The heart itself now goes later, and the effects with it: in a ravine when the dark closes over the fall, in a river 0.4 seconds after going in, as a bite. The rule moved, not only the effect, so a run that ends on its last heart ends there too.
+- **The anaconda faces the player** and slides. A world says how a monster moves (`userData.gait`), because the scene cannot know what animal it is.
+- **Fungi are small.** The giant teal toadstools were no part of this forest. Blocks are stumps and boulders; the fungi are small, pale, faintly green and on litter and rotting wood.
+- **More life, made in code only.** Buttress roots, orchids, termites' nests, webs, watching eyes, moths, falling leaves, bats, low mist and water lilies were added without a new model file. Leafcutter ants crossing the path were tried and removed, and so was the moss laid along the top of fallen and hollow trunks, which looked wrong on the darker bark. Folklore figures and animals that need models were left for later.
 
 ## Security policy
 

@@ -45,6 +45,8 @@ const MODELS = {
 type ModelName = keyof typeof MODELS;
 
 const LOAD_TIMEOUT_MS = 30_000;
+/** The turn that brings the anaconda's head, which its model has to one side, round to the view. */
+const SNAKE_FACING = -Math.PI / 2;
 /** The forest is laid in stretches this long that come round again one after another. */
 const CHUNK = 42;
 const CHUNKS = 4;
@@ -371,7 +373,8 @@ export function createJungle(scene: THREE.Scene): Theme {
   }
   /**
    * Scenery that stands where a river or a ravine crosses is not drawn: the forest is cut right
-   * through, and the moon comes down into the cut.
+   * through, and the moon comes down into the cut. The gap plants its own trees along both its
+   * banks, so that what is seen down the cut is the forest's face and never its inside.
    */
   const cleared = <T extends THREE.Material>(material: T): T => {
     material.onBeforeCompile = (shader) => {
@@ -388,6 +391,22 @@ export function createJungle(scene: THREE.Scene): Theme {
               && rooted.z > gaps[i].y - gaps[i].w * ragged(rooted.x, gaps[i].z) - 1.8)
               gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         #endif`,
+      );
+    };
+    return material;
+  };
+  /** The same for a single thing that stands in the forest by itself and is no part of a gap. */
+  const alone = <T extends THREE.Material>(material: T): T => {
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.gaps = openings;
+      shader.vertexShader = `uniform vec4 gaps[${OPENINGS}];
+        ${shader.vertexShader}`.replace(
+        "#include <project_vertex>",
+        `#include <project_vertex>
+        vec4 rooted = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        for (int i = 0; i < ${OPENINGS}; i++)
+          if (rooted.z < gaps[i].x + 2.5 && rooted.z > gaps[i].y - gaps[i].w * 3.0 - 2.5)
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);`,
       );
     };
     return material;
@@ -444,6 +463,136 @@ export function createJungle(scene: THREE.Scene): Theme {
     }),
   );
   add(new THREE.Points(flies, glimmer)).frustumCulled = false;
+
+  // Eyes watch from between the trees: pairs of small lights, low down or up in the branches,
+  // that are there for a while, blink, and are gone. And leaves come drifting down.
+  {
+    const next = random(13);
+    const PAIRS = 16;
+    const points = new Float32Array(PAIRS * 2 * 3);
+    const phases = new Float32Array(PAIRS * 2);
+    const hues = new Float32Array(PAIRS * 2);
+    for (let pair = 0; pair < PAIRS; pair += 1) {
+      const x = (next() < 0.5 ? -1 : 1) * (EDGE + 3 + next() * 10);
+      const y = next() < 0.7 ? 0.5 + next() * 1.6 : 5 + next() * 6;
+      const z = next() * 110;
+      const apart = 0.1 + next() * 0.07;
+      const phase = next() * 6.283;
+      const hue = next();
+      for (const eye of [0, 1]) {
+        points.set([x + (eye ? apart : -apart), y, z], (pair * 2 + eye) * 3);
+        phases[pair * 2 + eye] = phase;
+        hues[pair * 2 + eye] = hue;
+      }
+    }
+    const pairs = shape(new THREE.BufferGeometry());
+    pairs.setAttribute("position", new THREE.BufferAttribute(points, 3));
+    pairs.setAttribute("phase", new THREE.BufferAttribute(phases, 1));
+    pairs.setAttribute("hue", new THREE.BufferAttribute(hues, 1));
+    pairs.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+    const watching = keep(
+      new THREE.ShaderMaterial({
+        uniforms: { ...drift, gaps: openings },
+        vertexShader: `
+          attribute float phase;
+          attribute float hue;
+          uniform float distance;
+          uniform float time;
+          uniform float scale;
+          uniform vec4 gaps[${OPENINGS}];
+          varying float warm;
+          void main() {
+            vec3 place = position;
+            place.z = mod(place.z + distance, 110.0) - 104.0;
+            vec4 seen = modelViewMatrix * vec4(place, 1.0);
+            gl_Position = projectionMatrix * seen;
+            // There for a while and then not, and blinking now and then while they are.
+            float there = step(0.1, sin(time * 0.31 + phase))
+              * step(0.06, abs(sin(time * 0.83 + phase * 5.0)));
+            for (int i = 0; i < ${OPENINGS}; i++)
+              if (place.z < gaps[i].x + 3.0 && place.z > gaps[i].y - gaps[i].w * 3.0 - 3.0)
+                there = 0.0;
+            if (there < 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            warm = hue;
+            gl_PointSize = scale * 0.075 / max(1.0, -seen.z);
+          }`,
+        fragmentShader: `
+          varying float warm;
+          void main() {
+            vec2 from = gl_PointCoord - 0.5;
+            // An eye is wider than it is tall.
+            if (length(vec2(from.x, from.y * 1.7)) > 0.5) discard;
+            gl_FragColor = vec4(mix(vec3(1.0, 0.72, 0.18), vec3(0.6, 1.0, 0.45), step(0.5, warm)), 1.0);
+          }`,
+      }),
+    );
+    add(new THREE.Points(pairs, watching)).frustumCulled = false;
+
+    const LEAVES = 46;
+    const spots = new Float32Array(LEAVES * 3);
+    const turns = new Float32Array(LEAVES);
+    for (let leaf = 0; leaf < LEAVES; leaf += 1) {
+      spots.set([(next() - 0.5) * 24, next() * 13, next() * 110], leaf * 3);
+      turns[leaf] = next() * 6.283;
+    }
+    const litter = shape(new THREE.BufferGeometry());
+    litter.setAttribute("position", new THREE.BufferAttribute(spots, 3));
+    litter.setAttribute("phase", new THREE.BufferAttribute(turns, 1));
+    litter.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+    const drifting = keep(
+      new THREE.ShaderMaterial({
+        uniforms: drift,
+        vertexShader: `
+          attribute float phase;
+          uniform float distance;
+          uniform float time;
+          uniform float scale;
+          varying float turn;
+          void main() {
+            vec3 place = position;
+            place.z = mod(place.z + distance, 110.0) - 104.0;
+            place.y = mod(place.y - time * (0.55 + 0.3 * sin(phase * 3.0)), 13.0) + 0.1;
+            place.x += sin(time * 1.3 + phase) * 0.7 + sin(time * 0.37 + phase * 2.0) * 0.5;
+            vec4 seen = modelViewMatrix * vec4(place, 1.0);
+            gl_Position = projectionMatrix * seen;
+            turn = time * 2.0 + phase;
+            gl_PointSize = scale * 0.13 / max(1.0, -seen.z);
+          }`,
+        fragmentShader: `
+          varying float turn;
+          void main() {
+            vec2 from = gl_PointCoord - 0.5;
+            // A leaf, turning over as it falls.
+            vec2 leaf = vec2(from.x * cos(turn) - from.y * sin(turn), from.x * sin(turn) + from.y * cos(turn));
+            if (length(vec2(leaf.x, leaf.y * 2.4)) > 0.5) discard;
+            gl_FragColor = vec4(0.2, 0.33, 0.13, 1.0);
+          }`,
+      }),
+    );
+    add(new THREE.Points(litter, drifting)).frustumCulled = false;
+  }
+  // Bats cross the moon now and then: two dark wings, far off.
+  const wing = shape(new THREE.BufferGeometry());
+  wing.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(
+      [0, 0, 0, 1, 0.25, 0, 0.55, -0.3, 0, 0, 0, 0, 0.55, -0.3, 0, 0.1, -0.35, 0],
+      3,
+    ),
+  );
+  const dusk = keep(
+    new THREE.MeshBasicMaterial({ color: "#04070b", fog: false, side: THREE.DoubleSide }),
+  );
+  const bats = Array.from({ length: 5 }, (_, index) => {
+    const bat = add(new THREE.Group());
+    const wings = [-1, 1].map((side) => {
+      const half = new THREE.Mesh(wing, dusk);
+      half.scale.set(side * 1.5, 1.5, 1.5);
+      bat.add(half);
+      return half;
+    });
+    return { bat, wings, phase: index * 2.7 + 0.4, rate: 0.085 + index * 0.013 };
+  });
 
   // The rope: one vine, from the canopy down to the hands that hold it over a river.
   const rope = add(
@@ -551,24 +700,39 @@ export function createJungle(scene: THREE.Scene): Theme {
       .map((place) => ({ place, key: next() }))
       .sort((a, b) => a.key - b.key)
       .map(({ place }) => place);
+    // A tree's bark is one of the forest's shades; its leaves are as they come.
+    const woody = name === "treeA" || name === "treeB" || name === "treeC";
+    const tints = order.map((_, index) => SHADES[shadeOf(index + places.length)] as THREE.Color);
     for (const part of models.get(name)?.parts ?? [])
-      copies(into, part.geometry, part.material, order);
+      copies(
+        into,
+        part.geometry,
+        part.material,
+        order,
+        woody && part.material.alphaTest === 0 ? tints : undefined,
+      );
   }
+  /** `tints` colours each copy; copies that are not to be thinned out are always all drawn. */
   function copies(
-    into: THREE.Group,
+    into: THREE.Object3D,
     geometry: THREE.BufferGeometry,
     material: THREE.Material,
     places: readonly THREE.Matrix4[],
-  ) {
+    tints?: readonly THREE.Color[],
+    thin = true,
+  ): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(geometry, material, places.length);
     places.forEach((place, index) => {
       mesh.setMatrixAt(index, place);
+      const tint = tints?.[index];
+      if (tint) mesh.setColorAt(index, tint);
     });
     mesh.instanceMatrix.needsUpdate = true;
     // Copies are spread over the whole stretch: the one model's own bounds say nothing.
     mesh.frustumCulled = false;
     into.add(mesh);
-    thinnable.push({ mesh, all: places.length });
+    if (thin) thinnable.push({ mesh, all: places.length });
+    return mesh;
   }
 
   const shaft = shape(new THREE.PlaneGeometry(1, 1));
@@ -586,11 +750,23 @@ export function createJungle(scene: THREE.Scene): Theme {
   const bole = shape(new THREE.CylinderGeometry(0.75, 1.25, 26, 9, 1, true).translate(0, 13, 0));
   const barkMap = mottled(64, 9, (noise, speck) => {
     const tone = 0.5 + noise * 0.55 + (speck > 0.85 ? 0.12 : 0);
-    return [0.34 * tone, 0.24 * tone, 0.17 * tone];
+    return [0.42 * tone, 0.3 * tone, 0.21 * tone];
   });
   barkMap.repeat.set(3, 9);
   textures.push(barkMap);
+  // Bark is dark, and no two trunks are quite the same: each is one of a few shades of it,
+  // greyer, redder or mossier than the next, and none of them pale.
+  const SHADES = ["#f2ece6", "#d6cdc4", "#c9b8a8", "#b6b3b0", "#bcc4ad", "#a89888", "#dcc3ac"].map(
+    (shade) => new THREE.Color(shade),
+  );
+  /** The shade of a thing that is always the same for the same number. */
+  const shadeOf = (seed: number) => Math.floor(random(seed * 7 + 3)() * SHADES.length);
   const bark = cleared(keep(new THREE.MeshLambertMaterial({ map: barkMap })));
+  // The same bark seen from either side, for thin things, and on things that stand in a gap.
+  const barkBoth = cleared(
+    keep(new THREE.MeshLambertMaterial({ map: barkMap, side: THREE.DoubleSide })),
+  );
+  const barkOpen = keep(new THREE.MeshLambertMaterial({ map: barkMap }));
   const canopyDark = keep(new THREE.MeshLambertMaterial({ color: "#06180f" }));
   // Leaves in deep shade: the same clump, dark green and unlit by the moon, so that from below
   // or far off it is foliage and not a pale boulder.
@@ -675,6 +851,179 @@ export function createJungle(scene: THREE.Scene): Theme {
     far.rotation.y = -side * (Math.PI / 2);
   }
 
+  // What grows on the giants and between them, each made once and copied about. Every copy is
+  // rooted at its own tree, so that a river or a ravine takes tree and all away together.
+  const UP = new THREE.Vector3(0, 1, 0);
+  const ACROSS = new THREE.Vector3(1, 0, 0);
+  const limbShape = shape(new THREE.CylinderGeometry(0.55, 1, 1, 7).translate(0, 0.5, 0));
+  // A buttress root: a thin fin, one unit out from the middle of its trunk and one unit up it.
+  const finShape = shape(new THREE.BufferGeometry());
+  {
+    const STEPS = 6;
+    const points: number[] = [];
+    const uvs: number[] = [];
+    const faces: number[] = [];
+    for (const side of [-1, 1])
+      for (let step = 0; step <= STEPS; step += 1) {
+        const out = step / STEPS;
+        const high = (1 - out) ** 2.4;
+        const thick = 0.1 * (1 - out) * side;
+        points.push(out, high, thick * 0.4, out, 0, thick);
+        uvs.push(out * 0.3, high * 0.25, out * 0.3, 0);
+      }
+    for (const half of [0, 1])
+      for (let step = 0; step < STEPS; step += 1) {
+        const at = (half * (STEPS + 1) + step) * 2;
+        faces.push(at, at + 1, at + 2, at + 2, at + 1, at + 3);
+      }
+    finShape.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+    finShape.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    finShape.setIndex(faces);
+    finShape.computeVertexNormals();
+  }
+  // A liana slung between two places one unit apart, sagging one unit.
+  const sagShape = shape(
+    new THREE.TubeGeometry(
+      new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0.5, -2, 0),
+        new THREE.Vector3(1, 0, 0),
+      ),
+      12,
+      0.03,
+      5,
+    ),
+  );
+  const cordShape = shape(new THREE.CylinderGeometry(0.04, 0.05, 1, 5).translate(0, -0.5, 0));
+  const liana = cleared(keep(new THREE.MeshLambertMaterial({ color: "#4d5a2c" })));
+  // A termites' nest: a dark lump of earth stuck to a trunk.
+  const nestShape = shape(new THREE.IcosahedronGeometry(1, 1));
+  {
+    const next = random(57);
+    const at = nestShape.attributes.position as THREE.BufferAttribute;
+    // Corners that share a place must move together, or the lump comes apart.
+    const moved = new Map<string, number>();
+    for (let index = 0; index < at.count; index += 1) {
+      const key = `${at.getX(index).toFixed(3)},${at.getY(index).toFixed(3)},${at.getZ(index).toFixed(3)}`;
+      const swell = moved.get(key) ?? 0.75 + next() * 0.5;
+      moved.set(key, swell);
+      at.setXYZ(index, at.getX(index) * swell, at.getY(index) * swell, at.getZ(index) * swell);
+    }
+    nestShape.computeVertexNormals();
+  }
+  const nest = cleared(
+    keep(new THREE.MeshLambertMaterial({ color: "#5a3d28", flatShading: true })),
+  );
+  // A spray of orchids: a few pale flowers of five petals, drooping from where they grow.
+  const orchidShape = shape(new THREE.BufferGeometry());
+  {
+    const next = random(63);
+    const points: number[] = [];
+    for (let flower = 0; flower < 5; flower += 1) {
+      const middle = new THREE.Vector3(flower * 0.22 - 0.1, -flower * flower * 0.05, 0.15);
+      const facing = new THREE.Euler((next() - 0.5) * 1.2, (next() - 0.5) * 1.2, next() * 6);
+      for (let petal = 0; petal < 5; petal += 1) {
+        const turn = (petal / 5) * 6.283;
+        for (const [angle, long] of [
+          [0, 0],
+          [turn - 0.34, 0.16],
+          [turn + 0.34, 0.16],
+        ] as const) {
+          const corner = new THREE.Vector3(Math.cos(angle) * long, Math.sin(angle) * long, 0)
+            .applyEuler(facing)
+            .add(middle);
+          points.push(corner.x, corner.y, corner.z);
+        }
+      }
+    }
+    orchidShape.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+    orchidShape.computeVertexNormals();
+  }
+  const orchid = cleared(
+    keep(
+      new THREE.MeshLambertMaterial({
+        color: "#cdbcd8",
+        emissive: "#2a2033",
+        side: THREE.DoubleSide,
+      }),
+    ),
+  );
+  // A spider's web: spokes and rings of thread, one unit from its middle, catching the moon.
+  const webShape = shape(new THREE.BufferGeometry());
+  {
+    const next = random(71);
+    const SPOKES = 11;
+    const points: number[] = [];
+    const reach = Array.from({ length: SPOKES }, () => 0.8 + next() * 0.2);
+    const spoke = (index: number, share: number) => {
+      const turn = ((index % SPOKES) / SPOKES) * 6.283;
+      const long = (reach[index % SPOKES] ?? 1) * share;
+      return [Math.cos(turn) * long, Math.sin(turn) * long, 0] as const;
+    };
+    for (let index = 0; index < SPOKES; index += 1) {
+      points.push(0, 0, 0, ...spoke(index, 1.15));
+      for (let ring = 1; ring <= 6; ring += 1)
+        points.push(...spoke(index, ring / 6.4), ...spoke(index + 1, (ring + 0.5) / 6.4));
+    }
+    webShape.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+  }
+  const web = alone(
+    keep(
+      new THREE.LineBasicMaterial({
+        color: "#cfe2ff",
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+      }),
+    ),
+  );
+  // Mist lying low over the ground in patches, thickest in the middle of each.
+  const lowMist = keep(
+    new THREE.ShaderMaterial({
+      uniforms: { tint: { value: (scene.fog as THREE.Fog).color } },
+      transparent: true,
+      depthWrite: false,
+      vertexShader: `
+        varying vec2 across;
+        void main() {
+          across = uv * 2.0 - 1.0;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        uniform vec3 tint;
+        varying vec2 across;
+        void main() {
+          float thick = max(0.0, 1.0 - dot(across, across));
+          gl_FragColor = vec4(tint * 1.9, thick * thick * 0.3);
+        }`,
+    }),
+  );
+  // Moths flutter in the moonbeams: points placed in their shader.
+  const pulse = { time: { value: 0 }, scale: { value: 1 } };
+  const moths = keep(
+    new THREE.ShaderMaterial({
+      uniforms: pulse,
+      vertexShader: `
+        attribute float phase;
+        uniform float time;
+        uniform float scale;
+        void main() {
+          vec3 place = position + vec3(
+            sin(time * 3.1 + phase * 7.0) * 0.5 + sin(time * 0.7 + phase) * 0.6,
+            sin(time * 4.3 + phase * 3.0) * 0.35 + sin(time * 0.5 + phase * 2.0) * 0.8,
+            cos(time * 2.7 + phase * 5.0) * 0.5);
+          vec4 seen = modelViewMatrix * vec4(place, 1.0);
+          gl_Position = projectionMatrix * seen;
+          gl_PointSize = scale * (0.05 + 0.03 * sin(time * 23.0 + phase * 9.0)) / max(1.0, -seen.z);
+        }`,
+      fragmentShader: `
+        void main() {
+          if (length(gl_PointCoord - 0.5) > 0.5) discard;
+          gl_FragColor = vec4(0.78, 0.84, 0.74, 1.0);
+        }`,
+    }),
+  );
+
   function forest(index: number): THREE.Group {
     const group = new THREE.Group();
     const next = random(101 + index * 17);
@@ -707,7 +1056,39 @@ export function createJungle(scene: THREE.Scene): Theme {
     /** The same, in deep shade: what fills the forest's depths. */
     const shade = (x: number, y: number, z: number, size: number, squash: number) =>
       mass(x, y, z, size, squash, shades);
-    const trunks: THREE.Matrix4[] = [];
+    /** The giants: where each stands, its shade of bark, and whether it lines the path. */
+    const trunks: Array<{ place: THREE.Matrix4; tint: THREE.Color; lining: boolean }> = [];
+    /** What grows on them, by its shape: where each copy is, and its tree's shade of bark. */
+    const grown = new Map<
+      THREE.BufferGeometry,
+      { material: THREE.Material; places: THREE.Matrix4[]; tints: THREE.Color[] }
+    >();
+    const grow = (
+      geometry: THREE.BufferGeometry,
+      material: THREE.Material,
+      place: THREE.Matrix4,
+      tint?: THREE.Color,
+    ) => {
+      const list = grown.get(geometry) ?? { material, places: [], tints: [] };
+      list.places.push(place);
+      if (tint) list.tints.push(tint);
+      grown.set(geometry, list);
+    };
+    /** Something one unit long, laid from one place to another. */
+    const span = (
+      from: THREE.Vector3,
+      to: THREE.Vector3,
+      along: THREE.Vector3,
+      thick: (long: number) => THREE.Vector3,
+    ) => {
+      const way = to.clone().sub(from);
+      const long = way.length();
+      return new THREE.Matrix4().compose(
+        from,
+        new THREE.Quaternion().setFromUnitVectors(along, way.normalize()),
+        thick(long),
+      );
+    };
     const crowns = new Map<Leafage, THREE.Matrix4[]>();
     /** A crown of leaves hung with its middle at a place, so wide. */
     const crown = (x: number, y: number, z: number, width: number) => {
@@ -731,25 +1112,163 @@ export function createJungle(scene: THREE.Scene): Theme {
       // A giant's own crown, spreading about the top of its trunk.
       if (crowned)
         crown(x + (next() - 0.5) * 3, 25 + next() * 4, z + (next() - 0.5) * 3, 11 + next() * 6);
-      trunks.push(
-        new THREE.Matrix4().compose(
+      const tint = SHADES[Math.floor(next() * SHADES.length)] as THREE.Color;
+      trunks.push({
+        place: new THREE.Matrix4().compose(
           new THREE.Vector3(x, 0, z),
           new THREE.Quaternion().setFromEuler(
             new THREE.Euler((next() - 0.5) * 0.08, next() * 6, (next() - 0.5) * 0.08),
           ),
           new THREE.Vector3(girth, 1, girth),
         ),
+        tint,
+        lining: crowned,
+      });
+      return tint;
+    };
+    /** Buttress roots flaring from a giant's foot, none of them out onto the path. */
+    const buttress = (x: number, z: number, girth: number, tint: THREE.Color, most: number) => {
+      const fins = most - Math.floor(next() * 2);
+      const first = next() * 6.283;
+      for (let fin = 0; fin < fins; fin += 1) {
+        const turn = first + (fin / fins) * 6.283 + (next() - 0.5) * 0.6;
+        const out = 1.25 * girth + 1.1 + next() * 1.9;
+        if (Math.abs(x + Math.cos(turn) * out) < EDGE + 0.5) continue;
+        grow(
+          finShape,
+          barkBoth,
+          new THREE.Matrix4().compose(
+            new THREE.Vector3(x, -0.2, z),
+            new THREE.Quaternion().setFromAxisAngle(UP, -turn),
+            new THREE.Vector3(out, 3 + next() * 4.5, 0.9 + girth),
+          ),
+          tint,
+        );
+      }
+    };
+    /** Where a giant's limb over the path starts and ends, for what is slung between them. */
+    const limbs: Array<{ from: THREE.Vector3; to: THREE.Vector3; side: number }> = [];
+    const webs: THREE.Vector3[] = [];
+    /** Everything a giant by the path carries: roots, a limb out over the path, and its guests. */
+    const dress = (x: number, z: number, girth: number, tint: THREE.Color, side: number) => {
+      buttress(x, z, girth, tint, 5);
+      /** A place on its bark, on the side the path is, so high. */
+      const onBark = (high: number, round = (next() - 0.5) * 1.8) => {
+        const out = girth * (1.25 - (0.5 * high) / 26);
+        return {
+          at: new THREE.Vector3(x - side * Math.cos(round) * out, high, z + Math.sin(round) * out),
+          facing: Math.atan2(-side * Math.cos(round), Math.sin(round)),
+        };
+      };
+      if (next() < 0.3) {
+        const { at } = onBark(2.6 + next() * 4.5);
+        const size = 0.38 + next() * 0.3;
+        grow(
+          nestShape,
+          nest,
+          new THREE.Matrix4().compose(
+            at,
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(0, next() * 6, 0)),
+            new THREE.Vector3(size, size * 1.55, size),
+          ),
+        );
+      }
+      for (let count = 0; count < 2; count += 1) {
+        if (next() < 0.45) continue;
+        const { at, facing } = onBark(2.4 + next() * 6);
+        const size = 0.4 + next() * 0.35;
+        grow(
+          orchidShape,
+          orchid,
+          new THREE.Matrix4().compose(
+            at,
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(0, facing, (next() - 0.5) * 0.6)),
+            new THREE.Vector3(size, size, size),
+          ),
+        );
+      }
+      if (next() < 0.3) {
+        const { at } = onBark(3 + next() * 9);
+        put("bromeliad", at.x, at.y - 0.15, at.z, 0.7 + next() * 0.5, 0.5);
+      }
+      if (webs.length < 2 && Math.abs(x) > EDGE + 3.6 && next() < 0.4)
+        webs.push(new THREE.Vector3(x - side * (1.25 * girth + 1), 2 + next() * 2.4, z));
+      if (next() < 0.25) return;
+      // A great limb reaches out over the path and ends in leaves.
+      const high = 9 + next() * 6;
+      const from = new THREE.Vector3(x, high, z);
+      const to = new THREE.Vector3(
+        -side * next() * EDGE * 0.9,
+        high + 1.5 + next() * 3,
+        z + (next() - 0.5) * 2.4,
       );
+      const thick = 0.3 + 0.25 * girth;
+      grow(
+        limbShape,
+        bark,
+        span(from, to, UP, (long) => new THREE.Vector3(thick, long, thick)),
+        tint,
+      );
+      crown(to.x, to.y + 1, to.z, 5 + next() * 3);
+      limbs.push({ from, to, side });
+      const along = (share: number) => from.clone().lerp(to, share);
+      // A smaller one forks off it, upwards.
+      const fork = along(0.45 + next() * 0.2);
+      const tip = fork
+        .clone()
+        .add(new THREE.Vector3((next() - 0.5) * 4, 2.5 + next() * 2, (next() - 0.5) * 5));
+      grow(
+        limbShape,
+        bark,
+        span(fork, tip, UP, (long) => new THREE.Vector3(thick * 0.5, long, thick * 0.5)),
+        tint,
+      );
+      // Its leaves are a plain clump: real crowns are kept for where they are seen most.
+      mass(tip.x, tip.y + 0.4, tip.z, 2.2 + next() * 1.2, 0.6);
+      // Lianas hang from it, never lower than is clear of a head, and loop along under it.
+      for (let count = 0; count < 4; count += 1) {
+        const top = along(0.3 + next() * 0.65);
+        const long = Math.min(top.y - CLEAR_HEIGHT - 0.3, 1.5 + next() * 5);
+        if (long < 1 || next() < 0.25) continue;
+        grow(
+          cordShape,
+          liana,
+          new THREE.Matrix4().compose(
+            top,
+            new THREE.Quaternion().setFromEuler(
+              new THREE.Euler((next() - 0.5) * 0.12, 0, (next() - 0.5) * 0.12),
+            ),
+            new THREE.Vector3(0.7 + next() * 0.7, long, 0.7 + next() * 0.7),
+          ),
+        );
+      }
+      if (next() < 0.7) {
+        const [a, b] = [along(0.15 + next() * 0.25), along(0.65 + next() * 0.3)];
+        const sag = Math.min(a.y - CLEAR_HEIGHT - 0.5, 1.2 + next() * 1.8);
+        grow(
+          sagShape,
+          liana,
+          span(a, b, ACROSS, (long) => new THREE.Vector3(long, sag, sag)),
+        );
+      }
+      if (next() < 0.35) {
+        const perch = along(0.25 + next() * 0.5);
+        put("bromeliad", perch.x, perch.y + thick * 0.55, perch.z, 0.7 + next() * 0.5, 0.3);
+      }
     };
 
     for (const side of [-1, 1]) {
       // Giants close by the path, and rank behind rank of them further in. Between the first
       // rank and the second a way is left clear, half way up, for what flies there.
       for (let along = 2; along < CHUNK; along += 4.2 + next() * 3) {
-        trunk(side * (EDGE + 2.4 + next() * 2.8), -along, 0.5 + next() * 0.45, true);
+        const x = side * (EDGE + 2.4 + next() * 2.8);
+        const girth = 0.5 + next() * 0.45;
+        dress(x, -along, girth, trunk(x, -along, girth, true), side);
       }
       for (let along = 0; along < CHUNK; along += 2.6 + next() * 2) {
-        trunk(side * (EDGE + 11.5 + next() * 8), -along, 0.5 + next() * 0.6, false);
+        const x = side * (EDGE + 11.5 + next() * 8);
+        const girth = 0.5 + next() * 0.6;
+        buttress(x, -along, girth, trunk(x, -along, girth, false), 4);
       }
       for (let along = 0; along < CHUNK; along += 1.9 + next() * 1.6) {
         trunk(side * (EDGE + 20 + next() * 17), -along, 0.6 + next() * 0.9, false);
@@ -831,40 +1350,74 @@ export function createJungle(scene: THREE.Scene): Theme {
           0.3,
         );
       }
-      // A few toadstools that glow, low down in the leaves.
+      // A few small fungi that glow faintly, low down in the leaf litter.
       for (let count = 0; count < 2; count += 1)
         put(
           "mushrooms",
           side * (EDGE + 0.4 + next() * 1.2),
           0,
           -next() * CHUNK,
-          0.5 + next() * 0.5,
+          0.22 + next() * 0.2,
         );
     }
-    // Vines hang over the path from the crowns, always well above a head.
-    for (let along = 3; along < CHUNK; along += 4 + next() * 5) {
-      const length = 4 + next() * 5;
-      put(
-        pick(["vinesA", "vinesB", "vinesB"] as const),
-        (next() - 0.5) * EDGE * 2.6,
-        CLEAR_HEIGHT + next() * 2.5,
-        -along,
-        length,
+    // Now and then a liana is slung right across, high over the path, from a giant on one side
+    // to one that stands nearly opposite it.
+    for (const left of limbs) {
+      if (left.side !== -1) continue;
+      const right = limbs.find(
+        (limb) => limb.side === 1 && Math.abs(limb.from.z - left.from.z) < 1.6,
+      );
+      if (!right) continue;
+      const [a, b] = [left.from.clone(), right.from.clone()];
+      a.y += 3 + next() * 3;
+      b.y += 3 + next() * 3;
+      const sag = 2 + next() * 2;
+      grow(
+        sagShape,
+        liana,
+        span(a, b, ACROSS, (long) => new THREE.Vector3(long, sag, sag)),
       );
     }
     for (const [name, list] of places) scatter(group, name, list);
     scatter(group, "bush", masses);
     const clump = models.get("bush")?.parts[0];
     if (clump) copies(group, clump.geometry, shadow(clump.material), shades);
-    trunks.sort((a, b) => Math.abs(a.elements[12] ?? 0) - Math.abs(b.elements[12] ?? 0));
-    const giants = new THREE.InstancedMesh(bole, bark, trunks.length);
-    trunks.forEach((place, at) => {
-      giants.setMatrixAt(at, place);
-    });
-    giants.frustumCulled = false;
-    group.add(giants);
-    // Laid nearest rank first, so thinning takes the furthest ranks and leaves the path lined.
-    thinnable.push({ mesh: giants, all: trunks.length });
+    // The giants that line the path are always all there, with everything they carry. The
+    // ranks behind are laid nearest first, so thinning takes the furthest.
+    const lining = trunks.filter((giant) => giant.lining);
+    const behind = trunks
+      .filter((giant) => !giant.lining)
+      .sort((a, b) => Math.abs(a.place.elements[12] ?? 0) - Math.abs(b.place.elements[12] ?? 0));
+    for (const [rank, thin] of [
+      [lining, false],
+      [behind, true],
+    ] as const)
+      copies(
+        group,
+        bole,
+        bark,
+        rank.map((giant) => giant.place),
+        rank.map((giant) => giant.tint),
+        thin,
+      );
+    for (const [geometry, { material, places, tints }] of grown)
+      copies(group, geometry, material, places, tints.length > 0 ? tints : undefined, false);
+    for (const at of webs) {
+      const threads = new THREE.LineSegments(webShape, web);
+      threads.position.copy(at);
+      threads.scale.setScalar(0.9 + next() * 0.5);
+      threads.rotation.set((next() - 0.5) * 0.3, (next() - 0.5) * 0.5, next() * 6);
+      group.add(threads);
+    }
+    // Mist lies low in patches, across the path and off among the trees.
+    for (let count = 0; count < 6; count += 1) {
+      const patch = new THREE.Mesh(flat, lowMist);
+      patch.rotation.x = -Math.PI / 2;
+      patch.scale.set(14 + next() * 14, 8 + next() * 8, 1);
+      patch.position.set((next() - 0.5) * 44, 0.4 + next() * 0.5, -next() * CHUNK);
+      patch.renderOrder = 1;
+      group.add(patch);
+    }
 
     // The crowns meet over the path as well, leaving gaps of sky for the moon to come through:
     // lit leaves lowest, and darkness above them.
@@ -888,6 +1441,24 @@ export function createJungle(scene: THREE.Scene): Theme {
       // Slanting down from the moon's side.
       light.rotation.set(0, (next() - 0.5) * 0.8, 0.38 + next() * 0.12);
       group.add(light);
+      // Moths flutter in it.
+      const MOTHS = 7;
+      const places = new Float32Array(MOTHS * 3);
+      const phases = new Float32Array(MOTHS);
+      const down = new THREE.Vector3(0, -1, 0).applyEuler(light.rotation);
+      for (let moth = 0; moth < MOTHS; moth += 1) {
+        const at = light.position.clone().addScaledVector(down, 3 + next() * 8);
+        places.set([at.x, at.y, at.z], moth * 3);
+        phases[moth] = next() * 6.283;
+      }
+      const swarm = new THREE.BufferGeometry();
+      swarm.setAttribute("position", new THREE.BufferAttribute(places, 3));
+      swarm.setAttribute("phase", new THREE.BufferAttribute(phases, 1));
+      swarm.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+      geometries.push(swarm);
+      const fluttering = new THREE.Points(swarm, moths);
+      fluttering.frustumCulled = false;
+      group.add(fluttering);
     }
     return group;
   }
@@ -902,11 +1473,12 @@ export function createJungle(scene: THREE.Scene): Theme {
       window.clearTimeout(timeout);
       if (!live) return;
       for (const [name, root] of loaded) models.set(name, standard(root));
-      // Toadstools give their own faint light.
+      // The forest's glowing fungi are small and pale, with a faint green light of their own.
       for (const part of models.get("mushrooms")?.parts ?? []) {
         const material = part.material as THREE.MeshLambertMaterial;
-        material.emissive = new THREE.Color("#2fd6c0");
-        material.emissiveIntensity = 0.55;
+        material.color = new THREE.Color("#b9c7a4");
+        material.emissive = new THREE.Color("#4fc25a");
+        material.emissiveIntensity = 0.4;
       }
       for (let index = 0; index < CHUNKS; index += 1) chunks.push(add(forest(index)));
       give();
@@ -998,44 +1570,39 @@ export function createJungle(scene: THREE.Scene): Theme {
     }),
   );
 
-  // Fallen wood: paler than standing bark, so a trunk across the path stands out from the dark.
+  // Fallen wood is bark like any other, in the same few shades.
   const woodMap = mottled(64, 13, (noise, speck) => {
-    const tone = 0.6 + noise * 0.5 + (speck > 0.88 ? 0.1 : 0);
-    return [0.56 * tone, 0.42 * tone, 0.27 * tone];
+    const tone = 0.55 + noise * 0.5 + (speck > 0.88 ? 0.1 : 0);
+    return [0.42 * tone, 0.3 * tone, 0.21 * tone];
   });
   woodMap.repeat.set(2, 7);
   textures.push(woodMap);
-  const wood = keep(new THREE.MeshLambertMaterial({ map: woodMap }));
-  // A tree that is coming down is dead and pale, and is seen from underneath, in its own shade.
-  const deadwood = keep(
-    new THREE.MeshLambertMaterial({ map: woodMap, emissive: "#4a3620", emissiveIntensity: 1 }),
+  // A little light of its own keeps the underside of a bough overhead from going black.
+  const woods = SHADES.map((color) =>
+    keep(new THREE.MeshLambertMaterial({ map: woodMap, color, emissive: "#130d08" })),
+  );
+  // A tree that is coming down is seen from underneath, in its own shade, and so are the boughs
+  // in a ravine's wall: they have a little light of their own.
+  const deadwoods = SHADES.map((color) =>
+    keep(new THREE.MeshLambertMaterial({ map: woodMap, color, emissive: "#1c140c" })),
   );
   const heartwood = keep(new THREE.MeshLambertMaterial({ color: "#d9b27a" }));
-  const moss = keep(new THREE.MeshLambertMaterial({ color: "#5c9a34" }));
   // A unit trunk lying along x: one unit long and one in radius, a little thinner at one end.
   const round = shape(new THREE.CylinderGeometry(1, 0.88, 1, 16, 1, true).rotateZ(Math.PI / 2));
-  // Moss lies over the top third of it.
-  const cover = shape(
-    new THREE.CylinderGeometry(1.05, 0.93, 1, 10, 1, true, Math.PI / 2 - 1.05, 2.1).rotateZ(
-      Math.PI / 2,
-    ),
-  );
   const stub = shape(new THREE.CylinderGeometry(0.5, 0.75, 1, 7).translate(0, 0.5, 0));
   // A standing trunk one unit tall and one in radius at its foot, to be felled.
   const tapered = shape(new THREE.CylinderGeometry(0.62, 1, 1, 14).translate(0, 0.5, 0));
   /**
-   * A fallen trunk, round and whole: bark, a pale cut face at each end, moss along its top,
-   * the stumps of broken boughs, and small things growing on it.
+   * A fallen trunk, round and whole: bark, a pale cut face at each end, the stumps of broken
+   * boughs, and small things growing on it.
    */
   function fallen(length: number, radius: number, seed: number): THREE.Group {
     const next = random(seed);
+    const wood = woods[shadeOf(seed)] as THREE.Material;
     const trunk = new THREE.Group();
     const bole = new THREE.Mesh(round, wood);
     bole.scale.set(length, radius, radius);
-    const green = new THREE.Mesh(cover, moss);
-    green.scale.set(length * (0.55 + next() * 0.3), radius, radius);
-    green.position.x = (next() - 0.5) * length * 0.2;
-    trunk.add(bole, green);
+    trunk.add(bole);
     for (const side of [-1, 1]) {
       const face = new THREE.Mesh(disc, heartwood);
       face.scale.setScalar(radius * (side === 1 ? 1 : 0.88));
@@ -1059,6 +1626,21 @@ export function createJungle(scene: THREE.Scene): Theme {
           { height: 0.45 + next() * 0.4, turn: next() * 6 },
         ),
       );
+    // Small glowing fungi grow out of the rotting wood.
+    for (let count = 0; count < 1; count += 1) {
+      const round = (next() - 0.5) * 1.6;
+      trunk.add(
+        stand(
+          "mushrooms",
+          {
+            x: (next() - 0.5) * length * 0.7,
+            y: Math.cos(round) * radius * 0.9,
+            z: Math.sin(round) * radius * 0.9,
+          },
+          { height: 0.16 + next() * 0.14, turn: next() * 6 },
+        ),
+      );
+    }
     return trunk;
   }
 
@@ -1269,6 +1851,7 @@ export function createJungle(scene: THREE.Scene): Theme {
    */
   function hollow(owner: THREE.Object3D, length: number, seed: number) {
     const next = random(seed);
+    const wood = woods[shadeOf(seed)] as THREE.Material;
     const trunk = new THREE.Group();
     // Everything that is on it or in it, and goes when it bursts.
     const whole = new THREE.Group();
@@ -1281,6 +1864,21 @@ export function createJungle(scene: THREE.Scene): Theme {
           { height: 0.45 + next() * 0.6, turn: next() * 6 },
         ),
       );
+    for (let count = 0; count < 1 + length / 12; count += 1) {
+      const side = next() < 0.5 ? -1 : 1;
+      const round = 0.5 + next() * 0.7;
+      whole.add(
+        stand(
+          "mushrooms",
+          {
+            x: side * Math.sin(round) * TRUNK.outer * TRUNK.wide,
+            y: TRUNK_MIDDLE + Math.cos(round) * TRUNK.outer,
+            z: -length * (0.04 + next() * 0.9),
+          },
+          { height: 0.2 + next() * 0.16, turn: next() * 6 },
+        ),
+      );
+    }
     // The stumps of its boughs, up and out to either side, never down into anyone's way.
     for (let count = 0; count < 2 + length / 7; count += 1) {
       const knot = new THREE.Mesh(stub, wood);
@@ -1324,7 +1922,7 @@ export function createJungle(scene: THREE.Scene): Theme {
       whole.add(slit, light);
     }
     trunk.add(whole);
-    const pieces = staves.map(({ stave, out }, index) => {
+    const pieces = staves.map(({ stave, out }) => {
       const piece = new THREE.Group();
       const centre = new THREE.Vector3(
         out.x * TRUNK.wide * 0.9,
@@ -1336,14 +1934,6 @@ export function createJungle(scene: THREE.Scene): Theme {
       shell.scale.z = length;
       shell.position.set(-centre.x, TRUNK_MIDDLE - centre.y, length / 2);
       piece.add(shell);
-      // Moss lies along the staves that are uppermost.
-      if (index >= 1 && index <= 2) {
-        const green = new THREE.Mesh(stave, [moss, pith, moss]);
-        green.scale.set(1.03, 1.03, length * (0.5 + next() * 0.35));
-        green.position.copy(shell.position).z -= next() * length * 0.15;
-        green.userData.moss = true;
-        piece.add(green);
-      }
       trunk.add(piece);
       return {
         piece,
@@ -1363,7 +1953,6 @@ export function createJungle(scene: THREE.Scene): Theme {
         whole.visible = false;
         for (const { piece, centre, out, spin } of pieces) {
           piece.visible = flown < 1;
-          for (const part of piece.children) if (part.userData.moss) part.visible = false;
           piece.position.set(
             centre.x + out.x * flown * 5,
             centre.y + out.y * flown * 5 - flown * flown * 3,
@@ -1374,6 +1963,65 @@ export function createJungle(scene: THREE.Scene): Theme {
       },
     };
   }
+
+  // A gap's own forest: the same trees and leaves, standing where the gap says and not taken
+  // away by it. Their materials are made when first wanted, once the models are in.
+  let dressing: {
+    crowns: Array<{ kind: Leafage; material: THREE.Material }>;
+    bush: Part;
+    shade: THREE.Material;
+  } | null = null;
+  function dressingOf() {
+    const clump = models.get("bush")?.parts[0];
+    if (dressing || !clump) return dressing;
+    const lit = keep((clump.material as THREE.MeshLambertMaterial).clone());
+    const shade = keep(lit.clone());
+    shade.color = new THREE.Color("#3d6b47");
+    shade.emissive = new THREE.Color("#0a2414");
+    dressing = {
+      crowns: crownsOf().map((kind) => ({ kind, material: keep(kind.material.clone()) })),
+      bush: { geometry: clump.geometry, material: lit },
+      shade,
+    };
+    return dressing;
+  }
+  // Down the cut the forest's two faces draw together and are lost in mist, sheet behind sheet,
+  // with the sky open above.
+  const veil = keep(
+    new THREE.ShaderMaterial({
+      uniforms: { tint: { value: (scene.fog as THREE.Fog).color } },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexShader: `
+        varying float high;
+        void main() {
+          high = uv.y;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        uniform vec3 tint;
+        varying float high;
+        void main() {
+          gl_FragColor = vec4(tint, 0.44 * (1.0 - smoothstep(0.7, 1.0, high)));
+        }`,
+    }),
+  );
+  // A giant water lily's pad: a round leaf lying on the water with its rim turned up.
+  const padShape = shape(
+    new THREE.LatheGeometry(
+      [new THREE.Vector2(0.001, 0), new THREE.Vector2(0.96, 0), new THREE.Vector2(1, 0.1)],
+      18,
+    ),
+  );
+  const pad = keep(
+    new THREE.MeshLambertMaterial({
+      color: "#2f7040",
+      emissive: "#0c2a15",
+      side: THREE.DoubleSide,
+    }),
+  );
+  const petal = keep(new THREE.MeshLambertMaterial({ color: "#f3ecf7", emissive: "#5d5564" }));
 
   /**
    * The vine to swing by, hanging over one lane down to where a raised hand reaches. It ends in
@@ -1390,11 +2038,10 @@ export function createJungle(scene: THREE.Scene): Theme {
     loop.position.y = grip - 0.2;
     const shine = new THREE.Mesh(disc, glint);
     shine.position.set(0, grip - 0.2, 0.05);
-    const leaves = stand("vinesB", { x: 0, y: grip + 1.4 }, { height: 5 });
     const lit = new THREE.Mesh(shaft, beam);
     lit.scale.set(1.6, 20, 1);
     lit.position.y = 10;
-    vine.add(cord, loop, shine, leaves, lit);
+    vine.add(cord, loop, shine, lit);
     vine.position.set(lane * LANE, 0, 0.4);
     return {
       object: vine,
@@ -1410,6 +2057,20 @@ export function createJungle(scene: THREE.Scene): Theme {
     new THREE.PointsMaterial({ color: "#6f9440", size: 0.16, sizeAttenuation: true }),
   );
 
+  /** A stump's own materials in each shade of bark, made as they are first wanted. */
+  const stumps = new Map<string, THREE.Material>();
+  const stumpIn = (shade: number, given: THREE.Material): THREE.Material => {
+    const key = `${shade}:${given.uuid}`;
+    let made = stumps.get(key);
+    if (!made) {
+      const tinted = keep((given as THREE.MeshLambertMaterial).clone());
+      // The model's wood is darker than the forest's: brought up to it, then shaded.
+      tinted.color.multiplyScalar(1.6).multiply(SHADES[shade] as THREE.Color);
+      made = tinted;
+      stumps.set(key, made);
+    }
+    return made;
+  };
   /** A choice that is always the same for the same obstacle, so nothing flickers between kinds. */
   const choose = <T>(obstacle: Obstacle, salt: number, choices: readonly T[]): T =>
     choices[Math.floor(random(Math.round(obstacle.at * 97) + salt)() * choices.length)] as T;
@@ -1417,14 +2078,24 @@ export function createJungle(scene: THREE.Scene): Theme {
   function build(obstacle: Obstacle): THREE.Group {
     const object = new THREE.Group();
     if (obstacle.kind === "block") {
-      // Something too big to get past, standing in a lane: a giant stump, a mossy boulder, or
-      // toadstools as tall as the player.
+      // Something too big to get past, standing in a lane: a giant stump or a boulder.
       obstacle.lanes.forEach((lane, index) => {
-        const kind = choose(obstacle, index, ["stump", "rockA", "rockB", "mushrooms"] as const);
-        const height = kind === "mushrooms" ? 2.5 : kind === "stump" ? 2.3 : 2.1;
-        object.add(
-          stand(kind, { x: lane * LANE }, { height, width: LANE * 0.86, depth: 1.8, turn: lane }),
+        const kind = choose(obstacle, index, ["stump", "rockA", "rockB"] as const);
+        const height = kind === "stump" ? 2.3 : 2.1;
+        const thing = stand(
+          kind,
+          { x: lane * LANE },
+          { height, width: LANE * 0.86, depth: 1.8, turn: lane },
         );
+        // A stump is wood, in one of the forest's shades of it.
+        if (kind === "stump") {
+          const shade = shadeOf(Math.round(obstacle.at) + index);
+          thing.traverse((child) => {
+            const mesh = child as THREE.Mesh;
+            if (mesh.isMesh) mesh.material = stumpIn(shade, mesh.material as THREE.Material);
+          });
+        }
+        object.add(thing);
       });
       return object;
     }
@@ -1484,6 +2155,13 @@ export function createJungle(scene: THREE.Scene): Theme {
         { x: obstacle.lane * LANE },
         { height: kind === "anaconda" ? MONSTER.height * 0.8 : kind === "jaguar" ? 1.9 : 1.6 },
       );
+      if (kind === "anaconda") {
+        // It comes head first, its length trailing away up the road behind it, and it slides.
+        beast.rotation.y = SNAKE_FACING;
+        const long = (models.get("anaconda")?.wide ?? 1) * beast.scale.x;
+        beast.position.z = -long / 2 + 1;
+        object.userData.gait = "slide";
+      }
       object.add(beast);
       return object;
     }
@@ -1498,6 +2176,7 @@ export function createJungle(scene: THREE.Scene): Theme {
       /** How far its foot is beyond the path's edge. */
       const beyond = 1.2;
       const tree = new THREE.Group();
+      const deadwood = deadwoods[shadeOf(Math.round(obstacle.at))] as THREE.Material;
       const trunk = new THREE.Mesh(tapered, deadwood);
       trunk.scale.set(foot, tall, foot);
       tree.add(trunk);
@@ -1587,6 +2266,7 @@ export function createJungle(scene: THREE.Scene): Theme {
     // forest with it. There is a vine to cross by, or a hollow trunk fallen across, or both.
     const { length, over } = obstacle;
     const next = random(Math.round(obstacle.at));
+    const deadwood = deadwoods[shadeOf(Math.round(obstacle.at))] as THREE.Material;
     const moving: Array<(time: number) => void> = [];
     const line = Math.floor(next() * LINES.length);
     const phase = LINES[line] ?? 0;
@@ -1602,6 +2282,146 @@ export function createJungle(scene: THREE.Scene): Theme {
     beyond.scale.z = -1;
     beyond.userData.end = length + reach * 4;
     object.add(near, beyond);
+    // Both banks are dressed along the gap's whole length, to either side of the path: giants
+    // leaning out over it under their crowns, and leaves from the ground up between them. What
+    // is seen down the cut is the face of a forest, not its inside.
+    const set = dressingOf();
+    const rows = {
+      trunks: [] as THREE.Matrix4[],
+      tints: [] as THREE.Color[],
+      masses: [] as THREE.Matrix4[],
+      shades: [] as THREE.Matrix4[],
+      crowns: new Map<number, THREE.Matrix4[]>(),
+    };
+    const leafy = (into: THREE.Matrix4[], x: number, y: number, z: number, size: number) =>
+      into.push(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(x, y, z),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(0, next() * 6, 0)),
+          new THREE.Vector3(size * (1 + next() * 0.5), size * 0.6, size * (1 + next() * 0.5)),
+        ),
+      );
+    const crowned = (x: number, y: number, z: number, width: number) => {
+      if (!set || set.crowns.length === 0) return;
+      const which = Math.floor(next() * set.crowns.length);
+      const kind = set.crowns[which]?.kind;
+      if (!kind) return;
+      const scale = width / kind.width;
+      const turn = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, next() * 6, 0));
+      const middle = kind.middle.clone().multiplyScalar(scale).applyQuaternion(turn);
+      const list = rows.crowns.get(which) ?? [];
+      list.push(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(x - middle.x, y - middle.y, z - middle.z),
+          turn,
+          new THREE.Vector3(scale, scale * (0.8 + next() * 0.3), scale),
+        ),
+      );
+      rows.crowns.set(which, list);
+    };
+    const giant = (x: number, z: number, girth: number, lean: number) => {
+      rows.trunks.push(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(x, -0.3, z),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(lean, next() * 6, 0)),
+          new THREE.Vector3(girth, 1, girth),
+        ),
+      );
+      rows.tints.push(SHADES[Math.floor(next() * SHADES.length)] as THREE.Color);
+    };
+    for (const far of [false, true]) {
+      // Which way along the road is away from the gap, on this bank.
+      const away = far ? -1 : 1;
+      for (const side of [-1, 1]) {
+        for (let out = EDGE + 2.8 + next() * 1.5; out < 47; out += 3.2 + next() * 2.4) {
+          const x = side * out;
+          const lip = far ? -length - recess(x) : 0;
+          const z = lip + away * (2.2 + next() * 2.4);
+          giant(x, z, 0.55 + next() * 0.5, -away * (0.03 + next() * 0.1));
+          crowned(
+            x + (next() - 0.5) * 3,
+            22 + next() * 6,
+            z - away * (2 + next() * 2),
+            12 + next() * 5,
+          );
+          if (far || out < 22)
+            crowned(
+              x + (next() - 0.5) * 4,
+              12 + next() * 5,
+              z - away * (1 + next() * 1.5),
+              8 + next() * 3,
+            );
+          // Thickets right on the lip, and the forest's own shade close behind the trunks.
+          const size = 2.6 + next() * 2;
+          leafy(rows.masses, x + (next() - 0.5) * 2, size * 0.25, lip + away * (1 + next()), size);
+          for (const high of [4 + next() * 5, 11 + next() * 6, 18 + next() * 5])
+            leafy(
+              rows.shades,
+              x + (next() - 0.5) * 3,
+              high,
+              z + away * (0.5 + next() * 3),
+              5 + next() * 3,
+            );
+        }
+        // The cut's far ends are lost in mist.
+        for (const out of [30, 36, 42, 48]) {
+          if (far) continue;
+          const low = over === "ravine" ? -RAVINE.depth : WATER_LEVEL - 1;
+          const sheet = new THREE.Mesh(flat, veil);
+          sheet.rotation.y = Math.PI / 2;
+          sheet.scale.set(length + reach * 4 + 10, 50 - low, 1);
+          sheet.position.set(side * out, (50 + low) / 2, -(length + reach * 4) / 2 + 2);
+          sheet.userData.end = length + reach * 4;
+          sheet.renderOrder = 2;
+          object.add(sheet);
+        }
+      }
+    }
+    if (obstacle.vine !== null) {
+      // The vine hangs from a great bough that a giant on the near bank holds out over the gap.
+      const from = obstacle.vine !== 0 ? Math.sign(obstacle.vine) : next() < 0.5 ? -1 : 1;
+      const shade = Math.floor(next() * SHADES.length);
+      rows.trunks.push(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(from * (EDGE + 2.6), -0.3, 1.6),
+          new THREE.Quaternion(),
+          new THREE.Vector3(0.85, 1, 0.85),
+        ),
+      );
+      rows.tints.push(SHADES[shade] as THREE.Color);
+      const start = new THREE.Vector3(from * (EDGE + 2.6), 12.5, 1.6);
+      const tip = new THREE.Vector3(obstacle.vine * LANE - from * 1.2, 16.6, 0.2);
+      const way = tip.clone().sub(start);
+      const bough = new THREE.Mesh(limbShape, woods[shade]);
+      bough.position.copy(start);
+      bough.scale.set(0.5, way.length(), 0.5);
+      bough.quaternion.setFromUnitVectors(UP, way.normalize());
+      bough.userData.end = 2;
+      object.add(bough);
+      crowned(tip.x, tip.y + 1.2, tip.z, 5);
+    }
+    const spent: THREE.InstancedMesh[] = [];
+    /** Copies that belong to this gap alone: they stay as long as it does, and go with it. */
+    const planted = (
+      geometry: THREE.BufferGeometry,
+      material: THREE.Material,
+      places: readonly THREE.Matrix4[],
+      tints?: readonly THREE.Color[],
+    ) => {
+      if (places.length === 0) return;
+      const mesh = copies(object, geometry, material, places, tints, false);
+      mesh.userData.end = length + reach * 4 + 60;
+      spent.push(mesh);
+    };
+    planted(bole, barkOpen, rows.trunks, rows.tints);
+    if (set) {
+      planted(set.bush.geometry, set.bush.material, rows.masses);
+      planted(set.bush.geometry, set.shade, rows.shades);
+      for (const [which, places] of rows.crowns) {
+        const crown = set.crowns[which];
+        if (crown) planted(crown.kind.geometry, crown.material, places);
+      }
+    }
     /** Something at the far side, `back` beyond its edge there, or on the near lip. */
     const onLip = (far: boolean, thing: THREE.Object3D, back: number) => {
       thing.position.z = far ? -length - recess(thing.position.x) - back : back;
@@ -1649,6 +2469,27 @@ export function createJungle(scene: THREE.Scene): Theme {
         rock.userData.end = length;
         object.add(rock);
       }
+      // Giant water lilies lie on it, away from where the current runs hardest.
+      const pads: THREE.Matrix4[] = [];
+      for (let count = 0; count < 16; count += 1) {
+        const size = 0.55 + next() * 0.6;
+        const x = (next() - 0.5) * 70;
+        const z = -1.6 - next() * Math.max(0.5, length - 2.6);
+        pads.push(
+          new THREE.Matrix4().compose(
+            new THREE.Vector3(x, WATER_LEVEL + 0.1, z),
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(0, next() * 6, 0)),
+            new THREE.Vector3(size, size, size),
+          ),
+        );
+        if (count % 4 !== 0) continue;
+        const flower = new THREE.Mesh(nestShape, petal);
+        flower.scale.set(0.2, 0.14, 0.2);
+        flower.position.set(x + size * 0.5, WATER_LEVEL + 0.22, z + size * 0.4);
+        flower.userData.end = length;
+        object.add(flower);
+      }
+      planted(padShape, pad, pads);
       // Caimans lie in it with only their backs and eyes out, turning slowly.
       for (let count = 0; count < 4; count += 1) {
         const low = WATER_LEVEL - 0.2;
@@ -1692,7 +2533,8 @@ export function createJungle(scene: THREE.Scene): Theme {
       floor.userData.end = length + reach * 4;
       object.add(floor);
       // Roots and creepers hang down the far wall from its lip.
-      for (let x = -EDGE - 14; x < EDGE + 14; x += 1.6 + next() * 3) {
+      const wide = (x: number) => (Math.abs(x) > EDGE + 14 ? 2.2 : 1);
+      for (let x = -EDGE - 32; x < EDGE + 32; x += (1.6 + next() * 3) * wide(x)) {
         const long = 1.5 + next() * 4;
         if (next() < 0.5) {
           onLip(
@@ -1710,7 +2552,7 @@ export function createJungle(scene: THREE.Scene): Theme {
       }
       // Dead boughs and roots stick out of it, and boulders are lodged in it. Where the road
       // is they keep close to the wall, so that nothing falling past goes through one.
-      for (let x = -EDGE - 16; x < EDGE + 16; x += 1.8 + next() * 3.2) {
+      for (let x = -EDGE - 34; x < EDGE + 34; x += (1.8 + next() * 3.2) * wide(x)) {
         const onPath = Math.abs(x) < EDGE + 1;
         if (next() < 0.3) {
           const boulder = stand(
@@ -1759,6 +2601,10 @@ export function createJungle(scene: THREE.Scene): Theme {
       object.add(pipe.object);
       moving.push(pipe.move);
     }
+    // What was made for this gap alone goes with it.
+    moving.push(() => {
+      if (!object.parent) for (const mesh of spent) mesh.dispose();
+    });
     alive.set(object, moving);
     return object;
   }
@@ -1819,6 +2665,8 @@ export function createJungle(scene: THREE.Scene): Theme {
       drift.distance.value = distance;
       drift.time.value = now / 1000;
       drift.scale.value = innerHeight;
+      pulse.time.value = now / 1000;
+      pulse.scale.value = innerHeight;
       // The vine runs from the hands up into the canopy ahead, and sways with the swing.
       rope.visible = hang > 0.05 && hands !== null;
       if (hands && rope.visible) {
@@ -1830,6 +2678,21 @@ export function createJungle(scene: THREE.Scene): Theme {
         rope.quaternion.setFromUnitVectors(up, along.normalize());
       }
       moon.position.x = -34 + eyes.x * 0.9;
+      for (const { bat, wings, phase, rate } of bats) {
+        // Each comes across from one side, dipping and rising, and is a long time coming back.
+        const across = ((now / 1000) * rate + phase) % 3;
+        const seconds = now / 1000;
+        bat.position.set(
+          moon.position.x - 30 + across * 60,
+          moon.position.y + Math.sin(across * 9 + phase) * 3 + Math.sin(phase * 5) * 4,
+          -114,
+        );
+        bat.visible = across < 1;
+        const beat = Math.sin(seconds * 17 + phase) * 0.9;
+        wings.forEach((half, side) => {
+          half.rotation.z = (side ? 1 : -1) * beat;
+        });
+      }
     },
     dispose() {
       live = false;
