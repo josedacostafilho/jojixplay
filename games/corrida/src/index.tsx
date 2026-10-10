@@ -9,6 +9,8 @@ import {
 import { render } from "preact";
 import { RULES, Run, type RunFrame, type RunOptions, TRIAL } from "./run";
 import { createScene } from "./scene";
+import { createJungle } from "./themes/jungle";
+import type { ThemeMaker } from "./themes/theme";
 import "./style.css";
 
 /** Leaving takes a deliberate hold, so no confirmation is asked. */
@@ -81,7 +83,14 @@ function RaceUI({
         <div class="race-tally">
           <span role="img" aria-label={`${run.hearts} corações`}>
             {Array.from({ length: RULES.hearts }, (_, index) => (
-              <b class={index < run.hearts ? "" : "race-heart--lost"} aria-hidden="true">
+              <b
+                class={
+                  index < run.hearts
+                    ? ""
+                    : `race-heart--lost ${hit && index === run.hearts ? "race-heart--breaking" : ""}`
+                }
+                aria-hidden="true"
+              >
                 ♥
               </b>
             ))}
@@ -143,6 +152,7 @@ export function mountRun(
   container: HTMLElement,
   host: GameHost,
   options: RunOptions,
+  theme: ThemeMaker,
 ): Experience<RunFrame> {
   const root = document.createElement("section");
   root.className = "race-game";
@@ -155,13 +165,13 @@ export function mountRun(
   container.append(root);
   let scene: ReturnType<typeof createScene>;
   try {
-    scene = createScene(world);
+    scene = createScene(world, theme);
   } catch (error) {
     root.remove();
     throw error;
   }
 
-  const run = new Run(Math.floor(Math.random() * 2 ** 31), options);
+  const run = new Run(options.road ?? Math.floor(Math.random() * 2 ** 31), options);
   let frame: RunFrame | null = null;
   let state: "loading" | "failed" | "ready" = "loading";
   let disposed = false;
@@ -248,5 +258,5 @@ export function mountRun(
 
 /** The game as the host opens it. */
 export function mountCorrida(container: HTMLElement, host: GameHost): Experience<RunFrame> {
-  return mountRun(container, host, TRIAL);
+  return mountRun(container, host, TRIAL, createJungle);
 }

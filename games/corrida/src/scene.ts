@@ -1,34 +1,9 @@
 import * as THREE from "three";
-import bankUrl from "../assets/kenney-voxel/dirt_grass.png?no-inline";
-import grassUrl from "../assets/kenney-voxel/grass_top.png?no-inline";
-import leafUrl from "../assets/kenney-voxel/leaves.png?no-inline";
-import sandUrl from "../assets/kenney-voxel/sand.png?no-inline";
-import barkUrl from "../assets/kenney-voxel/trunk_side.png?no-inline";
-import woodUrl from "../assets/kenney-voxel/wood.png?no-inline";
 import { type ArmsPose, createArms } from "./arms";
-import type { Obstacle } from "./course";
 import type { Item, Run } from "./run";
-import {
-  BEAM_SPACING,
-  BEAM_UNDERSIDE,
-  FIGURE,
-  figure,
-  LANE,
-  LOG_HEIGHT,
-  MONSTER,
-  RAIL_HEIGHT,
-  RAIL_SPREAD,
-  stretch,
-  torsoTip,
-} from "./world";
+import type { ThemeMaker } from "./themes/theme";
+import { FELLING, FIGURE, figure, LANE, MONSTER, stretch, torsoTip, WATER_LEVEL } from "./world";
 
-const ROAD_LENGTH = 150;
-const TILE = 3;
-const TREES = 44;
-const BANKS = 40;
-const BUSHES = 30;
-const CLOUDS = 9;
-const LOAD_TIMEOUT_MS = 20_000;
 /** The tangent of half the camera's horizontal angle of view. */
 const VIEW_HALF_WIDTH = 1.4;
 const STANDING: ArmsPose = {
@@ -48,10 +23,37 @@ const MONSTER_LOOMS = 1.3;
 const KNOCKED_MS = 700;
 /** Hanging from rails, the view draws back and looks up at the hands that hold them. */
 const HANGING_VIEW = { back: 0.55, up: 0.4, ms: 260 } as const;
+/**
+ * When frames average longer than `slowMs`, the picture is eased one step, waiting `settleMs`
+ * between steps: drawn at this share of its sharpness, with this share of the scattered scenery.
+ */
+const EASE = {
+  slowMs: 34,
+  settleMs: 1000,
+  sharpness: [1, 0.8, 0.65, 0.5, 0.4],
+  detail: [1, 0.75, 0.5, 0.3, 0.15],
+} as const;
+/** Where the end of a rope is held: this far above the shoulders' middle and in front of it. */
+const ROPE_GRIP = { y: 0.6, z: 0.12 } as const;
+/** An arm reaching from its shoulder to the end of the rope, by side. */
+const ROPE_ARM = (() => {
+  const reach = (side: -1 | 1) => {
+    const length = Math.hypot(FIGURE.shoulder, ROPE_GRIP.y, ROPE_GRIP.z);
+    const way = {
+      x: (-side * FIGURE.shoulder) / length,
+      y: ROPE_GRIP.y / length,
+      z: ROPE_GRIP.z / length,
+    };
+    return { upper: way, lower: way };
+  };
+  return { left: reach(-1), right: reach(1) };
+})();
 /** How long a glove stays red after its arm throws a punch. */
 const PUNCH_FLASH_MS = 250;
 /** Stars burst from where a punch lands on a monster: how many, for how long, and how far. */
 const BURST = { stars: 14, ms: 550, reach: 3.2 } as const;
+/** Water thrown up by falling into a river: how many drops, for how long. */
+const SPLASH = { drops: 130, ms: 900 } as const;
 /** How far past the character something is still drawn: it is behind the view by then. */
 const PASSED_FROM = 1;
 /**
@@ -59,281 +61,44 @@ const PASSED_FROM = 1;
  * Angles are radians, distances world units.
  */
 const FX = {
-  hit: { ms: 650, back: 0.7, up: 0.12, shake: 0.12 },
+  // The road's pace is never touched, and neither is how far along it the view is: a mistake
+  // is told by a hard shake and a drop, not by being held back.
+  hit: { ms: 600, up: 0.08, shake: 0.22, drop: 0.14 },
   punch: { ms: 240, lunge: 0.55, narrow: 5, jolt: 0.025 },
   jump: { down: 0.3, landMs: 280, dip: 0.24 },
   pool: { ms: 600, down: 0.5, stride: 1.4, bob: 0.06, sway: 0.03 },
+  /** Falling into a ravine: the view pitches down and shudders in the rush of air. */
+  plunge: { ms: 160, down: 0.75, shudder: 0.03 },
+  /** On a vine the view looks down into the swing and up out of it. */
+  arc: { tilt: 0.16 },
   swing: { ms: 380, tilt: 0.06, reach: 0.12 },
   stride: { rate: 0.7, bob: 0.045, sway: 0.008 },
   step: { ms: 380, lean: 0.06 },
   monster: { from: stretch(2.6), turn: 0.13, ms: 260 },
   finish: { from: stretch(0.9), rise: 0.5, up: 0.12 },
+  /** A tree coming down just behind: the ground jumps. */
+  thud: { ms: 420, drop: 0.16, shake: 0.05 },
 } as const;
 
 /**
  * The road seen through the character's eyes. The world slides towards the view, which stays at
  * the same depth and moves only as the player does. Of the character, only the arms are drawn.
  */
-export function createScene(container: HTMLElement) {
+export function createScene(container: HTMLElement, makeTheme: ThemeMaker) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  const sharpness = Math.min(devicePixelRatio, 1.5);
+  renderer.setPixelRatio(sharpness);
   renderer.domElement.setAttribute("aria-label", "Pista de Corrida dos Blocos");
   container.append(renderer.domElement);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#9fd9e5");
-  scene.fog = new THREE.Fog("#9fd9e5", 30, 95);
   const camera = new THREE.PerspectiveCamera(66, 1, 0.1, 130);
-  scene.add(new THREE.HemisphereLight(0xfff5d6, 0x456b78, 1.9));
-  const sun = new THREE.DirectionalLight(0xffe4bd, 1.7);
-  sun.position.set(-8, 20, 10);
-  scene.add(sun);
-
+  const theme = makeTheme(scene);
   const geometries: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
-  const textures: THREE.Texture[] = [];
-  // The world waits for its pictures: a road that pops in half-drawn is worse than a moment's wait.
-  let loaded: () => void = () => {};
-  let failed: (error: Error) => void = () => {};
-  const ready = new Promise<void>((resolve, reject) => {
-    loaded = resolve;
-    failed = reject;
-  });
-  const timeout = window.setTimeout(() => failed(new Error("Timed out")), LOAD_TIMEOUT_MS);
-  const loader = new THREE.TextureLoader(
-    new THREE.LoadingManager(
-      () => loaded(),
-      undefined,
-      () => failed(new Error("A texture failed to load")),
-    ),
-  );
-  function texture(url: string, repeatX: number, repeatY: number) {
-    const map = loader.load(url);
-    map.wrapS = map.wrapT = THREE.RepeatWrapping;
-    map.repeat.set(repeatX, repeatY);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.magFilter = THREE.NearestFilter;
-    textures.push(map);
-    return map;
-  }
-  function mesh(geometry: THREE.BufferGeometry, material: THREE.Material) {
-    geometries.push(geometry);
-    materials.push(material);
-    return new THREE.Mesh(geometry, material);
-  }
-
-  const sand = texture(sandUrl, (3 * LANE) / TILE, ROAD_LENGTH / TILE);
-  const road = mesh(
-    new THREE.PlaneGeometry(3 * LANE, ROAD_LENGTH),
-    new THREE.MeshStandardMaterial({ map: sand, roughness: 1 }),
-  );
-  road.rotation.x = -Math.PI / 2;
-  road.position.z = -ROAD_LENGTH / 2 + 12;
-  scene.add(road);
-  const grass = texture(grassUrl, 120 / TILE, ROAD_LENGTH / TILE);
-  const ground = mesh(
-    new THREE.PlaneGeometry(120, ROAD_LENGTH),
-    new THREE.MeshStandardMaterial({ map: grass, roughness: 1 }),
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(0, -0.02, road.position.z);
-  scene.add(ground);
-
-  // Everything beside the road passes and comes round again; it is what makes the running felt.
-  const passing: THREE.Object3D[] = [];
   const edge = (3 * LANE) / 2;
-  /** A fixed scatter: the same world every time, with no two things in step. */
-  const scatter = (index: number, salt: number) => ((index * salt) % 17) / 17;
-  function pass(object: THREE.Object3D, index: number, count: number, salt: number) {
-    object.userData.at = (index / count) * ROAD_LENGTH + scatter(index, salt) * 5;
-    scene.add(object);
-    passing.push(object);
-  }
-
-  // Raised banks of earth close the road in on both sides and say where it ends without a line.
-  const bankGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const bankSide = new THREE.MeshStandardMaterial({ map: texture(bankUrl, 2, 1), roughness: 1 });
-  const bankTop = new THREE.MeshStandardMaterial({ map: texture(grassUrl, 2, 2), roughness: 1 });
-  geometries.push(bankGeometry);
-  materials.push(bankSide, bankTop);
-  for (let index = 0; index < BANKS; index += 1) {
-    const side = index % 2 ? 1 : -1;
-    const width = 2.4 + scatter(index, 7) * 2.2;
-    const height = 0.9 + scatter(index, 11) * 1.3;
-    const bank = new THREE.Mesh(bankGeometry, [
-      bankSide,
-      bankSide,
-      bankTop,
-      bankSide,
-      bankSide,
-      bankSide,
-    ]);
-    bank.scale.set(width, height, ROAD_LENGTH / (BANKS / 2) + 0.4);
-    bank.position.set(side * (edge + 0.25 + width / 2), height / 2, 0);
-    pass(bank, index - (index % 2), BANKS, 1);
-  }
-
-  const trunkGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const crownGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const trunkMaterial = new THREE.MeshStandardMaterial({
-    map: texture(barkUrl, 1, 4),
-    roughness: 1,
-  });
-  const crownMaterial = new THREE.MeshStandardMaterial({
-    map: texture(leafUrl, 3, 2),
-    roughness: 1,
-  });
-  geometries.push(trunkGeometry, crownGeometry);
-  materials.push(trunkMaterial, crownMaterial);
-  for (let index = 0; index < TREES; index += 1) {
-    const tree = new THREE.Group();
-    const height = 5 + scatter(index, 13) * 4;
-    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.scale.set(1.1, height, 1.1);
-    trunk.position.y = height / 2;
-    const spread = 4 + scatter(index, 5) * 2.5;
-    const crown = new THREE.Mesh(crownGeometry, crownMaterial);
-    crown.scale.set(spread, 2.6 + scatter(index, 3), spread);
-    crown.position.y = height + 0.9;
-    tree.add(trunk, crown);
-    // Near trees stand on the banks and lean their crowns over the road; others fill in behind.
-    const side = index % 2 ? 1 : -1;
-    tree.position.set(side * (edge + 2 + scatter(index, 29) * (index % 3 ? 3 : 14)), 0.8, 0);
-    pass(tree, index, TREES, 53);
-  }
-  for (let index = 0; index < BUSHES; index += 1) {
-    const size = 0.5 + scatter(index, 19) * 0.5;
-    const bush = new THREE.Mesh(crownGeometry, crownMaterial);
-    bush.scale.set(size * 1.3, size, size * 1.3);
-    bush.position.set((index % 2 ? 1 : -1) * (edge + 0.05 + scatter(index, 23) * 0.2), size / 2, 0);
-    pass(bush, index, BUSHES, 31);
-  }
-
-  // Clouds hang far off and do not pass: a sky with nothing in it reads as unfinished.
-  const cloudMaterial = new THREE.MeshBasicMaterial({ color: "#ffffff", fog: false });
-  materials.push(cloudMaterial);
-  for (let index = 0; index < CLOUDS; index += 1) {
-    const cloud = new THREE.Mesh(crownGeometry, cloudMaterial);
-    cloud.scale.set(9 + scatter(index, 7) * 12, 1.6, 5);
-    cloud.position.set((scatter(index, 13) - 0.5) * 150, 20 + scatter(index, 5) * 16, -95);
-    scene.add(cloud);
-  }
-
-  // The lane the game counts the player in: a soft patch of light on the road, never a line.
-  const glow = mesh(
-    new THREE.CircleGeometry(0.8, 40),
-    new THREE.MeshBasicMaterial({
-      color: "#ffd23f",
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false,
-    }),
-  );
-  glow.rotation.x = -Math.PI / 2;
-  glow.scale.y = 1.7;
-  // On the road just ahead, where the view can see it.
-  glow.position.set(0, 0.02, -5);
-  glow.visible = false;
-  scene.add(glow);
-
-  // Obstacles are built when they come into view and thrown away once they are behind.
-  const crate = new THREE.MeshStandardMaterial({ map: texture(woodUrl, 1, 1), roughness: 1 });
-  const bark = new THREE.MeshStandardMaterial({ map: texture(barkUrl, 6, 1), roughness: 1 });
-  const metal = new THREE.MeshStandardMaterial({ color: "#e23d5b", roughness: 0.5 });
-  const water = new THREE.MeshStandardMaterial({ color: "#2f9fe0", roughness: 0.25 });
-  const hide = new THREE.MeshStandardMaterial({ color: "#8a4fd6", roughness: 0.8 });
-  const pale = new THREE.MeshBasicMaterial({ color: "#ffffff" });
-  const dark = new THREE.MeshBasicMaterial({ color: "#14123a" });
-  materials.push(crate, bark, metal, water, hide, pale, dark);
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
-  const logGeometry = new THREE.CylinderGeometry(LOG_HEIGHT / 2, LOG_HEIGHT / 2, 1, 14);
-  geometries.push(unitBox, logGeometry);
-  /** A box standing on `y`, `along` world units further down the road than its obstacle starts. */
-  function block(
-    material: THREE.Material,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    depth: number,
-    along = 0,
-  ) {
-    const part = new THREE.Mesh(unitBox, material);
-    part.scale.set(width, height, depth);
-    part.position.set(x, y + height / 2, -along - (depth > 1.5 ? depth / 2 : 0));
-    // A part is done with once its far end is behind the character.
-    part.userData.end = along + (depth > 1.5 ? depth : 0);
-    return part;
-  }
-  function build(obstacle: Obstacle): THREE.Group {
-    const object = new THREE.Group();
-    if (obstacle.kind === "block") {
-      for (const lane of obstacle.lanes)
-        object.add(block(crate, lane * LANE, 0, LANE * 0.8, 1.9, 1.3));
-      return object;
-    }
-    if (obstacle.kind === "beam") {
-      // Each underside is where the rule says it is: a character whose head is lower goes under.
-      // A tunnel is open between its beams, so the character is seen all the way through.
-      for (let beam = 0; beam < obstacle.beams; beam += 1) {
-        const along = beam * BEAM_SPACING;
-        object.add(block(crate, 0, BEAM_UNDERSIDE, edge * 2 + 0.6, 0.5, 0.5, along));
-        for (const side of [-1, 1])
-          object.add(block(crate, side * (edge + 0.1), 0, 0.5, BEAM_UNDERSIDE + 0.5, 0.5, along));
-      }
-      return object;
-    }
-    if (obstacle.kind === "log") {
-      const log = new THREE.Mesh(logGeometry, bark);
-      log.rotation.z = Math.PI / 2;
-      log.scale.y = edge * 2 + 0.4;
-      log.position.y = LOG_HEIGHT / 2;
-      object.add(log);
-      return object;
-    }
-    if (obstacle.kind === "monster") {
-      // Big, standing in its lane, with arms that reach right across the road: there is no way
-      // round it. It faces the character.
-      const { width, height } = MONSTER;
-      const x = obstacle.lane * LANE;
-      const piece = (
-        material: THREE.Material,
-        across: number,
-        up: number,
-        wide: number,
-        tall: number,
-        deep: number,
-        forward = 0,
-      ) => {
-        const part = new THREE.Mesh(unitBox, material);
-        part.scale.set(wide, tall, deep);
-        part.position.set(across, up, forward);
-        object.add(part);
-      };
-      piece(hide, x, height / 2, width, height, 1.4);
-      piece(hide, 0, height * 0.55, edge * 2 + 1, 0.7, 0.9);
-      for (const side of [-1, 1]) {
-        piece(hide, x + side * width * 0.3, height + 0.3, 0.5, 0.7, 0.5);
-        piece(pale, x + side * width * 0.22, height * 0.78, 0.7, 0.7, 0.1, 0.71);
-        piece(dark, x + side * width * 0.2, height * 0.76, 0.3, 0.3, 0.1, 0.76);
-      }
-      piece(dark, x, height * 0.42, width * 0.6, 0.45, 0.1, 0.71);
-      for (const tooth of [-0.5, 0, 0.5])
-        piece(pale, x + tooth * width * 0.4, height * 0.46, 0.3, 0.26, 0.1, 0.76);
-      return object;
-    }
-    // A pool the whole width of the road, and over each lane a pair of rails to cross it by.
-    const { length } = obstacle;
-    object.add(block(water, 0, 0, edge * 2, 0.04, length));
-    for (const lane of [-1, 0, 1])
-      for (const side of [-1, 1])
-        object.add(block(metal, lane * LANE + side * RAIL_SPREAD, RAIL_HEIGHT, 0.07, 0.07, length));
-    for (const along of [0, length]) {
-      object.add(block(metal, 0, RAIL_HEIGHT, edge * 2 + 0.5, 0.12, 0.12, along));
-      for (const side of [-1, 1])
-        object.add(block(metal, side * (edge + 0.2), 0, 0.14, RAIL_HEIGHT + 0.12, 0.14, along));
-    }
-    return object;
-  }
+  geometries.push(unitBox);
+
   const built = new Map<Item, THREE.Group>();
 
   const arms = createArms();
@@ -349,12 +114,70 @@ export function createScene(container: HTMLElement) {
   burst.visible = false;
   scene.add(burst);
   let burstFor: Item | null = null;
+  // A splash, where the character goes into a river: drops thrown up ahead that the run goes
+  // through. Each has its own way out and up.
+  const drop = new THREE.MeshBasicMaterial({ color: "#cfeaff" });
+  materials.push(drop);
+  const splash = new THREE.Group();
+  const ways = Array.from({ length: SPLASH.drops }, () => {
+    const bead = new THREE.Mesh(starGeometry, drop);
+    splash.add(bead);
+    return {
+      bead,
+      x: (Math.random() - 0.5) * 9,
+      up: 4 + Math.random() * 7,
+      ahead: 1 + Math.random() * 11,
+      size: 0.15 + Math.random() ** 2 * 0.6,
+    };
+  });
+  splash.visible = false;
+  scene.add(splash);
+  let splashedAt = Number.NEGATIVE_INFINITY;
+  let wasWading = false;
+  // The dark that closes in from the edges on a character falling into a ravine.
+  const shrouding = { dark: { value: 0 } };
+  const shroud = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, 2),
+    new THREE.ShaderMaterial({
+      uniforms: shrouding,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      vertexShader: `
+        varying vec2 across;
+        void main() {
+          across = position.xy;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }`,
+      fragmentShader: `
+        uniform float dark;
+        varying vec2 across;
+        void main() {
+          float open = mix(1.6, -0.45, dark);
+          gl_FragColor = vec4(0.0, 0.0, 0.0, smoothstep(open, open + 0.45, length(across)));
+        }`,
+    }),
+  );
+  geometries.push(shroud.geometry);
+  materials.push(shroud.material);
+  shroud.frustumCulled = false;
+  shroud.renderOrder = 1000;
+  shroud.visible = false;
+  scene.add(shroud);
+  let plunge = 0;
   let previousAt: number | null = null;
   const eyes = new THREE.Vector3(0, EYE_HEIGHT, 0);
   let hang = 0;
+  // How far the picture has been eased for a device that cannot keep it smooth, and how long
+  // frames have been taking lately.
+  let strain = 0;
+  let pace = 16;
+  let easedAt: number | null = null;
+  const hands = new THREE.Vector3();
   let stride = 0;
   let turn = 0;
   let lifted = 0;
+  let thudAt = Number.NEGATIVE_INFINITY;
   let baseFov = 66;
 
   // The finish: a chequered banner over the road, where the run's length ends.
@@ -397,10 +220,21 @@ export function createScene(container: HTMLElement) {
   resize();
 
   return {
-    ready,
+    ready: theme.ready,
     render(run: Run, now: number) {
       const elapsed = previousAt === null ? 0 : Math.min(100, now - previousAt);
       previousAt = now;
+      // A device that cannot keep the picture smooth is asked for less, a step at a time, and
+      // keeps that for the visit: a coarser picture and thinner scenery, the same in kind.
+      easedAt ??= now + EASE.settleMs;
+      pace += (elapsed - pace) * 0.05;
+      if (now > easedAt && pace > EASE.slowMs && strain < EASE.detail.length - 1) {
+        strain += 1;
+        easedAt = now + EASE.settleMs;
+        pace = 16;
+        renderer.setPixelRatio(sharpness * (EASE.sharpness[strain] ?? 1));
+        resize();
+      }
       // Quick enough to feel direct, slow enough to hide the tremor in tracking.
       const share = 1 - Math.exp(-elapsed / 70);
       const running = run.phase === "running";
@@ -409,7 +243,14 @@ export function createScene(container: HTMLElement) {
       arms.pose(
         puppet
           ? {
-              arms: running ? run.arms : puppet.arms,
+              arms: !running
+                ? puppet.arms
+                : theme.grip === "rope" && run.hanging
+                  ? {
+                      left: run.grip.left ? ROPE_ARM.left : run.arms.left,
+                      right: run.grip.right ? ROPE_ARM.right : run.arms.right,
+                    }
+                  : run.arms,
               lean: puppet.lean,
               pitch: puppet.pitch,
               crouch: puppet.crouch,
@@ -425,9 +266,6 @@ export function createScene(container: HTMLElement) {
       arms.object.position.x += (x - arms.object.position.x) * share;
       const lift = running ? run.lift : 0;
       arms.object.position.y += (lift - arms.object.position.y) * share;
-      glow.visible = running && puppet !== null;
-      if (puppet)
-        glow.position.x += (puppet.lane * LANE - glow.position.x) * (1 - Math.exp(-elapsed / 45));
 
       // The view sits where the character's head is and moves as it does: across with each
       // step, down in a crouch, up in a jump. It looks level down the road and never turns:
@@ -440,6 +278,13 @@ export function createScene(container: HTMLElement) {
         : 0;
       eyes.x += (x + head.x - eyes.x) * follow;
       eyes.y += (lift + head.y - eyes.y) * follow;
+      // Put back on the road in the dark, the view is there at once.
+      if (running && run.dark >= 1) {
+        eyes.y = lift + head.y;
+        arms.object.position.y = lift;
+      }
+      shrouding.dark.value = running ? run.dark : 0;
+      shroud.visible = shrouding.dark.value > 0.005;
       hang += ((run.hanging ? 1 : 0) - hang) * (1 - Math.exp(-elapsed / HANGING_VIEW.ms));
       eyes.z += (0.05 - ahead + hang * HANGING_VIEW.back - eyes.z) * follow;
 
@@ -457,10 +302,10 @@ export function createScene(container: HTMLElement) {
       let back = 0;
       let narrow = 0;
 
-      // A hit throws the view back and up and shakes it.
-      back += reel * reel * FX.hit.back;
+      // A hit shakes the view hard and knocks it down for a moment.
       pitch += reel * reel * FX.hit.up;
-      roll += Math.sin(reel * Math.PI * 3) * FX.hit.shake;
+      roll += Math.sin(reel * Math.PI * 5) * reel * FX.hit.shake;
+      rise -= Math.sin(reel * Math.PI) * reel * FX.hit.drop;
 
       // A punch that lands: a lunge at the monster, a jolt, and the picture pulled in.
       const landed = swell(since(run.connectedAt, FX.punch.ms));
@@ -479,15 +324,50 @@ export function createScene(container: HTMLElement) {
         roll += Math.sin(run.distance * FX.pool.stride * 0.5) * FX.pool.sway;
       }
 
+      // Falling into a ravine it looks down the wall going by, shuddering.
+      plunge +=
+        ((running && run.falling && run.dark < 1 ? 1 : 0) - plunge) *
+        (1 - Math.exp(-elapsed / FX.plunge.ms));
+      pitch -= plunge * FX.plunge.down;
+      roll += Math.sin(now / 37) * plunge * FX.plunge.shudder;
+
+      // A splash where it goes into a river.
+      if (running && run.wading && !wasWading) splashedAt = now;
+      wasWading = running && run.wading;
+      const thrown = (now - splashedAt) / SPLASH.ms;
+      splash.visible = thrown < 1;
+      if (splash.visible) {
+        const seconds = (now - splashedAt) / 1000;
+        for (const { bead, x, up, ahead, size } of ways) {
+          // Thrown up from the water ahead; the run carries the view through them.
+          bead.position.set(
+            eyes.x + x * (0.3 + seconds),
+            WATER_LEVEL + up * seconds - 9 * seconds * seconds,
+            -ahead + 14 * seconds,
+          );
+          bead.scale.setScalar(size * (1 - thrown * 0.6));
+        }
+      }
+
+      // On a vine the view looks down into the swing and up out of it.
+      if (running && run.swing !== null)
+        pitch -= Math.cos(run.swing * Math.PI) * FX.arc.tilt * hang * calm;
+
       // Hanging, the body swings a little under the hands.
       pitch += hang * Math.sin(now / FX.swing.ms) * FX.swing.tilt;
       back += hang * Math.sin(now / FX.swing.ms) * FX.swing.reach;
 
       // On the road the view bobs with each stride.
-      const grounded = running && !run.hanging && !run.wading && run.lift < 0.05;
+      const grounded =
+        running && !run.hanging && !run.wading && !run.falling && Math.abs(run.lift) < 0.05;
       stride += ((grounded ? 1 : 0) - stride) * (1 - Math.exp(-elapsed / 150));
       rise += Math.abs(Math.sin(run.distance * FX.stride.rate)) * FX.stride.bob * stride;
       roll += Math.sin(run.distance * FX.stride.rate) * FX.stride.sway * stride;
+
+      // A tree that lands just behind shakes the ground under the feet.
+      const thud = 1 - since(thudAt, FX.thud.ms);
+      rise -= Math.sin(thud * Math.PI) * thud * FX.thud.drop;
+      roll += Math.sin(thud * Math.PI * 5) * thud * FX.thud.shake;
 
       // A step into another lane leans into it, once.
       if (run.stepped)
@@ -527,9 +407,19 @@ export function createScene(container: HTMLElement) {
       for (const item of run.items) {
         let made = built.get(item);
         if (!made) {
-          made = build(item.obstacle);
+          made = theme.build(item.obstacle);
           built.set(item, made);
           scene.add(made);
+        }
+        // A world shows a hollow trunk that was struck bursting apart.
+        made.userData.struck = item.struck === true;
+        if (
+          item.obstacle.kind === "fall" &&
+          !made.userData.landed &&
+          run.distance - item.obstacle.at >= FELLING.lands
+        ) {
+          made.userData.landed = true;
+          thudAt = now;
         }
         // A monster comes at the character: further off than its place on the road, closing
         // faster, and waddling as it comes.
@@ -537,7 +427,11 @@ export function createScene(container: HTMLElement) {
         const behind = (run.distance - item.obstacle.at) * (charging ? MONSTER.charge : 1);
         // Once it has arrived it looms right in front of the view until it strikes or is punched.
         made.position.z =
-          charging && item.state !== "hit" ? Math.min(behind, -MONSTER_LOOMS) : behind;
+          charging && (item.state === "coming" || item.state === "punched")
+            ? Math.min(behind, -MONSTER_LOOMS)
+            : behind;
+        // One that has struck is gone in the blow: it is not drawn passing through the view.
+        if (charging && item.state === "hit") made.visible = false;
         if (charging && !item.punched) {
           made.position.y = Math.abs(Math.sin(now / 90)) * 0.25;
           made.rotation.z = Math.sin(now / 90) * 0.06;
@@ -586,19 +480,32 @@ export function createScene(container: HTMLElement) {
         });
       } else burstFor = null;
 
-      sand.offset.y = grass.offset.y = run.distance / TILE;
-      for (const object of passing) {
-        object.position.z = ((object.userData.at + run.distance) % ROAD_LENGTH) - ROAD_LENGTH + 12;
-      }
+      // Both hands meet at the end of a rope, above the middle of the shoulders.
+      const holding = running && run.hanging;
+      if (holding)
+        hands.set(
+          arms.object.position.x,
+          arms.object.position.y + FIGURE.hip + FIGURE.torso + ROPE_GRIP.y,
+          -ROPE_GRIP.z,
+        );
+      theme.update({
+        distance: run.distance,
+        now,
+        elapsed,
+        eyes: camera.position,
+        hang,
+        detail: EASE.detail[strain] ?? 1,
+        running,
+        hands: holding ? hands : null,
+      });
       renderer.render(scene, camera);
     },
     dispose() {
-      window.clearTimeout(timeout);
       observer.disconnect();
+      theme.dispose();
       arms.dispose();
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
-      for (const map of textures) map.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

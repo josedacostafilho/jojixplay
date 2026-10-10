@@ -13,8 +13,14 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   page,
 }) => {
   const textureRequests: string[] = [];
+  // Anything the page's own security policy refuses, such as a model's textures.
+  const refused: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && /Content Security Policy|GLTFLoader/.test(message.text()))
+      refused.push(message.text());
+  });
   page.on("request", (request) => {
-    if (new URL(request.url()).pathname.endsWith(".png")) textureRequests.push(request.url());
+    if (new URL(request.url()).pathname.endsWith(".glb")) textureRequests.push(request.url());
   });
   // This journey starts two real GPU sessions, each with bounded model warm-up.
   test.setTimeout(120_000);
@@ -128,8 +134,14 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   expect(textureRequests).toEqual([]);
   await choose("Próximo jogo");
   await choose("Jogar Corrida dos Blocos");
-  await expect(page.locator(".race-prompt")).toBeVisible();
-  await expect.poll(() => new Set(textureRequests).size).toBe(6);
+  // The forest's models are read and first drawn by software here, beside the pose model.
+  await expect(page.locator(".race-prompt")).toBeVisible({ timeout: 40_000 });
+  await expect.poll(() => new Set(textureRequests).size).toBe(22);
+  // The models' pictures are inside their files and are read through blob addresses.
+  await expect(page.locator(".race-prompt")).not.toHaveText("Preparando a pista…", {
+    timeout: 40_000,
+  });
+  expect(refused).toEqual([]);
   expect(textureRequests.every((url) => new URL(url).origin === new URL(page.url()).origin)).toBe(
     true,
   );
@@ -150,7 +162,7 @@ test("phone play reaches a real local pose packet with a fullscreen menu camera 
   await expect(page.getByRole("button", { name: "Encerrar brincadeira" })).toBeVisible();
   await choose("Próximo jogo");
   await choose("Jogar Corrida dos Blocos");
-  await expect(page.locator(".race-prompt")).toBeVisible();
+  await expect(page.locator(".race-prompt")).toBeVisible({ timeout: 40_000 });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { name: "Vire o celular" })).toBeVisible();
   await expect(page.locator("video")).toHaveCount(0);

@@ -185,6 +185,38 @@ export function calibrate(body: Body, aspect: number): Calibration | null {
 }
 
 /**
+ * The same lanes laid out again in a new picture of the same player, part of the way through a
+ * run: wherever they now are in it is where they were in lanes, and as crouched as they were.
+ */
+export function recalibrate(
+  body: Body,
+  aspect: number,
+  was: Pick<Puppet, "offset" | "crouch">,
+): Calibration | null {
+  const x = standingX(body);
+  const shoulders = middle(body.leftShoulder, body.rightShoulder);
+  const width = shoulderWidth(body, aspect);
+  if (x === null || !shoulders || width === null) return null;
+  const hips = middle(body.leftHip, body.rightHip);
+  const laneWidth = (width / aspect) * TUNING.lanePerShoulder;
+  const torso = hips
+    ? Math.max(hips.y - shoulders.y, width * 0.8)
+    : width * TUNING.torsoPerShoulder;
+  const lowered = was.crouch * TUNING.crouchPerTorso * torso;
+  return {
+    centerX: x + was.offset * laneWidth,
+    laneWidth,
+    standing: Object.fromEntries(
+      HEIGHT_MARKS.flatMap((mark) => {
+        const joint = body[mark];
+        return joint ? [[mark, joint.y - lowered]] : [];
+      }),
+    ),
+    torso,
+  };
+}
+
+/**
  * From one joint to another in the avatar's space. The player faces the camera and the avatar
  * faces into the screen, the same way, so all three of the camera's axes are the other way
  * round: its right is the player's left, its down is up, and towards it is forwards.

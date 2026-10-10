@@ -48,8 +48,42 @@ export const LOG_HEIGHT = 0.55;
 export const RAIL_HEIGHT = 3;
 /** How far each of a lane's two rails is from the lane's middle: over each shoulder. */
 export const RAIL_SPREAD = FIGURE.shoulder;
-/** How deep a character that let go of the rails stands in the pool. */
+/** A river runs in a channel this far below the road. */
+export const WATER_LEVEL = -0.9;
+/** How deep a character that fell into a river stands in it. */
 export const POOL_DEPTH = 0.4;
+/** A character that fell into a river goes down its bank, and up the far one, over this much road. */
+export const BANK = 2.6;
+/**
+ * A character that fell into a ravine falls faster and faster, by `fall` units a second each
+ * second, to `deepest` at most. The ravine's walls go down `depth` and are lost in the dark.
+ * It is gone from sight `vanish` before where the far wall may first be.
+ */
+export const RAVINE = { fall: 30, deepest: 26, depth: 48, vanish: 1 } as const;
+/**
+ * The far edge of a gap is drawn ragged: anywhere from where the gap is said to end to this
+ * much further on. Nothing is decided by where it is drawn; everything allows for the most.
+ */
+export const RECESS = { ravine: 3, river: 1 } as const;
+/**
+ * Past the furthest the far edge can be, by `clear`, a character is set down: let go by a vine,
+ * or put back on the road from `from` above it over the next `drop` after a fall.
+ */
+export const LANDING = { clear: 0.3, from: 0.9, drop: stretch(0.15) } as const;
+/** A vine swings down and up again: by `dip` for each unit across, and no more than `most`. */
+export const SWING = { dip: 0.09, most: { ravine: 2, river: 0.9 } } as const;
+/**
+ * A hollow trunk lying along a lane. Its roof inside is where a beam's underside is, so what
+ * ducks under a beam goes through it. `room` is how far from the lane's middle a character
+ * inside it can be, and `beside` how near one outside it can come, in lanes.
+ */
+export const TRUNK = { inner: 0.78, outer: 1, wide: 1.3, room: 0.08, beside: 0.56 } as const;
+/**
+ * A falling tree starts to go `from` ahead of the character and is on the ground `lands` after
+ * passing it. At the moment it passes it is drawn `over` high above the middle of the middle
+ * lane: lower than a beam, so that nobody thinks to go under it with the head up.
+ */
+export const FELLING = { from: stretch(3), lands: stretch(0.25), over: 1.2 } as const;
 /**
  * A monster is far taller and wider than the character, and comes at it: it is always `charge`
  * times as far off as a thing standing on the road would be, so it closes that much faster and

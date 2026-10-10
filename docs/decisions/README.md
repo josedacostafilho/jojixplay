@@ -52,6 +52,7 @@ ADRs capture durable, consequential choices whose rationale would otherwise be l
 | [0038](0038-corrida-first-person-depth-and-punch.md) | Accepted | Show Corrida through the character's eyes with only its arms, posed in depth, and add punching monsters |
 | [0039](0039-corrida-run-length-and-endings.md) | Accepted | Give Corrida runs a five-minute length, a finish, failure on the last heart (off while trying out) and a tilted view on rails |
 | [0040](0040-corrida-pace-and-acting-view.md) | Accepted | Run Corrida faster and let its view act out events with eased movements set off by the game, never by tracked angles |
+| [0041](0041-corrida-maps-and-the-night-jungle.md) | Accepted | Give Corrida maps made of levels, with themes; make the first the Amazon forest at night from free models, and keep the block forest for the studio |
 
 Use [0000-template.md](0000-template.md) for the next record.
 

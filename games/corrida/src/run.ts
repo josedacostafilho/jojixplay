@@ -5,35 +5,41 @@ import {
   type WorldBody,
   type WorldFrame,
 } from "@jojixplay/game-sdk";
-import { Course, extent, type Obstacle } from "./course";
+import { Course, extent, type Obstacle, setDown, tube } from "./course";
 import {
   type Arm,
   calibrate,
   canStart,
+  type Lane,
   type Puppet,
   PuppetReader,
   preview,
+  recalibrate,
   standingX,
 } from "./puppet";
 import {
+  BANK,
   BEAM_SPACING,
   BEAM_UNDERSIDE,
   FIGURE,
   figure,
+  LANDING,
   LOG_HEIGHT,
   MONSTER,
   POOL_DEPTH,
   RAIL_HEIGHT,
+  RAVINE,
   SPEED,
+  SWING,
   stretch,
+  TRUNK,
+  WATER_LEVEL,
 } from "./world";
 
 /** How long the player must stand in place before the lanes are laid out around them. */
 export const SETTLE_MS = 800;
 /** Tracking may drop a reading or two while the player stands still; that is not leaving. */
 const FLICKER_MS = 400;
-/** A player unseen for this long has left; the next run starts from where they stand then. */
-const ABSENCE_MS = 6000;
 
 /** What kind of run this is. */
 export interface RunOptions {
@@ -41,9 +47,11 @@ export interface RunOptions {
   readonly seconds: number;
   /** Hearts that run out come back, and the run goes on. Without it, the run is failed. */
   readonly immortal: boolean;
+  /** Which road to lay, to try the same one again. Any road, when not said. */
+  readonly road?: number;
 }
-/** While the game is being tried out: five minutes, and nothing ends a run early. */
-export const TRIAL: RunOptions = { seconds: 300, immortal: true };
+/** While the game is being tried out: one level of two minutes, and nothing ends a run early. */
+export const TRIAL: RunOptions = { seconds: 120, immortal: true };
 
 // Phone-tuning parameters.
 export const RULES = {
@@ -68,8 +76,10 @@ export const RULES = {
   punch: { reach: 10, late: stretch(0.12), points: 10 },
   /** Time itself slows through the last stretch before the finish, to this share of its speed. */
   slow: { finishFrom: stretch(0.7), finishPace: 0.4 },
+  /** The character is drawn into line with a hollow trunk over this much road before its mouth. */
+  lineUp: stretch(0.3),
   /** How far ahead obstacles are laid, and how far behind they are forgotten. */
-  ahead: stretch(7),
+  ahead: stretch(7.8),
   behind: 14,
 } as const;
 
@@ -85,6 +95,18 @@ export interface Item {
   state: "coming" | "passed" | "hit" | "punched";
   /** How many of a tunnel's beams the character has gone under. */
   beams: number;
+  /** The character has come to the start of this trunk or gap. */
+  met?: boolean;
+  /** The character took hold of the vine over this gap as it came to it. */
+  holding?: boolean;
+  /** The character struck this hollow trunk, at its mouth or from inside. */
+  struck?: boolean;
+  /** The character went into this hollow trunk, ducked. */
+  inside?: boolean;
+  /** The lane the character was in as it came to a trunk it did not go into. */
+  beside?: Lane;
+  /** Where along the road the character fell into this gap. */
+  fellFrom?: number;
   /** When a monster was punched, and by which arm. */
   punched?: { readonly at: number; readonly side: "left" | "right" };
 }
@@ -140,8 +162,15 @@ export class Run {
   /** When the character last came down from such an arc, and last fell into a pool. */
   public landedAt = Number.NEGATIVE_INFINITY;
   public fellAt = Number.NEGATIVE_INFINITY;
-  /** Wading through a pool it fell into. */
+  /** Wading through a river it fell into, or down in a ravine it fell into. */
   public wading = false;
+  public falling = false;
+  /** 0 to 1: how far the dark has closed in on a character falling into a ravine. */
+  public dark = 0;
+  /** How far across a gap the character has swung on its vine, from 0 to 1; null otherwise. */
+  public swing: number | null = null;
+  /** Inside a hollow trunk. */
+  public inside = false;
   /** When the player last changed lane, and which way: -1 to the screen's left. */
   public stepped: { readonly at: number; readonly way: -1 | 1 } | null = null;
   /** When the character last ran into something, and when hearts last ran out. */
@@ -152,7 +181,14 @@ export class Run {
   /** The arc carrying the character over a log, by distances along the road. */
   private jump: { readonly from: number; readonly to: number; readonly over: Item } | null = null;
   private wasJumping = false;
-  private lane: Puppet["lane"] = 0;
+  private lane: Lane = 0;
+  /** The lane of the vine last held: the character is drawn under it. */
+  private heldLane: Lane = 0;
+  /**
+   * A hollow trunk the character is in, beside or just coming to: it is drawn within the
+   * trunk's walls (`side` 0) or clear of them on one side, as fully as `weight` says.
+   */
+  private channel: { lane: Lane; side: -1 | 0 | 1; weight: number } | null = null;
   private course: Course;
   private laid = 0;
   private reader: PuppetReader | null = null;
@@ -160,6 +196,10 @@ export class Run {
   private lostSince: number | null = null;
   private previousAt: number | null = null;
   private epoch: number | null = null;
+  /** The camera's picture has changed under a run: its lanes are to be laid out in the new one. */
+  private remeasure = false;
+  /** How high the character last hung by a hand that held. */
+  private hung = 0;
 
   public constructor(
     private readonly seed: number,
@@ -173,8 +213,12 @@ export class Run {
     const elapsed =
       this.previousAt === null ? 0 : Math.min(100, Math.max(0, now - this.previousAt));
     this.previousAt = now;
-    // A new camera basis moves everything the calibration measured.
-    if (frame && this.epoch !== null && frame.epoch !== this.epoch) this.restart();
+    // A new camera basis moves everything that was measured in the old one. A run goes on, and
+    // its lanes are laid out again in the new picture; the wait to start one begins again.
+    if (frame && this.epoch !== null && frame.epoch !== this.epoch) {
+      this.remeasure = this.phase === "running";
+      this.settlingSince = null;
+    }
     if (frame) this.epoch = frame.epoch;
 
     const seen = frame && isFresh(frame, now) ? player(frame) : null;
@@ -192,9 +236,9 @@ export class Run {
         this.phase = "waiting";
         this.waitingFor = "player";
         this.settled = 0;
-      } else if (now - this.lostSince > ABSENCE_MS) this.restart();
-      // The road does not wait for a player the camera has lost: the character keeps the lane
-      // and pose it was last seen in, and whatever arrives meets it like that.
+      }
+      // The road does not wait for a player the camera has lost, however long: the character
+      // keeps the lane and pose it was last seen in, and whatever arrives meets it like that.
       else this.advance(now, elapsed);
       return;
     }
@@ -203,6 +247,16 @@ export class Run {
     const aspect = frame.width / frame.height;
 
     if (this.phase === "running" && this.reader) {
+      if (this.remeasure) {
+        const fresh = this.puppet ? recalibrate(body, aspect, this.puppet) : null;
+        // Until the player can be measured in the new picture, they are as they last were.
+        if (!fresh) {
+          this.advance(now, elapsed);
+          return;
+        }
+        this.reader = new PuppetReader(fresh);
+        this.remeasure = false;
+      }
       this.puppet = this.reader.read(body, world, aspect, frame.capturedAtMs);
       this.advance(now, elapsed);
       return;
@@ -232,10 +286,6 @@ export class Run {
     if (!puppet) return;
     const pace = this.distance >= this.length - RULES.slow.finishFrom ? RULES.slow.finishPace : 1;
     this.distance += (SPEED * pace * elapsed) / 1000;
-    if (this.lane !== puppet.lane) {
-      this.stepped = { at: now, way: puppet.lane > this.lane ? 1 : -1 };
-      this.lane = puppet.lane;
-    }
     this.course.layTo(this.distance + RULES.ahead);
     for (; this.laid < this.course.obstacles.length; this.laid += 1) {
       const obstacle = this.course.obstacles[this.laid];
@@ -245,24 +295,96 @@ export class Run {
       (item) => item.obstacle.at + extent(item.obstacle) > this.distance - RULES.behind,
     );
 
+    const seen = figure(puppet);
+    // Under a roof only the head's own height counts: a hop does not lift it there.
+    const ducked = seen.top <= BEAM_UNDERSIDE;
+    /** The trunk or gap the character is in the length of. */
+    const over = this.items.find(
+      (item) =>
+        (item.obstacle.kind === "gap" || item.obstacle.kind === "trunk") &&
+        this.distance >= item.obstacle.at &&
+        this.distance < item.obstacle.at + extent(item.obstacle),
+    );
+    const pipe = over ? tube(over.obstacle) : null;
+    // A hollow trunk is gone into at its mouth, ducked, from its own lane. A head held up
+    // there, or lifted anywhere inside, strikes it.
+    if (over && !over.met) {
+      over.met = true;
+      if (pipe === puppet.lane) {
+        if (ducked) over.inside = true;
+        else this.strike(over, now);
+      } else if (over.obstacle.kind === "trunk") over.beside = puppet.lane;
+    }
+    if (over?.inside && over.state === "coming" && !ducked) this.strike(over, now);
+    const inside = over?.inside === true && over.state === "coming";
+    // Its walls keep whoever is inside in its lane and whoever is outside out of it, whatever
+    // the player's feet do. Past its end the character is wherever the player stands.
+    const lane: Lane =
+      inside && pipe !== null
+        ? pipe
+        : over?.beside !== undefined && puppet.lane === pipe
+          ? over.beside
+          : puppet.lane;
+    if (this.lane !== lane) {
+      this.stepped = { at: now, way: lane > this.lane ? 1 : -1 };
+      this.lane = lane;
+    }
+
     // A hand takes hold above the head and lets go below the shoulders, so it does not flicker
     // between. A hand the camera cannot see is doing what it was last seen doing.
-    const seen = figure(puppet);
     for (const side of ["left", "right"] as const) {
       if (!puppet.arms[side]) continue;
       this.grip[side] = seen[side].hand.y > (this.grip[side] ? seen.neck.y : seen.head.y);
     }
-    const over = this.items.find(
-      (item) =>
-        item.obstacle.kind === "rails" &&
-        this.distance >= item.obstacle.at &&
-        this.distance < item.obstacle.at + extent(item.obstacle),
-    );
-    this.hanging = over?.state === "coming" && (this.grip.left || this.grip.right);
+    const gap = over?.obstacle.kind === "gap" ? over : undefined;
+    const chasm = gap?.obstacle.kind === "gap" ? gap.obstacle : undefined;
+    // A gap is said to end where its far edge may first be, and a character over it is set
+    // down past the furthest that edge may be: nothing depends on where the edge is drawn.
+    const ideal = chasm ? chasm.at + chasm.length : 0;
+    const landing = chasm ? setDown(chasm) : 0;
+    const crossing = chasm !== undefined && this.distance < landing;
+    // The vine hangs over one lane: it is taken from that lane, as the gap starts, and once
+    // taken carries the character whatever the player's feet do. It must be held as far as the
+    // gap is said to go; from there it carries the character on by itself.
+    const within =
+      gap !== undefined && crossing && !inside && (gap.holding === true || chasm?.vine === lane);
+    const gripping =
+      this.grip.left || this.grip.right || (gap?.holding === true && this.distance >= ideal);
+    this.hanging = gap?.state === "coming" && within && gripping;
+    if (gap && chasm && this.hanging) {
+      gap.holding = true;
+      if (chasm.vine !== null) this.heldLane = chasm.vine;
+    }
+    // Neither held nor inside: into the gap, for the rest of the way across.
+    if (gap && crossing && gap.state === "coming" && !this.hanging && !inside)
+      this.judge(gap, false, now);
+    if (gap && crossing && gap.state === "hit" && gap.fellFrom === undefined) {
+      gap.fellFrom = this.distance;
+      this.fellAt = now;
+    }
+    const fallen = gap !== undefined && gap.fellFrom !== undefined;
     const held = (side: "left" | "right") =>
       puppet.arms[side] ?? (this.hanging && this.grip[side] ? HOLDING : null);
     this.arms = { left: held("left"), right: held("right") };
     this.pull += ((this.hanging ? 1 : 0) - this.pull) * (1 - Math.exp(-elapsed / 220));
+
+    // Where the character is drawn about a hollow trunk it is in, beside, or just coming to.
+    this.channel = null;
+    for (const item of this.items) {
+      const trunk = tube(item.obstacle);
+      const ahead = item.obstacle.at - this.distance;
+      if (trunk === null || item.state !== "coming" || ahead > RULES.lineUp) continue;
+      if (this.distance >= item.obstacle.at + extent(item.obstacle)) continue;
+      const weight = ahead > 0 ? 1 - ahead / RULES.lineUp : 1;
+      if (item.met ? item.inside : puppet.lane === trunk)
+        this.channel = { lane: trunk, side: 0, weight };
+      else if (item.obstacle.kind === "trunk")
+        this.channel = {
+          lane: trunk,
+          side: ((item.met ? item.beside : puppet.lane) ?? 0) > trunk ? 1 : -1,
+          weight,
+        };
+    }
 
     // Leaving the ground with a log the right distance ahead is the jump over it.
     if (puppet.jumping && !this.wasJumping && this.tracking && !this.jump) {
@@ -300,7 +422,7 @@ export class Run {
           // As far off as it is seen to be.
           ahead * MONSTER.charge <= RULES.punch.reach &&
           ahead >= -RULES.punch.late &&
-          (obstacle.lane === puppet.lane || obstacle.lane !== (side === "left" ? 1 : -1))
+          (obstacle.lane === lane || obstacle.lane !== (side === "left" ? 1 : -1))
         );
       });
       if (!monster) continue;
@@ -315,15 +437,47 @@ export class Run {
       const along = (this.distance - this.jump.from) / (this.jump.to - this.jump.from);
       this.lift = 4 * RULES.jump.height * along * (1 - along);
       this.arc = along;
-    } else if (this.hanging) {
-      // The character hangs by its highest holding hand.
+    } else if (this.hanging && chasm) {
+      // The character hangs by its highest holding hand, and swings down and up again across.
       const hands = (["left", "right"] as const).flatMap((side) =>
         this.grip[side] ? [shape[side].hand.y] : [],
       );
-      this.lift = RAIL_HEIGHT - Math.max(...hands);
-    } else if (over) {
-      this.lift = -POOL_DEPTH;
-      if (!this.wading) this.fellAt = now;
+      if (hands.length > 0) this.hung = RAIL_HEIGHT - Math.max(...hands);
+      const across = landing - chasm.at;
+      const share = Math.min(1, Math.max(0, (this.distance - chasm.at) / across));
+      const dip = Math.min(SWING.most[chasm.over], across * SWING.dip);
+      this.lift = this.hung - dip * Math.sin(Math.PI * share);
+      this.swing = share;
+    } else if (gap && chasm && fallen) {
+      const from = gap.fellFrom ?? chasm.at;
+      if (chasm.over === "ravine") {
+        // Down and down, faster and faster, with the dark closing in. Short of where the far
+        // wall may be it is gone from sight, and past the furthest the wall may be it is put
+        // back above the road and comes down onto it. The road never stops.
+        const vanish = Math.max(from, ideal - RAVINE.vanish);
+        if (this.distance < vanish) {
+          const seconds = (this.distance - from) / SPEED;
+          this.lift = -Math.min(RAVINE.deepest, (RAVINE.fall * seconds * seconds) / 2);
+          this.dark = 0.8 * ((this.distance - from) / (vanish - from)) ** 2;
+        } else if (this.distance < landing) {
+          // Unseen, it is already where it will come back.
+          this.dark = 1;
+          this.lift = LANDING.from;
+        } else {
+          const share = Math.min(1, (this.distance - landing) / LANDING.drop);
+          this.lift = LANDING.from * (1 - share * share);
+          this.dark = Math.max(0, 1 - share * 2.5);
+        }
+      } else {
+        // Down one bank into the water and up the other, to be out where the far bank may
+        // first be.
+        const down = (this.distance - from) / (BANK / 2);
+        const up = (ideal - this.distance - BANK / 2) / BANK;
+        const sunk = Math.min(1, Math.max(0, Math.min(down, up)));
+        this.lift = (WATER_LEVEL - POOL_DEPTH) * sunk * sunk * (3 - 2 * sunk);
+      }
+    } else if (inside) {
+      this.lift = 0;
     } else {
       // A player the camera has lost is not taken to be still in the air.
       const rise = this.tracking ? puppet.rise : 0;
@@ -331,7 +485,14 @@ export class Run {
     }
 
     if (!this.jump) this.arc = null;
-    this.wading = !!over && !this.hanging;
+    if (!this.hanging) this.swing = null;
+    const wasFalling = this.falling;
+    this.wading = fallen && chasm?.over === "river" && this.distance < ideal;
+    this.falling = fallen && chasm?.over === "ravine";
+    if (!this.falling) this.dark = 0;
+    // Back on the road after a fall: it lands as after any drop.
+    if (wasFalling && !this.falling) this.landedAt = now;
+    this.inside = inside;
     if (this.distance >= this.length) {
       this.end("finished");
       return;
@@ -343,11 +504,16 @@ export class Run {
       const { obstacle } = item;
       if (item.state !== "coming" || this.distance < obstacle.at) continue;
       if (obstacle.kind === "block") {
-        this.judge(item, !obstacle.lanes.includes(puppet.lane), now);
+        this.judge(item, !obstacle.lanes.includes(lane), now);
+      } else if (obstacle.kind === "fall") {
+        // It is still coming down as it is passed: on the ground on the side it falls from,
+        // head high over the middle, and well clear of the far side.
+        this.judge(item, lane !== obstacle.from && (lane !== 0 || ducked), now);
       } else if (obstacle.kind === "monster") {
-        // It reaches across the whole road: unpunched, it gets the character wherever it is,
-        // a moment after it arrives.
-        if (this.distance >= obstacle.at + RULES.punch.late) this.judge(item, false, now);
+        // Unpunched, it strikes a moment after it arrives. A great one reaches across the
+        // whole road and gets the character wherever it is; a small one only in its own lane.
+        if (this.distance >= obstacle.at + RULES.punch.late)
+          this.judge(item, obstacle.size === "small" && obstacle.lane !== lane, now);
       } else if (obstacle.kind === "log") {
         this.judge(item, this.jump?.over === item && this.lift > LOG_HEIGHT, now);
       } else if (obstacle.kind === "beam") {
@@ -359,11 +525,9 @@ export class Run {
           if (shape.top + this.lift > BEAM_UNDERSIDE) this.judge(item, false, now);
           else if (++item.beams === obstacle.beams) this.judge(item, true, now);
         }
-      } else if (this.distance >= obstacle.at + obstacle.length) {
+      } else if (this.distance >= obstacle.at + extent(obstacle)) {
+        // The far end of a trunk or a gap, come to without having struck or fallen.
         this.judge(item, true, now);
-      } else if (!this.hanging) {
-        // Nothing holds the rails: into the pool, to wade the rest of the way.
-        this.judge(item, false, now);
       }
     }
   }
@@ -371,7 +535,22 @@ export class Run {
   /** Where the character is across the road, in lanes, as it is drawn. */
   public get offset(): number {
     const puppet = this.puppet;
-    return puppet ? puppet.offset + (puppet.lane - puppet.offset) * this.pull : 0;
+    if (!puppet) return 0;
+    const offset = puppet.offset + (this.heldLane - puppet.offset) * this.pull;
+    const channel = this.channel;
+    if (!channel) return offset;
+    const want =
+      channel.side === 0
+        ? Math.min(channel.lane + TRUNK.room, Math.max(channel.lane - TRUNK.room, offset))
+        : channel.side > 0
+          ? Math.max(offset, channel.lane + TRUNK.beside)
+          : Math.min(offset, channel.lane - TRUNK.beside);
+    return offset + (want - offset) * channel.weight;
+  }
+
+  private strike(trunk: Item, now: number): void {
+    trunk.struck = true;
+    this.judge(trunk, false, now);
   }
 
   private judge(item: Item, cleared: boolean, now: number): void {
@@ -396,6 +575,11 @@ export class Run {
     this.jump = null;
     this.arc = null;
     this.wading = false;
+    this.falling = false;
+    this.dark = 0;
+    this.swing = null;
+    this.inside = false;
+    this.channel = null;
     this.pull = 0;
   }
 
@@ -420,9 +604,16 @@ export class Run {
     this.jump = null;
     this.arc = null;
     this.wading = false;
+    this.falling = false;
+    this.dark = 0;
+    this.swing = null;
+    this.inside = false;
+    this.channel = null;
     this.stepped = null;
     this.lane = 0;
     this.wasJumping = false;
+    this.remeasure = false;
+    this.hung = 0;
     this.laid = 0;
     this.course = new Course(this.seed, this.length);
   }

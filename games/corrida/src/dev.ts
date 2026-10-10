@@ -1,5 +1,7 @@
 import type { Body, WorldBody } from "@jojixplay/game-sdk";
 import { mountRun } from "./index";
+import { createBlocks } from "./themes/blocks";
+import { createJungle } from "./themes/jungle";
 
 // Stands in for the camera: a synthetic person whose position follows the pointer, with switches
 // for crouching, jumping, arm shapes, punches, leaning, a smaller and more distant player, and
@@ -18,6 +20,8 @@ const small = need<HTMLInputElement>("#small");
 const lost = need<HTMLInputElement>("#lost");
 const arms = need<HTMLSelectElement>("#arms");
 // `?seconds=20` shortens the run and `?mortal` lets it be failed, to reach either ending quickly.
+// `?road=7` lays the same road every time, to look at one thing again.
+// `?theme=blocks` runs through the first world the game was tried in, which only the studio keeps.
 const query = new URLSearchParams(location.search);
 const view = mountRun(
   stage,
@@ -27,7 +31,12 @@ const view = mountRun(
     showCamera: () => {},
     camera: () => null,
   },
-  { seconds: Number(query.get("seconds")) || 300, immortal: !query.has("mortal") },
+  {
+    seconds: Number(query.get("seconds")) || 120,
+    immortal: !query.has("mortal"),
+    ...(query.has("road") ? { road: Number(query.get("road")) } : {}),
+  },
+  query.get("theme") === "blocks" ? createBlocks : createJungle,
 );
 let sequence = 0;
 let down = false;
@@ -36,6 +45,8 @@ let up = false;
 let jab: "left" | "right" | null = null;
 /** Where the person stands, across the camera's view. The camera sees them the other way round. */
 let x = 0.5;
+/** Nobody stands before the camera until the pointer has shown where. */
+let placed = false;
 window.addEventListener("keydown", (event) => {
   if (event.code === "ArrowDown") down = true;
   if (event.code === "ArrowUp") up = true;
@@ -50,6 +61,7 @@ window.addEventListener("keyup", (event) => {
 stage.addEventListener("pointermove", (event) => {
   const bounds = stage.getBoundingClientRect();
   x = 1 - (event.clientX - bounds.left) / bounds.width;
+  placed = true;
 });
 const joint = (x: number, y: number) => ({ x, y, z: 0, confidence: 1 });
 function person(): Body {
@@ -116,11 +128,13 @@ function inOwnSpace(body: Body): WorldBody {
 const timer = setInterval(() => {
   const body = person();
   view.update(
-    lost.checked
+    lost.checked || !placed
       ? null
       : {
           sequence: sequence++,
-          capturedAtMs: performance.now(),
+          // A reading is always a little old by the time a game sees it; a frame's own clock can
+          // also run behind this one's when frames are slow.
+          capturedAtMs: performance.now() - 60,
           width: 1280,
           height: 720,
           epoch: 0,

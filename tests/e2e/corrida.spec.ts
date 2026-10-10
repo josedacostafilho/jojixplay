@@ -19,9 +19,12 @@ for (const viewport of [
     const prompt = page.locator(".race-prompt");
     const reading = page.locator(".race-reading");
 
-    // Far to one side there is no room for three lanes: the run waits.
+    // The studio's person appears where the pointer first goes, once the page has drawn itself.
+    // Far to one side there is no room for three lanes: the run waits. The forest's models are
+    // read and first drawn by software here, which takes a while.
+    await expect(prompt).toBeVisible();
     await across(0.92);
-    await expect(prompt).toHaveText("Venha para o meio");
+    await expect(prompt).toHaveText("Venha para o meio", { timeout: 40_000 });
     await expect(reading).toHaveCount(0);
     await across(0.5);
     await expect(reading).toContainText("faixa meio", { timeout: 10_000 });
@@ -76,7 +79,7 @@ test("the road waits for its pictures and says so when one cannot be loaded", as
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route("**/assets/leaves-*.png", async (route) => {
+  await page.route("**/assets/jaguar-*.glb", async (route) => {
     await pending;
     await route.fulfill({ status: 503, body: "Unavailable" });
   });
@@ -97,6 +100,7 @@ test("a run ends at its finish line and offers to run again or leave, and a mort
   await page.goto("http://127.0.0.1:4176/?seconds=6");
   const stage = await page.locator("main").boundingBox();
   if (!stage) throw new Error("Missing stage");
+  await expect(page.locator(".race-prompt")).toBeVisible();
   await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height * 0.8, { steps: 4 });
   await expect(page.getByRole("heading", { name: "Você chegou!" })).toBeVisible({
     timeout: 20_000,
@@ -110,6 +114,7 @@ test("a run ends at its finish line and offers to run again or leave, and a mort
 
   // Standing still on a long road with hearts that do not come back.
   await page.goto("http://127.0.0.1:4176/?mortal");
+  await expect(page.locator(".race-prompt")).toBeVisible();
   await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height * 0.8, { steps: 4 });
   await expect(page.getByRole("heading", { name: "Não foi dessa vez" })).toBeVisible({
     timeout: 60_000,
