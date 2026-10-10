@@ -9,6 +9,16 @@ for (const viewport of [
   }) => {
     test.setTimeout(90_000);
     await page.setViewportSize(viewport);
+    const models: string[] = [];
+    // Anything the page's own security policy refuses, such as a model's textures.
+    const refused: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && /Content Security Policy|GLTFLoader/.test(message.text()))
+        refused.push(message.text());
+    });
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname.endsWith(".glb")) models.push(request.url());
+    });
     await page.addInitScript(() => {
       Object.defineProperty(Element.prototype, "requestFullscreen", {
         value: () => Promise.reject(new Error("Test viewport")),
@@ -215,8 +225,15 @@ for (const viewport of [
     await select("← Voltar");
     await select("Sair e apagar");
     await select("Próximo jogo");
+    expect(models).toEqual([]);
     await select("Jogar Corrida dos Blocos");
     await expect(page.locator(".race-game canvas")).toHaveCount(1);
+    await expect.poll(() => new Set(models).size).toBe(22);
+    // The models' pictures are inside their files and are read through blob addresses. They are
+    // read and first drawn by software here.
+    await expect(page.getByText("Preparando a pista…")).toHaveCount(0, { timeout: 40_000 });
+    expect(refused).toEqual([]);
+    expect(models.every((url) => new URL(url).origin === new URL(page.url()).origin)).toBe(true);
     await expect(page.locator("video")).toHaveCSS("opacity", "0");
     // The run needs no button to begin; its one control is the held way out.
     await select("Voltar");
