@@ -11,7 +11,10 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto("http://127.0.0.1:4176");
+    // The controls are read against the clock, a punch within a quarter of a second. Drawn by
+    // software the jungle's frames come slower than that, so the rules are tried in the block
+    // forest; the jungle is run to both of its endings below.
+    await page.goto("http://127.0.0.1:4176/?theme=blocks");
     const stage = await page.locator("main").boundingBox();
     if (!stage) throw new Error("Missing stage");
     const across = (share: number) =>
@@ -20,8 +23,7 @@ for (const viewport of [
     const reading = page.locator(".race-reading");
 
     // The studio's person appears where the pointer first goes, once the page has drawn itself.
-    // Far to one side there is no room for three lanes: the run waits. The forest's models are
-    // read and first drawn by software here, which takes a while.
+    // Far to one side there is no room for three lanes: the run waits.
     await expect(prompt).toBeVisible();
     await across(0.92);
     await expect(prompt).toHaveText("Venha para o meio", { timeout: 40_000 });
@@ -95,7 +97,8 @@ test("the road waits for its pictures and says so when one cannot be loaded", as
 test("a run ends at its finish line and offers to run again or leave, and a mortal run can be failed", async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  // Drawn by software the jungle's frames are slow, and a run's clock goes no faster than they do.
+  test.setTimeout(240_000);
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://127.0.0.1:4176/?seconds=6");
   const stage = await page.locator("main").boundingBox();
@@ -103,13 +106,13 @@ test("a run ends at its finish line and offers to run again or leave, and a mort
   await expect(page.locator(".race-prompt")).toBeVisible();
   await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height * 0.8, { steps: 4 });
   await expect(page.getByRole("heading", { name: "Você chegou!" })).toBeVisible({
-    timeout: 20_000,
+    timeout: 60_000,
   });
   // The corner button gives way to the two choices.
   await expect(page.getByRole("button", { name: "Voltar" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Sair" })).toBeVisible();
   await page.getByRole("button", { name: "Correr de novo" }).press("Enter");
-  await expect(page.locator(".race-reading")).toContainText("faixa meio", { timeout: 10_000 });
+  await expect(page.locator(".race-reading")).toContainText("faixa meio", { timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Você chegou!" })).toHaveCount(0);
 
   // Standing still on a long road with hearts that do not come back.
@@ -117,7 +120,7 @@ test("a run ends at its finish line and offers to run again or leave, and a mort
   await expect(page.locator(".race-prompt")).toBeVisible();
   await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height * 0.8, { steps: 4 });
   await expect(page.getByRole("heading", { name: "Não foi dessa vez" })).toBeVisible({
-    timeout: 60_000,
+    timeout: 150_000,
   });
   await expect(page.getByRole("button", { name: "Tentar de novo" })).toBeVisible();
 });

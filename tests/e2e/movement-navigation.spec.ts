@@ -118,22 +118,25 @@ for (const viewport of [
         throw new Error("No reachable neutral area");
       }, game);
       await expect
-        .poll(() =>
-          page.evaluate(
-            ({ x, y, game }) =>
-              [
-                ...document.querySelectorAll<HTMLElement>(
-                  game
-                    ? ".draw-game .movement-pointer, .race-game .movement-pointer"
-                    : ".movement-pointer",
+        .poll(
+          () =>
+            page.evaluate(
+              ({ x, y, game }) =>
+                [
+                  ...document.querySelectorAll<HTMLElement>(
+                    game
+                      ? ".draw-game .movement-pointer, .race-game .movement-pointer"
+                      : ".movement-pointer",
+                  ),
+                ].some(
+                  (pointer) =>
+                    Math.abs(parseFloat(pointer.style.left) - x) < 1 &&
+                    Math.abs(parseFloat(pointer.style.top) - y) < 1,
                 ),
-              ].some(
-                (pointer) =>
-                  Math.abs(parseFloat(pointer.style.left) - x) < 1 &&
-                  Math.abs(parseFloat(pointer.style.top) - y) < 1,
-              ),
-            neutral,
-          ),
+              neutral,
+            ),
+          // The jungle's first frames are drawn by software here and take seconds.
+          { timeout: 30_000 },
         )
         .toBe(true);
       const point = await page.getByRole("button", { name, exact: true }).evaluate((button) => {
