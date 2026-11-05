@@ -13,7 +13,7 @@
   "dependencies": {
     "@jojixplay/game-sdk": "*",
     "preact": "10.29.8",
-    "three": "0.186.1"
+    "three": "0.187.0"
   },
   "devDependencies": {
     "@preact/preset-vite": "2.10.6",
